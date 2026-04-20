@@ -36,8 +36,11 @@ export function SessionGuard() {
       if (!active || !data.user) return;
       const userId = data.user.id;
 
+      // Unique suffix so remounts don't collide with a still-closing
+      // channel of the same name — same class of bug as useRealtimeTable.
+      const channelName = `session-revocations:${userId}:${Date.now()}`;
       const channel = supabase
-        .channel(`session-revocations:${userId}`)
+        .channel(channelName)
         .on(
           "postgres_changes" as never,
           {

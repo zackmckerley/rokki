@@ -22,6 +22,13 @@ import { createClient } from "./client";
  *   what you can see, but filtering keeps noise off the socket.
  * - Handlers must be stable or their latest value captured via a ref; this
  *   hook only re-subscribes when `table` / `filter` / `enabled` change.
+ *
+ * The `channelKey` param is a *debug prefix* only — we always append a
+ * random suffix so the underlying Supabase channel is unique per hook
+ * instance. Sharing a channel name across re-mounts reproducibly causes
+ * Supabase to throw `cannot add postgres_changes callbacks after
+ * subscribe()` because the client caches channels by name and returns
+ * the already-subscribed one on the second mount.
  */
 export interface RealtimeHandlers<Row> {
   onInsert?: (row: Row) => void;
@@ -45,8 +52,26 @@ export function useRealtimeTable<Row extends object = Record<string, unknown>>(
   useEffect(() => {
     if (!enabled) return;
     const supabase = createClient();
-    const key =
-      channelKey ?? `${table}:${filter ?? "all"}:${Math.random().toString(36).slice(2, 8)}`;
+    // Always unique — see the note in the JSDoc. The prefix helps when
+    // reading supabase.getChannels() in devtools.
+    const prefix = channelKey ?? `${table}:${filter ?? "all"}`;
+    const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const key = `${prefix}:${suffix}`;
+
+    // Belt-and-braces: defensively remove any stale channel still
+    // hanging around with a name that matches our prefix. Cleans up
+    // after double-mounts that didn't fully tear down.
+    try {
+      for (const existing of supabase.getChannels()) {
+        const name = (existing as unknown as { topic?: string }).topic ?? "";
+        if (name.startsWith(`realtime:${prefix}:`)) {
+          void supabase.removeChannel(existing);
+        }
+      }
+    } catch {
+      // getChannels is best-effort; ignore failures.
+    }
+
     const channel = supabase
       .channel(key)
       .on(
