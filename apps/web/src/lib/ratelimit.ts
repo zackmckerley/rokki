@@ -36,18 +36,20 @@ export async function rateLimitCheck(opts: CheckOpts): Promise<RateLimitResult> 
     auth: { autoRefreshToken: false, persistSession: false },
   });
 
-  // The RPC isn't in the generated Database types yet; cast once rather
-  // than teaching TypeScript about every new function.
-  const rpc = admin.rpc as unknown as (
-    name: string,
-    params: Record<string, unknown>,
-  ) => Promise<{ data: boolean | null; error: { message: string } | null }>;
-  const { data, error } = await rpc("rate_limit_check", {
-    _bucket: opts.bucket,
-    _token: opts.token,
-    _max_hits: opts.max,
-    _window_seconds: opts.windowSeconds,
-  });
+  // The RPC isn't in the generated Database types. Cast the function
+  // *name* (and params) instead of extracting `admin.rpc` into a local —
+  // pulling it off the object breaks the `this` binding Supabase's
+  // postgrest client needs at call time, producing a confusing
+  // "Cannot read properties of undefined (reading 'rest')" runtime error.
+  const { data, error } = await admin.rpc(
+    "rate_limit_check" as never,
+    {
+      _bucket: opts.bucket,
+      _token: opts.token,
+      _max_hits: opts.max,
+      _window_seconds: opts.windowSeconds,
+    } as never,
+  );
 
   if (error) {
     console.warn("rateLimitCheck failed; failing open", error.message);

@@ -18,6 +18,7 @@
 
 DO $$
 DECLARE
+  _admin  UUID;
   _zack   UUID;
   _carlos UUID;
   _maria  UUID;
@@ -25,38 +26,158 @@ DECLARE
   _space  UUID;
   _term   UUID;
 BEGIN
+  -- --------------------------------------------------------------------
+  -- Username-based admin login (admin / Pringles2191)
+  --
+  -- We store a real user in auth.users with the pseudo-email
+  -- admin@rokki.local; the password-login endpoint maps the username
+  -- "admin" -> that email before calling signInWithPassword. The hash
+  -- uses crypt(..., gen_salt('bf')) — the same bcrypt format Supabase
+  -- Auth uses — so Supabase accepts the password at sign-in.
+  --
+  -- Local-dev only. For production, either set a different password via
+  -- the auth admin API or disable the password-login endpoint via env.
+  -- --------------------------------------------------------------------
+  SELECT id INTO _admin FROM auth.users WHERE email = 'admin@rokki.local';
+  IF _admin IS NULL THEN
+    _admin := gen_random_uuid();
+    -- GoTrue's Go scanner can't convert NULL -> string for a handful of
+    -- legacy columns, so we seed them as empty strings. Without this,
+    -- any GoTrue endpoint that touches this user errors with
+    --   sql: Scan error on column index 3, name "confirmation_token":
+    --   converting NULL to string is unsupported
+    INSERT INTO auth.users (
+      id, instance_id, email, encrypted_password, email_confirmed_at,
+      role, aud,
+      confirmation_token, recovery_token, email_change_token_new,
+      email_change, phone_change, phone_change_token,
+      email_change_token_current,
+      raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at
+    )
+    VALUES (
+      _admin,
+      '00000000-0000-0000-0000-000000000000',
+      'admin@rokki.local',
+      crypt('Pringles2191', gen_salt('bf')),
+      now(),
+      'authenticated', 'authenticated',
+      '', '', '', '', '', '', '',
+      '{"provider":"email","providers":["email"]}'::jsonb,
+      '{}'::jsonb,
+      now(), now()
+    );
+  ELSE
+    UPDATE auth.users
+    SET encrypted_password = crypt('Pringles2191', gen_salt('bf'))
+    WHERE id = _admin;
+  END IF;
+
+  -- GoTrue requires a matching row in auth.identities with provider='email'
+  -- for signInWithPassword to work. A direct auth.users insert skips this,
+  -- so we create it explicitly. Timestamps must be non-null; GoTrue's Go
+  -- scanner also can't coerce NULL -> *time.Time.
+  INSERT INTO auth.identities (user_id, provider, provider_id, identity_data, created_at, updated_at, last_sign_in_at)
+  VALUES (
+    _admin,
+    'email',
+    _admin::text,
+    jsonb_build_object('sub', _admin::text, 'email', 'admin@rokki.local', 'email_verified', true),
+    now(), now(), now()
+  )
+  ON CONFLICT (provider_id, provider) DO NOTHING;
+
   -- Users ---------------------------------------------------------------
+  -- Helper DRY-ish: same empty-string pattern as the admin user so
+  -- GoTrue's scanner doesn't choke on NULL-to-string conversions.
   SELECT id INTO _zack FROM auth.users WHERE email = 'zack@rokki.local';
   IF _zack IS NULL THEN
     _zack := gen_random_uuid();
-    INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, role, aud)
-    VALUES (_zack, 'zack@rokki.local', crypt('rokki-local-dev', gen_salt('bf')), now(), 'authenticated', 'authenticated');
+    INSERT INTO auth.users (
+      id, instance_id, email, encrypted_password, email_confirmed_at,
+      role, aud, confirmation_token, recovery_token,
+      email_change_token_new, email_change, phone_change,
+      phone_change_token, email_change_token_current,
+      raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at
+    )
+    VALUES (
+      _zack, '00000000-0000-0000-0000-000000000000',
+      'zack@rokki.local', crypt('rokki-local-dev', gen_salt('bf')),
+      now(), 'authenticated', 'authenticated',
+      '', '', '', '', '', '', '',
+      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+      now(), now()
+    );
   END IF;
 
   SELECT id INTO _carlos FROM auth.users WHERE email = 'carlos@rokki.local';
   IF _carlos IS NULL THEN
     _carlos := gen_random_uuid();
-    INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, role, aud)
-    VALUES (_carlos, 'carlos@rokki.local', crypt('rokki-local-dev', gen_salt('bf')), now(), 'authenticated', 'authenticated');
+    INSERT INTO auth.users (
+      id, instance_id, email, encrypted_password, email_confirmed_at,
+      role, aud, confirmation_token, recovery_token,
+      email_change_token_new, email_change, phone_change,
+      phone_change_token, email_change_token_current,
+      raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at
+    )
+    VALUES (
+      _carlos, '00000000-0000-0000-0000-000000000000',
+      'carlos@rokki.local', crypt('rokki-local-dev', gen_salt('bf')),
+      now(), 'authenticated', 'authenticated',
+      '', '', '', '', '', '', '',
+      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+      now(), now()
+    );
   END IF;
 
   SELECT id INTO _maria FROM auth.users WHERE email = 'maria@rokki.local';
   IF _maria IS NULL THEN
     _maria := gen_random_uuid();
-    INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, role, aud)
-    VALUES (_maria, 'maria@rokki.local', crypt('rokki-local-dev', gen_salt('bf')), now(), 'authenticated', 'authenticated');
+    INSERT INTO auth.users (
+      id, instance_id, email, encrypted_password, email_confirmed_at,
+      role, aud, confirmation_token, recovery_token,
+      email_change_token_new, email_change, phone_change,
+      phone_change_token, email_change_token_current,
+      raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at
+    )
+    VALUES (
+      _maria, '00000000-0000-0000-0000-000000000000',
+      'maria@rokki.local', crypt('rokki-local-dev', gen_salt('bf')),
+      now(), 'authenticated', 'authenticated',
+      '', '', '', '', '', '', '',
+      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+      now(), now()
+    );
   END IF;
 
   SELECT id INTO _bank FROM auth.users WHERE email = 'bank@rokki.local';
   IF _bank IS NULL THEN
     _bank := gen_random_uuid();
-    INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, role, aud)
-    VALUES (_bank, 'bank@rokki.local', crypt('rokki-local-dev', gen_salt('bf')), now(), 'authenticated', 'authenticated');
+    INSERT INTO auth.users (
+      id, instance_id, email, encrypted_password, email_confirmed_at,
+      role, aud, confirmation_token, recovery_token,
+      email_change_token_new, email_change, phone_change,
+      phone_change_token, email_change_token_current,
+      raw_app_meta_data, raw_user_meta_data,
+      created_at, updated_at
+    )
+    VALUES (
+      _bank, '00000000-0000-0000-0000-000000000000',
+      'bank@rokki.local', crypt('rokki-local-dev', gen_salt('bf')),
+      now(), 'authenticated', 'authenticated',
+      '', '', '', '', '', '', '',
+      '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb,
+      now(), now()
+    );
   END IF;
 
   -- Profiles ------------------------------------------------------------
   INSERT INTO profiles (user_id, full_name, timezone, is_platform_admin)
   VALUES
+    (_admin,  'Admin',         'America/New_York', TRUE),
     (_zack,   'Zack McKerley', 'America/New_York', TRUE),
     (_carlos, 'Carlos Rivera', 'America/New_York', FALSE),
     (_maria,  'Maria Santos',  'America/Denver',   FALSE),

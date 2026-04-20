@@ -37,12 +37,19 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Auth gate — unauthenticated users can only reach /login and auth callback
+  // Auth gate — unauthenticated users can only reach /login, auth
+  // callback, and the auth-initiation endpoints (send-link / password-login
+  // / share-link viewer). Those have to be reachable without a session
+  // because they're *how* you get a session.
   const { pathname } = request.nextUrl;
   const isPublic =
     pathname === "/login" ||
     pathname.startsWith("/auth/") ||
+    pathname.startsWith("/api/v1/auth/") ||
     pathname.startsWith("/api/v1/health") ||
+    pathname.startsWith("/api/v1/share/") ||
+    pathname.startsWith("/r/") ||
+    pathname === "/help" ||
     (process.env.NODE_ENV !== "production" && pathname.startsWith("/api/dev/"));
 
   if (!user && !isPublic) {

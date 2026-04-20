@@ -37,9 +37,9 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-xs text-white/60 drop-shadow">
-          No password, no install. We&apos;ll email you a link.
+          Email: we send you a magic link.
           <br />
-          First time here? An admin needs to invite you.
+          Admins: use your username and password.
         </p>
       </div>
     </div>
