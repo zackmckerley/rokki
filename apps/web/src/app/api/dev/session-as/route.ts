@@ -26,9 +26,22 @@ export async function POST(request: NextRequest) {
 
   const body = (await request.json().catch(() => ({}))) as { email?: string };
   const email = body.email?.toLowerCase().trim();
-  if (!email || !email.endsWith("@test.rokki.ai")) {
+  // Allow-list: test domain for Playwright, `@rokki.local` for the seeded
+  // local-dev users (zack/carlos/maria/bank). Keeps production off entirely
+  // via the earlier NODE_ENV check.
+  const ok =
+    !!email &&
+    (email.endsWith("@test.rokki.ai") || email.endsWith("@rokki.local"));
+  if (!ok) {
     return NextResponse.json(
-      { errors: [{ code: "invalid_request", message: "email must be @test.rokki.ai" }] },
+      {
+        errors: [
+          {
+            code: "invalid_request",
+            message: "email must be @test.rokki.ai or @rokki.local",
+          },
+        ],
+      },
       { status: 400 },
     );
   }
