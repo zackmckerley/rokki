@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Rokki design tokens.
+ * Source of truth: docs/08_UI_DESIGN.md
+ * Do not hardcode colors/spacing/type — reference these variables.
+ */
+
+:root,
+[data-theme="dark"] {
+  --bg-0: #0a0a0b;
+  --bg-1: #121214;
+  --bg-2: #1a1a1d;
+  --bg-3: #232327;
+  --bg-4: #2d2d32;
+
+  --border: #2a2a2f;
+  --border-strong: #3a3a42;
+  --border-focus: #f5a623;
+
+  --text-0: #f5f5f7;
+  --text-1: #c8c8cd;
+  --text-2: #8a8a92;
+  --text-3: #5a5a62;
+  --text-disabled: #3d3d44;
+
+  --accent: #f5a623;
+  --accent-hover: #ffb83d;
+  --accent-active: #d48a0a;
+  --accent-subtle: #3d2e14;
+  --accent-subtle-hover: #4d3a1a;
+
+  --success: #3fb950;
+  --success-subtle: #0f2f18;
+  --warning: #d29922;
+  --warning-subtle: #3b2e0f;
+  --danger: #f85149;
+  --danger-subtle: #3f1515;
+  --info: #58a6ff;
+  --info-subtle: #102b4a;
+
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-serif: "GT Sectra", "Source Serif Pro", Georgia, serif;
+
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 32px;
+
+  --leading-xs: 14px;
+  --leading-sm: 18px;
+  --leading-base: 20px;
+  --leading-md: 22px;
+  --leading-lg: 24px;
+  --leading-xl: 28px;
+  --leading-2xl: 32px;
+  --leading-3xl: 40px;
+}
+
+[data-theme="light"] {
+  --bg-0: #fafafa;
+  --bg-1: #ffffff;
+  --bg-2: #f5f5f7;
+  --bg-3: #ededef;
+  --bg-4: #e5e5e8;
+
+  --border: #e5e5e8;
+  --border-strong: #d1d1d5;
+
+  --text-0: #0a0a0b;
+  --text-1: #2a2a2f;
+  --text-2: #5a5a62;
+  --text-3: #8a8a92;
+  --text-disabled: #c8c8cd;
+
+  --accent: #c86f00;
+  --accent-hover: #e38200;
+  --accent-active: #a05a00;
+  --accent-subtle: #fff4e0;
+
+  --success: #1a7f37;
+  --success-subtle: #dafbe1;
+  --warning: #9a6700;
+  --warning-subtle: #fff1c0;
+  --danger: #cf222e;
+  --danger-subtle: #ffebe9;
+  --info: #0969da;
+  --info-subtle: #ddf4ff;
+}
+
+/* Density — "cozy" is default; "compact" tightens list rows ~30% without
+   touching typography. Targets list items inside dashboard cards so the
+   rest of the UI keeps its rhythm. */
+[data-density="cozy"] {
+  --row-padding-y: 6px;
+  --card-gap: 12px;
+}
+[data-density="compact"] {
+  --row-padding-y: 3px;
+  --card-gap: 8px;
+}
+/* Legacy names for any older markup: treat default=cozy, comfortable=cozy. */
+[data-density="default"],
+[data-density="comfortable"] {
+  --row-padding-y: 6px;
+  --card-gap: 12px;
+}
+
+/* Apply the row padding to the common row patterns inside cards. */
+[data-density] [data-row] {
+  padding-top: var(--row-padding-y);
+  padding-bottom: var(--row-padding-y);
+}
+[data-density="compact"] [data-list] > * + * {
+  margin-top: 0;
+}
+[data-density="compact"] .card-stack {
+  gap: var(--card-gap);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+/* Base styles */
+
+html {
+  background: var(--bg-0);
+  color: var(--text-0);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-base);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg-0);
+  color: var(--text-0);
+}
+
+/* Tabular figures for numeric data — §08.4 */
+.numeric,
+.font-mono {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Focus visible */
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-3);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-4);
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-subtle);
+  color: var(--text-0);
+}

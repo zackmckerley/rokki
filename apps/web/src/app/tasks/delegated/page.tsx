@@ -1,0 +1,46 @@
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { TopBar } from "@/components/TopBar";
+import { TasksCard } from "@/components/dashboard/TasksCard";
+import {
+  loadAssignedTasks,
+  loadDelegatedTasks,
+  loadDashTerminals,
+} from "@/lib/dashboard-queries";
+
+export default async function DelegatedTasksPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const [assigned, delegated, terminals] = await Promise.all([
+    loadAssignedTasks(supabase, user.id),
+    loadDelegatedTasks(supabase, user.id),
+    loadDashTerminals(supabase),
+  ]);
+  const tickerById = Object.fromEntries(terminals.map((t) => [t.id, t.ticker]));
+
+  return (
+    <div className="flex min-h-screen flex-col bg-bg-0">
+      <TopBar>
+        <Link href="/" className="text-text-3 hover:text-text-1">
+          ← Dashboard
+        </Link>
+        <span className="text-text-3">·</span>
+        <span className="text-text-0">Delegated</span>
+      </TopBar>
+      <main className="mx-auto w-full max-w-4xl flex-1 p-6">
+        <div className="h-[80vh]">
+          <TasksCard
+            assigned={assigned}
+            delegated={delegated}
+            tickerById={tickerById}
+          />
+        </div>
+      </main>
+    </div>
+  );
+}

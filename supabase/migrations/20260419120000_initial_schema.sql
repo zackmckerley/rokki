@@ -1,0 +1,877 @@
+-- Rokki initial schema
+-- See docs/01_DATA_MODEL.md for authoritative spec.
+-- This migration creates all Phase 1 tables, enums, triggers, helper functions, and RLS policies.
+
+-- =============================================================================
+-- Extensions
+-- =============================================================================
+
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "citext";
+CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+CREATE EXTENSION IF NOT EXISTS "vector";
+CREATE EXTENSION IF NOT EXISTS "unaccent";
+
+-- =============================================================================
+-- Enums
+-- =============================================================================
+
+CREATE TYPE org_role AS ENUM ('owner', 'admin', 'member');
+CREATE TYPE project_role AS ENUM ('owner', 'manager', 'architect', 'gc', 'lender', 'family', 'guest');
+CREATE TYPE project_status AS ENUM ('planning', 'active', 'blocked', 'done', 'archived');
+CREATE TYPE task_status AS ENUM ('todo', 'in_progress', 'blocked', 'review', 'done');
+CREATE TYPE file_visibility AS ENUM ('project', 'owners', 'custom');
+CREATE TYPE virus_scan_status AS ENUM ('pending', 'clean', 'infected', 'skipped');
+CREATE TYPE tool_visibility AS ENUM ('private', 'org', 'project', 'public');
+CREATE TYPE approval_mode AS ENUM ('auto', 'one_time', 'per_invocation');
+CREATE TYPE approval_status AS ENUM ('pending', 'approved', 'denied', 'expired');
+CREATE TYPE invocation_status AS ENUM ('queued', 'running', 'success', 'error', 'approval_required', 'quota_exceeded', 'timeout');
+CREATE TYPE quota_period AS ENUM ('day', 'month');
+CREATE TYPE token_scope AS ENUM ('read', 'write', 'admin');
+CREATE TYPE activity_action AS ENUM (
+  'project.create', 'project.update', 'project.archive',
+  'member.invite', 'member.join', 'member.remove', 'member.role_change',
+  'task.create', 'task.update', 'task.assign', 'task.unassign', 'task.complete', 'task.delete',
+  'file.upload', 'file.update', 'file.delete', 'file.download', 'file.permission_change',
+  'comment.create', 'comment.update', 'comment.delete',
+  'tool.publish', 'tool.invoke', 'tool.approve', 'tool.deny',
+  'approval.request', 'approval.resolve',
+  'token.create', 'token.revoke',
+  'key.add', 'key.remove',
+  'emergency_access.start', 'emergency_access.end'
+);
+
+-- =============================================================================
+-- Tables
+-- =============================================================================
+
+CREATE TABLE orgs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT NOT NULL UNIQUE CHECK (slug ~ '^[a-z][a-z0-9-]{1,38}[a-z0-9]$'),
+  name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 120),
+  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by UUID NOT NULL REFERENCES auth.users(id),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  archived_at TIMESTAMPTZ
+);
+
+CREATE TABLE profiles (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  full_name TEXT CHECK (char_length(full_name) <= 120),
+  avatar_url TEXT,
+  settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+  is_platform_admin BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE org_members (
+  org_id UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role org_role NOT NULL DEFAULT 'member',
+  joined_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (org_id, user_id)
+);
+
+CREATE INDEX idx_org_members_user ON org_members(user_id);
+
+CREATE TABLE projects (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  ticker TEXT NOT NULL CHECK (ticker ~ '^[A-Z][A-Z0-9]{1,9}$'),
+  name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 200),
+  description TEXT,
+  type TEXT NOT NULL DEFAULT 'construction',
+  status project_status NOT NULL DEFAULT 'planning',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by UUID NOT NULL REFERENCES auth.users(id),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  archived_at TIMESTAMPTZ,
+  UNIQUE (org_id, ticker)
+);
+
+CREATE INDEX idx_projects_org ON projects(org_id) WHERE archived_at IS NULL;
+CREATE INDEX idx_projects_status ON projects(status) WHERE archived_at IS NULL;
+
+CREATE TABLE project_members (
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role project_role NOT NULL,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  added_by UUID NOT NULL REFERENCES auth.users(id),
+  PRIMARY KEY (project_id, user_id)
+);
+
+CREATE INDEX idx_project_members_user ON project_members(user_id);
+
+CREATE TABLE tasks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  ticker_seq INT NOT NULL,
+  title TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 300),
+  description TEXT,
+  status task_status NOT NULL DEFAULT 'todo',
+  priority SMALLINT NOT NULL DEFAULT 3 CHECK (priority BETWEEN 1 AND 4),
+  due_date DATE,
+  labels TEXT[] NOT NULL DEFAULT '{}',
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by UUID NOT NULL REFERENCES auth.users(id),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ,
+  UNIQUE (project_id, ticker_seq)
+);
+
+CREATE INDEX idx_tasks_project_status ON tasks(project_id, status);
+CREATE INDEX idx_tasks_due ON tasks(due_date) WHERE status <> 'done';
+
+CREATE TABLE task_assignees (
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  assigned_by UUID NOT NULL REFERENCES auth.users(id),
+  PRIMARY KEY (task_id, user_id)
+);
+
+CREATE INDEX idx_task_assignees_user ON task_assignees(user_id);
+
+CREATE TABLE task_dependencies (
+  task_id UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  depends_on UUID NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  PRIMARY KEY (task_id, depends_on),
+  CHECK (task_id <> depends_on)
+);
+
+CREATE TABLE files (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  folder TEXT NOT NULL DEFAULT '/',
+  filename TEXT NOT NULL CHECK (char_length(filename) BETWEEN 1 AND 300),
+  mime_type TEXT NOT NULL,
+  size_bytes BIGINT NOT NULL CHECK (size_bytes >= 0),
+  blob_key TEXT NOT NULL UNIQUE,
+  visibility file_visibility NOT NULL DEFAULT 'project',
+  visibility_roles project_role[] NOT NULL DEFAULT '{}',
+  visibility_users UUID[] NOT NULL DEFAULT '{}',
+  version INT NOT NULL DEFAULT 1 CHECK (version >= 1),
+  supersedes UUID REFERENCES files(id),
+  virus_scan_status virus_scan_status NOT NULL DEFAULT 'pending',
+  virus_scan_result TEXT,
+  sha256 TEXT,
+  uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  uploaded_by UUID NOT NULL REFERENCES auth.users(id),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at TIMESTAMPTZ,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX idx_files_project ON files(project_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_files_project_folder ON files(project_id, folder) WHERE deleted_at IS NULL;
+CREATE INDEX idx_files_supersedes ON files(supersedes);
+
+CREATE TABLE file_chunks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_id UUID NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  chunk_index INT NOT NULL,
+  content TEXT NOT NULL,
+  tokens INT NOT NULL,
+  embedding VECTOR(1536),
+  page_number INT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (file_id, chunk_index)
+);
+
+CREATE INDEX idx_file_chunks_project ON file_chunks(project_id);
+CREATE INDEX idx_file_chunks_embedding ON file_chunks USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+CREATE TABLE comments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('task', 'file', 'project')),
+  entity_id UUID NOT NULL,
+  project_id UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  parent_id UUID REFERENCES comments(id) ON DELETE CASCADE,
+  body TEXT NOT NULL CHECK (char_length(body) BETWEEN 1 AND 20000),
+  mentions UUID[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by UUID NOT NULL REFERENCES auth.users(id),
+  edited_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_comments_entity ON comments(entity_type, entity_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_comments_project ON comments(project_id) WHERE deleted_at IS NULL;
+
+CREATE TABLE activity (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID REFERENCES orgs(id) ON DELETE SET NULL,
+  project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+  actor_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  actor_token_id UUID,
+  actor_tool_id UUID,
+  action activity_action NOT NULL,
+  entity_type TEXT,
+  entity_id UUID,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_activity_project_created ON activity(project_id, created_at DESC);
+CREATE INDEX idx_activity_org_created ON activity(org_id, created_at DESC);
+CREATE INDEX idx_activity_actor_created ON activity(actor_id, created_at DESC);
+
+CREATE TABLE tools (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT NOT NULL CHECK (slug ~ '^[a-z][a-z0-9-]{1,60}[a-z0-9]$'),
+  owner_org_id UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  owner_user_id UUID NOT NULL REFERENCES auth.users(id),
+  name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 120),
+  description TEXT NOT NULL CHECK (char_length(description) BETWEEN 10 AND 2000),
+  current_version TEXT NOT NULL DEFAULT '0.0.0',
+  visibility tool_visibility NOT NULL DEFAULT 'private',
+  input_schema JSONB NOT NULL,
+  output_schema JSONB,
+  requires_providers TEXT[] NOT NULL DEFAULT '{}',
+  approval_mode approval_mode NOT NULL DEFAULT 'auto',
+  cost_credits INT NOT NULL DEFAULT 0,
+  cost_usd_estimate NUMERIC(10, 6) NOT NULL DEFAULT 0,
+  cost_description TEXT,
+  timeout_seconds INT NOT NULL DEFAULT 60 CHECK (timeout_seconds BETWEEN 1 AND 600),
+  memory_mb INT NOT NULL DEFAULT 512 CHECK (memory_mb IN (128, 256, 512, 1024, 2048)),
+  tags TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted_at TIMESTAMPTZ,
+  UNIQUE (owner_org_id, slug)
+);
+
+CREATE INDEX idx_tools_visibility ON tools(visibility) WHERE deleted_at IS NULL;
+
+CREATE TABLE tool_versions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tool_id UUID NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+  version TEXT NOT NULL CHECK (version ~ '^\d+\.\d+\.\d+$'),
+  skill_md TEXT NOT NULL,
+  scripts JSONB NOT NULL,
+  runtime TEXT NOT NULL DEFAULT 'node:20',
+  entrypoint TEXT NOT NULL,
+  published BOOLEAN NOT NULL DEFAULT FALSE,
+  published_at TIMESTAMPTZ,
+  published_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (tool_id, version)
+);
+
+CREATE TABLE tool_access (
+  tool_id UUID NOT NULL REFERENCES tools(id) ON DELETE CASCADE,
+  subject_type TEXT NOT NULL CHECK (subject_type IN ('user', 'project', 'org')),
+  subject_id UUID NOT NULL,
+  access_level TEXT NOT NULL CHECK (access_level IN ('use', 'admin')),
+  approved_by UUID REFERENCES auth.users(id),
+  approved_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ,
+  PRIMARY KEY (tool_id, subject_type, subject_id)
+);
+
+CREATE TABLE tool_invocations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tool_id UUID NOT NULL REFERENCES tools(id),
+  tool_version_id UUID NOT NULL REFERENCES tool_versions(id),
+  user_id UUID NOT NULL REFERENCES auth.users(id),
+  token_id UUID,
+  project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+  inputs_sha256 TEXT,
+  status invocation_status NOT NULL DEFAULT 'queued',
+  cost_credits INT NOT NULL DEFAULT 0,
+  cost_usd NUMERIC(10, 6) NOT NULL DEFAULT 0,
+  duration_ms INT,
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at TIMESTAMPTZ,
+  error_code TEXT,
+  error_message TEXT,
+  output_sha256 TEXT,
+  output_size_bytes INT
+);
+
+CREATE INDEX idx_invocations_user_created ON tool_invocations(user_id, started_at DESC);
+CREATE INDEX idx_invocations_tool_created ON tool_invocations(tool_id, started_at DESC);
+CREATE INDEX idx_invocations_status ON tool_invocations(status) WHERE status IN ('queued', 'running', 'approval_required');
+
+CREATE TABLE api_keys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL CHECK (provider IN ('anthropic', 'openai', 'google', 'mistral', 'cohere')),
+  wrapped_dek BYTEA NOT NULL,
+  ciphertext BYTEA NOT NULL,
+  iv BYTEA NOT NULL,
+  tag BYTEA NOT NULL,
+  key_hint TEXT NOT NULL,
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (user_id, provider)
+);
+
+CREATE TABLE access_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (char_length(name) BETWEEN 1 AND 120),
+  token_hash TEXT NOT NULL UNIQUE,
+  token_prefix TEXT NOT NULL,
+  scopes token_scope[] NOT NULL DEFAULT '{read}',
+  project_restrictions UUID[],
+  expires_at TIMESTAMPTZ,
+  last_used_at TIMESTAMPTZ,
+  last_used_ip INET,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at TIMESTAMPTZ,
+  revoked_reason TEXT
+);
+
+CREATE INDEX idx_tokens_user ON access_tokens(user_id) WHERE revoked_at IS NULL;
+CREATE INDEX idx_tokens_hash ON access_tokens(token_hash) WHERE revoked_at IS NULL;
+
+CREATE TABLE invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email CITEXT NOT NULL,
+  org_id UUID REFERENCES orgs(id) ON DELETE CASCADE,
+  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
+  role TEXT NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  invited_by UUID NOT NULL REFERENCES auth.users(id),
+  invited_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '7 days',
+  accepted_at TIMESTAMPTZ,
+  accepted_by UUID REFERENCES auth.users(id),
+  CHECK (org_id IS NOT NULL OR project_id IS NOT NULL)
+);
+
+CREATE INDEX idx_invites_email ON invites(email) WHERE accepted_at IS NULL;
+CREATE INDEX idx_invites_token ON invites(token);
+
+CREATE TABLE approvals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  type TEXT NOT NULL CHECK (type IN ('tool_access', 'tool_invocation', 'file_access', 'join_project', 'tool_publish')),
+  requester_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  approver_org_id UUID REFERENCES orgs(id),
+  approver_project_id UUID REFERENCES projects(id),
+  approver_user_id UUID REFERENCES auth.users(id),
+  subject_type TEXT NOT NULL,
+  subject_id UUID NOT NULL,
+  status approval_status NOT NULL DEFAULT 'pending',
+  context JSONB NOT NULL DEFAULT '{}'::jsonb,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at TIMESTAMPTZ,
+  resolved_by UUID REFERENCES auth.users(id),
+  note TEXT,
+  expires_at TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '14 days'
+);
+
+CREATE INDEX idx_approvals_pending ON approvals(status, requested_at) WHERE status = 'pending';
+CREATE INDEX idx_approvals_requester ON approvals(requester_id, requested_at DESC);
+
+CREATE TABLE quotas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_type TEXT NOT NULL CHECK (subject_type IN ('user', 'org')),
+  subject_id UUID NOT NULL,
+  tool_id UUID REFERENCES tools(id) ON DELETE CASCADE,
+  period quota_period NOT NULL,
+  limit_credits INT NOT NULL CHECK (limit_credits >= 0),
+  used_credits INT NOT NULL DEFAULT 0 CHECK (used_credits >= 0),
+  reset_at TIMESTAMPTZ NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (subject_type, subject_id, tool_id, period)
+);
+
+CREATE INDEX idx_quotas_subject ON quotas(subject_type, subject_id);
+
+CREATE TABLE emergency_access_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  admin_id UUID NOT NULL REFERENCES auth.users(id),
+  target_user_id UUID REFERENCES auth.users(id),
+  target_org_id UUID REFERENCES orgs(id),
+  target_project_id UUID REFERENCES projects(id),
+  reason TEXT NOT NULL CHECK (char_length(reason) BETWEEN 10 AND 1000),
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  ended_at TIMESTAMPTZ,
+  notified_target BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX idx_emergency_admin ON emergency_access_events(admin_id, started_at DESC);
+
+-- =============================================================================
+-- Triggers
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_orgs_updated BEFORE UPDATE ON orgs FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_profiles_updated BEFORE UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_projects_updated BEFORE UPDATE ON projects FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_tasks_updated BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_files_updated BEFORE UPDATE ON files FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE TRIGGER trg_tools_updated BEFORE UPDATE ON tools FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+CREATE OR REPLACE FUNCTION set_task_ticker_seq()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.ticker_seq IS NULL OR NEW.ticker_seq = 0 THEN
+    SELECT COALESCE(MAX(ticker_seq), 0) + 1 INTO NEW.ticker_seq
+    FROM tasks WHERE project_id = NEW.project_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_task_ticker BEFORE INSERT ON tasks FOR EACH ROW EXECUTE FUNCTION set_task_ticker_seq();
+
+CREATE OR REPLACE FUNCTION add_project_creator_as_owner()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO project_members (project_id, user_id, role, added_by)
+  VALUES (NEW.id, NEW.created_by, 'owner', NEW.created_by);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_project_creator AFTER INSERT ON projects FOR EACH ROW EXECUTE FUNCTION add_project_creator_as_owner();
+
+CREATE OR REPLACE FUNCTION add_org_creator_as_owner()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO org_members (org_id, user_id, role)
+  VALUES (NEW.id, NEW.created_by, 'owner');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_org_creator AFTER INSERT ON orgs FOR EACH ROW EXECUTE FUNCTION add_org_creator_as_owner();
+
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO profiles (user_id, full_name)
+  VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER trg_new_user AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- =============================================================================
+-- RLS helper functions
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION is_org_member(_org UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY INVOKER AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM org_members
+    WHERE org_id = _org AND user_id = auth.uid()
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION is_org_admin(_org UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY INVOKER AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM org_members
+    WHERE org_id = _org AND user_id = auth.uid() AND role IN ('owner', 'admin')
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION is_project_member(_project UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY INVOKER AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM project_members
+    WHERE project_id = _project AND user_id = auth.uid()
+  )
+  OR EXISTS (
+    SELECT 1 FROM projects p
+    JOIN org_members om ON om.org_id = p.org_id
+    WHERE p.id = _project
+      AND om.user_id = auth.uid()
+      AND om.role IN ('owner', 'admin')
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION project_role(_project UUID)
+RETURNS project_role LANGUAGE sql STABLE SECURITY INVOKER AS $$
+  SELECT role FROM project_members
+  WHERE project_id = _project AND user_id = auth.uid()
+  LIMIT 1;
+$$;
+
+CREATE OR REPLACE FUNCTION is_project_manager(_project UUID)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY INVOKER AS $$
+  SELECT project_role(_project) IN ('owner', 'manager')
+  OR EXISTS (
+    SELECT 1 FROM projects p
+    JOIN org_members om ON om.org_id = p.org_id
+    WHERE p.id = _project
+      AND om.user_id = auth.uid()
+      AND om.role IN ('owner', 'admin')
+  );
+$$;
+
+CREATE OR REPLACE FUNCTION has_emergency_access()
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY INVOKER AS $$
+  SELECT
+    COALESCE((SELECT is_platform_admin FROM profiles WHERE user_id = auth.uid()), false)
+    AND current_setting('app.emergency_access', true) = 'true';
+$$;
+
+CREATE OR REPLACE FUNCTION can_see_file(_file files)
+RETURNS BOOLEAN LANGUAGE sql STABLE SECURITY INVOKER AS $$
+  SELECT CASE
+    WHEN NOT is_project_member(_file.project_id) THEN false
+    WHEN _file.deleted_at IS NOT NULL THEN false
+    WHEN _file.visibility = 'project' THEN true
+    WHEN _file.visibility = 'owners' THEN is_project_manager(_file.project_id)
+    WHEN _file.visibility = 'custom' THEN
+      auth.uid() = ANY(_file.visibility_users)
+      OR project_role(_file.project_id) = ANY(_file.visibility_roles)
+    ELSE false
+  END;
+$$;
+
+-- =============================================================================
+-- Enable RLS on all tables
+-- =============================================================================
+
+ALTER TABLE orgs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE projects ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_assignees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_dependencies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE files ENABLE ROW LEVEL SECURITY;
+ALTER TABLE file_chunks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_access ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tool_invocations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE access_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invites ENABLE ROW LEVEL SECURITY;
+ALTER TABLE approvals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE quotas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE emergency_access_events ENABLE ROW LEVEL SECURITY;
+
+-- =============================================================================
+-- RLS policies
+-- =============================================================================
+
+-- Orgs
+CREATE POLICY "orgs_select" ON orgs FOR SELECT TO authenticated
+USING (is_org_member(id) OR has_emergency_access());
+
+CREATE POLICY "orgs_insert" ON orgs FOR INSERT TO authenticated
+WITH CHECK (created_by = auth.uid());
+
+CREATE POLICY "orgs_update" ON orgs FOR UPDATE TO authenticated
+USING (is_org_admin(id));
+
+CREATE POLICY "orgs_delete" ON orgs FOR DELETE TO authenticated
+USING (
+  EXISTS (SELECT 1 FROM org_members WHERE org_id = orgs.id AND user_id = auth.uid() AND role = 'owner')
+);
+
+-- Org members
+CREATE POLICY "org_members_select" ON org_members FOR SELECT TO authenticated
+USING (is_org_member(org_id) OR user_id = auth.uid() OR has_emergency_access());
+
+CREATE POLICY "org_members_insert" ON org_members FOR INSERT TO authenticated
+WITH CHECK (is_org_admin(org_id));
+
+CREATE POLICY "org_members_update" ON org_members FOR UPDATE TO authenticated
+USING (is_org_admin(org_id) AND user_id <> auth.uid());
+
+CREATE POLICY "org_members_delete" ON org_members FOR DELETE TO authenticated
+USING (
+  (is_org_admin(org_id) AND user_id <> auth.uid())
+  OR user_id = auth.uid()
+);
+
+-- Profiles
+CREATE POLICY "profiles_select" ON profiles FOR SELECT TO authenticated
+USING (true);
+
+CREATE POLICY "profiles_update" ON profiles FOR UPDATE TO authenticated
+USING (user_id = auth.uid())
+WITH CHECK (user_id = auth.uid() AND is_platform_admin IS NOT DISTINCT FROM profiles.is_platform_admin);
+
+CREATE POLICY "profiles_insert" ON profiles FOR INSERT TO authenticated
+WITH CHECK (user_id = auth.uid() AND is_platform_admin = false);
+
+-- Projects
+CREATE POLICY "projects_select" ON projects FOR SELECT TO authenticated
+USING (is_project_member(id) OR has_emergency_access());
+
+CREATE POLICY "projects_insert" ON projects FOR INSERT TO authenticated
+WITH CHECK (is_org_member(org_id) AND created_by = auth.uid());
+
+CREATE POLICY "projects_update" ON projects FOR UPDATE TO authenticated
+USING (is_project_manager(id));
+
+CREATE POLICY "projects_delete" ON projects FOR DELETE TO authenticated
+USING (
+  EXISTS (SELECT 1 FROM project_members WHERE project_id = projects.id AND user_id = auth.uid() AND role = 'owner')
+  OR is_org_admin(org_id)
+);
+
+-- Project members
+CREATE POLICY "project_members_select" ON project_members FOR SELECT TO authenticated
+USING (is_project_member(project_id) OR user_id = auth.uid() OR has_emergency_access());
+
+CREATE POLICY "project_members_insert" ON project_members FOR INSERT TO authenticated
+WITH CHECK (is_project_manager(project_id));
+
+CREATE POLICY "project_members_update" ON project_members FOR UPDATE TO authenticated
+USING (is_project_manager(project_id) AND user_id <> auth.uid());
+
+CREATE POLICY "project_members_delete" ON project_members FOR DELETE TO authenticated
+USING (
+  (is_project_manager(project_id) AND user_id <> auth.uid())
+  OR user_id = auth.uid()
+);
+
+-- Tasks
+CREATE POLICY "tasks_select" ON tasks FOR SELECT TO authenticated
+USING (is_project_member(project_id) OR has_emergency_access());
+
+CREATE POLICY "tasks_insert" ON tasks FOR INSERT TO authenticated
+WITH CHECK (is_project_member(project_id) AND created_by = auth.uid());
+
+CREATE POLICY "tasks_update" ON tasks FOR UPDATE TO authenticated
+USING (
+  is_project_manager(project_id)
+  OR created_by = auth.uid()
+  OR EXISTS (SELECT 1 FROM task_assignees WHERE task_id = tasks.id AND user_id = auth.uid())
+);
+
+CREATE POLICY "tasks_delete" ON tasks FOR DELETE TO authenticated
+USING (is_project_manager(project_id) OR created_by = auth.uid());
+
+-- Task assignees
+CREATE POLICY "task_assignees_select" ON task_assignees FOR SELECT TO authenticated
+USING (is_project_member((SELECT project_id FROM tasks WHERE id = task_id)));
+
+CREATE POLICY "task_assignees_insert" ON task_assignees FOR INSERT TO authenticated
+WITH CHECK (is_project_member((SELECT project_id FROM tasks WHERE id = task_id)));
+
+CREATE POLICY "task_assignees_delete" ON task_assignees FOR DELETE TO authenticated
+USING (is_project_member((SELECT project_id FROM tasks WHERE id = task_id)));
+
+-- Task dependencies
+CREATE POLICY "task_dependencies_select" ON task_dependencies FOR SELECT TO authenticated
+USING (is_project_member((SELECT project_id FROM tasks WHERE id = task_id)));
+
+CREATE POLICY "task_dependencies_insert" ON task_dependencies FOR INSERT TO authenticated
+WITH CHECK (is_project_manager((SELECT project_id FROM tasks WHERE id = task_id)));
+
+CREATE POLICY "task_dependencies_delete" ON task_dependencies FOR DELETE TO authenticated
+USING (is_project_manager((SELECT project_id FROM tasks WHERE id = task_id)));
+
+-- Files
+CREATE POLICY "files_select" ON files FOR SELECT TO authenticated
+USING (can_see_file(files.*) OR has_emergency_access());
+
+CREATE POLICY "files_insert" ON files FOR INSERT TO authenticated
+WITH CHECK (is_project_member(project_id) AND uploaded_by = auth.uid());
+
+CREATE POLICY "files_update" ON files FOR UPDATE TO authenticated
+USING (is_project_manager(project_id) OR uploaded_by = auth.uid());
+
+CREATE POLICY "files_delete" ON files FOR DELETE TO authenticated
+USING (is_project_manager(project_id) OR uploaded_by = auth.uid());
+
+-- File chunks
+CREATE POLICY "file_chunks_select" ON file_chunks FOR SELECT TO authenticated
+USING (
+  EXISTS (SELECT 1 FROM files WHERE id = file_chunks.file_id AND can_see_file(files.*))
+);
+
+-- Comments
+CREATE POLICY "comments_select" ON comments FOR SELECT TO authenticated
+USING (is_project_member(project_id));
+
+CREATE POLICY "comments_insert" ON comments FOR INSERT TO authenticated
+WITH CHECK (is_project_member(project_id) AND created_by = auth.uid());
+
+CREATE POLICY "comments_update" ON comments FOR UPDATE TO authenticated
+USING (created_by = auth.uid());
+
+CREATE POLICY "comments_delete" ON comments FOR DELETE TO authenticated
+USING (created_by = auth.uid() OR is_project_manager(project_id));
+
+-- Activity
+CREATE POLICY "activity_select" ON activity FOR SELECT TO authenticated
+USING (
+  (project_id IS NOT NULL AND is_project_member(project_id))
+  OR (org_id IS NOT NULL AND is_org_member(org_id))
+  OR actor_id = auth.uid()
+  OR has_emergency_access()
+);
+
+-- Tools
+CREATE POLICY "tools_select" ON tools FOR SELECT TO authenticated
+USING (
+  visibility = 'public'
+  OR (visibility = 'org' AND is_org_member(owner_org_id))
+  OR owner_user_id = auth.uid()
+  OR EXISTS (
+    SELECT 1 FROM tool_access
+    WHERE tool_id = tools.id
+      AND (
+        (subject_type = 'user' AND subject_id = auth.uid())
+        OR (subject_type = 'project' AND is_project_member(subject_id))
+        OR (subject_type = 'org' AND is_org_member(subject_id))
+      )
+      AND (expires_at IS NULL OR expires_at > now())
+  )
+);
+
+CREATE POLICY "tools_insert" ON tools FOR INSERT TO authenticated
+WITH CHECK (owner_user_id = auth.uid() AND is_org_member(owner_org_id));
+
+CREATE POLICY "tools_update" ON tools FOR UPDATE TO authenticated
+USING (owner_user_id = auth.uid() OR is_org_admin(owner_org_id));
+
+CREATE POLICY "tools_delete" ON tools FOR DELETE TO authenticated
+USING (owner_user_id = auth.uid() OR is_org_admin(owner_org_id));
+
+-- Tool versions
+CREATE POLICY "tool_versions_select" ON tool_versions FOR SELECT TO authenticated
+USING (
+  EXISTS (SELECT 1 FROM tools WHERE id = tool_versions.tool_id AND owner_user_id = auth.uid())
+);
+
+CREATE POLICY "tool_versions_insert" ON tool_versions FOR INSERT TO authenticated
+WITH CHECK (
+  EXISTS (SELECT 1 FROM tools WHERE id = tool_versions.tool_id AND owner_user_id = auth.uid())
+);
+
+-- Tool access
+CREATE POLICY "tool_access_select" ON tool_access FOR SELECT TO authenticated
+USING (
+  EXISTS (SELECT 1 FROM tools WHERE id = tool_access.tool_id AND owner_user_id = auth.uid())
+  OR (subject_type = 'user' AND subject_id = auth.uid())
+);
+
+CREATE POLICY "tool_access_insert" ON tool_access FOR INSERT TO authenticated
+WITH CHECK (
+  EXISTS (SELECT 1 FROM tools WHERE id = tool_access.tool_id AND owner_user_id = auth.uid())
+);
+
+CREATE POLICY "tool_access_delete" ON tool_access FOR DELETE TO authenticated
+USING (
+  EXISTS (SELECT 1 FROM tools WHERE id = tool_access.tool_id AND owner_user_id = auth.uid())
+);
+
+-- Tool invocations
+CREATE POLICY "tool_invocations_select" ON tool_invocations FOR SELECT TO authenticated
+USING (
+  user_id = auth.uid()
+  OR EXISTS (SELECT 1 FROM tools WHERE id = tool_invocations.tool_id AND owner_user_id = auth.uid())
+  OR has_emergency_access()
+);
+
+-- API keys
+CREATE POLICY "api_keys_select" ON api_keys FOR SELECT TO authenticated
+USING (user_id = auth.uid());
+
+CREATE POLICY "api_keys_insert" ON api_keys FOR INSERT TO authenticated
+WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "api_keys_delete" ON api_keys FOR DELETE TO authenticated
+USING (user_id = auth.uid());
+
+-- Safe view for client-facing api_keys (excludes ciphertext)
+CREATE VIEW api_keys_public AS
+SELECT id, user_id, provider, key_hint, last_used_at, created_at
+FROM api_keys;
+
+GRANT SELECT ON api_keys_public TO authenticated;
+
+-- Access tokens
+CREATE POLICY "access_tokens_select" ON access_tokens FOR SELECT TO authenticated
+USING (user_id = auth.uid());
+
+CREATE POLICY "access_tokens_insert" ON access_tokens FOR INSERT TO authenticated
+WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "access_tokens_update" ON access_tokens FOR UPDATE TO authenticated
+USING (user_id = auth.uid());
+
+-- Invites
+CREATE POLICY "invites_select" ON invites FOR SELECT TO authenticated
+USING (
+  invited_by = auth.uid()
+  OR email = (SELECT email::citext FROM auth.users WHERE id = auth.uid())
+);
+
+CREATE POLICY "invites_insert" ON invites FOR INSERT TO authenticated
+WITH CHECK (
+  invited_by = auth.uid()
+  AND (
+    (org_id IS NOT NULL AND is_org_admin(org_id))
+    OR (project_id IS NOT NULL AND is_project_manager(project_id))
+  )
+);
+
+CREATE POLICY "invites_update" ON invites FOR UPDATE TO authenticated
+USING (email = (SELECT email::citext FROM auth.users WHERE id = auth.uid()));
+
+-- Approvals
+CREATE POLICY "approvals_select" ON approvals FOR SELECT TO authenticated
+USING (
+  requester_id = auth.uid()
+  OR approver_user_id = auth.uid()
+  OR (approver_org_id IS NOT NULL AND is_org_admin(approver_org_id))
+  OR (approver_project_id IS NOT NULL AND is_project_manager(approver_project_id))
+);
+
+CREATE POLICY "approvals_insert" ON approvals FOR INSERT TO authenticated
+WITH CHECK (requester_id = auth.uid());
+
+CREATE POLICY "approvals_update" ON approvals FOR UPDATE TO authenticated
+USING (
+  approver_user_id = auth.uid()
+  OR (approver_org_id IS NOT NULL AND is_org_admin(approver_org_id))
+  OR (approver_project_id IS NOT NULL AND is_project_manager(approver_project_id))
+);
+
+-- Quotas
+CREATE POLICY "quotas_select" ON quotas FOR SELECT TO authenticated
+USING (
+  (subject_type = 'user' AND subject_id = auth.uid())
+  OR (subject_type = 'org' AND is_org_admin(subject_id))
+);
+
+-- Emergency access events
+CREATE POLICY "emergency_access_select" ON emergency_access_events FOR SELECT TO authenticated
+USING (
+  admin_id = auth.uid()
+  OR target_user_id = auth.uid()
+  OR (target_org_id IS NOT NULL AND is_org_admin(target_org_id))
+  OR (target_project_id IS NOT NULL AND is_project_manager(target_project_id))
+);
+
+-- ROLLBACK:
+-- DROP TABLE IF EXISTS emergency_access_events, quotas, approvals, invites, access_tokens, api_keys,
+--   tool_invocations, tool_access, tool_versions, tools, activity, comments, file_chunks, files,
+--   task_dependencies, task_assignees, tasks, project_members, projects, profiles, org_members, orgs CASCADE;
+-- DROP VIEW IF EXISTS api_keys_public;
+-- DROP TYPE IF EXISTS activity_action, token_scope, quota_period, invocation_status, approval_status,
+--   approval_mode, tool_visibility, virus_scan_status, file_visibility, task_status, project_status,
+--   project_role, org_role CASCADE;

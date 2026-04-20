@@ -1,0 +1,177 @@
+"use client";
+
+import Link from "next/link";
+import { Check, Circle, ArrowRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { DashboardCard, CardSection } from "./DashboardCard";
+import {
+  PriorityDots,
+  DueChip,
+  TickerChip,
+} from "@/components/primitives";
+import type { AssignedTask, DelegatedTask } from "@/lib/dashboard-queries";
+
+interface TasksCardProps {
+  assigned: AssignedTask[];
+  delegated: DelegatedTask[];
+  /** Map terminal_id → ticker for rendering the ticker chip. */
+  tickerById: Record<string, string>;
+}
+
+/**
+ * One master card with two stacked sub-sections.
+ *
+ *   ┌ TASKS ─────────────────┐
+ *   │ ASSIGNED TO ME (5)     │
+ *   │   task rows …          │
+ *   │ DELEGATED (3)          │
+ *   │   task rows …          │
+ *   └────────────────────────┘
+ *
+ * Both lists visible at once so the user never has to tab-switch to see a
+ * full picture. Overflow scrolls within the card body.
+ */
+export function TasksCard({ assigned, delegated, tickerById }: TasksCardProps) {
+  return (
+    <DashboardCard
+      title="Tasks"
+      count={assigned.length + delegated.length}
+      expandHref="/tasks/mine"
+    >
+      <CardSection title="Assigned to me" count={assigned.length}>
+        {assigned.length === 0 ? (
+          <EmptyAssigned />
+        ) : (
+          <ul className="divide-y divide-border/40">
+            {assigned.slice(0, 8).map((t) => (
+              <AssignedRow
+                key={t.id}
+                task={t}
+                ticker={tickerById[t.terminal_id]}
+              />
+            ))}
+          </ul>
+        )}
+      </CardSection>
+      <CardSection
+        title="Delegated"
+        count={delegated.length}
+        className="mt-1"
+      >
+        {delegated.length === 0 ? (
+          <EmptyDelegated />
+        ) : (
+          <ul className="divide-y divide-border/40">
+            {delegated.slice(0, 8).map((t) => (
+              <DelegatedRow
+                key={t.id}
+                task={t}
+                ticker={tickerById[t.terminal_id]}
+              />
+            ))}
+          </ul>
+        )}
+      </CardSection>
+      {assigned.length + delegated.length > 8 ? (
+        <Link
+          href="/tasks/mine"
+          className="block border-t border-border/60 bg-bg-1 px-3 py-1.5 text-center text-[11px] text-text-2 hover:bg-bg-2"
+        >
+          View all
+        </Link>
+      ) : null}
+    </DashboardCard>
+  );
+}
+
+function AssignedRow({
+  task,
+  ticker,
+}: {
+  task: AssignedTask;
+  ticker?: string;
+}) {
+  const href = ticker ? `/p/${ticker}` : undefined;
+  const body = (
+    <div
+      data-row
+      className="flex items-center gap-3 px-3 text-xs hover:bg-bg-2"
+    >
+      {task.status === "done" ? (
+        <Check className="h-3 w-3 flex-shrink-0 text-success" />
+      ) : (
+        <Circle className="h-3 w-3 flex-shrink-0 text-text-3" />
+      )}
+      {ticker ? <TickerChip>{ticker}</TickerChip> : null}
+      <span
+        className={cn(
+          "flex-1 truncate",
+          task.status === "done" ? "text-text-3 line-through" : "text-text-0",
+        )}
+      >
+        {task.title}
+      </span>
+      <PriorityDots priority={task.priority} />
+      {task.due_date ? <DueChip date={task.due_date} /> : null}
+    </div>
+  );
+  return href ? (
+    <li>
+      <Link href={href} className="block">
+        {body}
+      </Link>
+    </li>
+  ) : (
+    <li>{body}</li>
+  );
+}
+
+function DelegatedRow({
+  task,
+  ticker,
+}: {
+  task: DelegatedTask;
+  ticker?: string;
+}) {
+  const href = ticker ? `/p/${ticker}` : undefined;
+  const assigneeLabel = task.assignees
+    .map((a) => a.full_name ?? "someone")
+    .join(", ");
+  const body = (
+    <div
+      data-row
+      className="flex items-center gap-3 px-3 text-xs hover:bg-bg-2"
+    >
+      <ArrowRight className="h-3 w-3 flex-shrink-0 text-text-3" />
+      <span className="truncate text-text-2">{assigneeLabel}</span>
+      <span className="text-text-3">·</span>
+      <span className="flex-1 truncate text-text-0">{task.title}</span>
+      {ticker ? <TickerChip>{ticker}</TickerChip> : null}
+    </div>
+  );
+  return href ? (
+    <li>
+      <Link href={href} className="block">
+        {body}
+      </Link>
+    </li>
+  ) : (
+    <li>{body}</li>
+  );
+}
+
+function EmptyAssigned() {
+  return (
+    <p className="px-3 py-3 text-[11px] text-text-3">
+      You&apos;re clear. Nothing currently assigned to you.
+    </p>
+  );
+}
+function EmptyDelegated() {
+  return (
+    <p className="px-3 py-3 text-[11px] text-text-3">
+      Nothing waiting on others.
+    </p>
+  );
+}
+

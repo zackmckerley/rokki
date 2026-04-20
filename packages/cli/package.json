@@ -1,0 +1,27 @@
+{
+  "name": "@rokki/cli",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Command-line client for Rokki — publish tools, list terminals, tail activity.",
+  "type": "module",
+  "bin": {
+    "rokki": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "echo 'lint stub'",
+    "test": "vitest run"
+  },
+  "files": ["dist"],
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.3"
+  }
+}

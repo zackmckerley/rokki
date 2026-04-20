@@ -1,0 +1,65 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: rokki-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  minio:
+    image: minio/minio:latest
+    container_name: rokki-minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  minio-init:
+    image: minio/mc:latest
+    container_name: rokki-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb --ignore-existing local/rokki-files-local;
+      mc anonymous set none local/rokki-files-local;
+      exit 0;
+      "
+
+  clamav:
+    image: clamav/clamav:latest
+    container_name: rokki-clamav
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav-data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  redis-data:
+  minio-data:
+  clamav-data:
