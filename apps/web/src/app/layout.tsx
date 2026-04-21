@@ -5,6 +5,8 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { ShortcutsOverlay } from "@/components/ShortcutsOverlay";
 import { SessionGuard } from "@/components/SessionGuard";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
+import { MaintenanceBanner } from "@/components/MaintenanceBanner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -77,6 +79,8 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-bg-0 font-sans text-base text-text-0 antialiased">
+        <MaintenanceBanner />
+        <AnnouncementBanner />
         <CommandPalette>{children}</CommandPalette>
         <ShortcutsOverlay />
         <SessionGuard />

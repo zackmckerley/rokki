@@ -50,6 +50,8 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/api/v1/share/") ||
     pathname.startsWith("/r/") ||
     pathname === "/help" ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
     (process.env.NODE_ENV !== "production" && pathname.startsWith("/api/dev/"));
 
   if (!user && !isPublic) {

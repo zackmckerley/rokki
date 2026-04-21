@@ -138,6 +138,79 @@ export type Database = {
         }
         Relationships: []
       }
+      announcement_dismissals: {
+        Row: {
+          announcement_id: string
+          dismissed_at: string
+          user_id: string
+        }
+        Insert: {
+          announcement_id: string
+          dismissed_at?: string
+          user_id: string
+        }
+        Update: {
+          announcement_id?: string
+          dismissed_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcement_dismissals_announcement_id_fkey"
+            columns: ["announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      announcements: {
+        Row: {
+          audience: string
+          audience_space_id: string | null
+          body: string
+          created_at: string
+          created_by: string | null
+          dismissible: boolean
+          ends_at: string | null
+          id: string
+          starts_at: string
+          updated_at: string
+        }
+        Insert: {
+          audience?: string
+          audience_space_id?: string | null
+          body: string
+          created_at?: string
+          created_by?: string | null
+          dismissible?: boolean
+          ends_at?: string | null
+          id?: string
+          starts_at?: string
+          updated_at?: string
+        }
+        Update: {
+          audience?: string
+          audience_space_id?: string | null
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          dismissible?: boolean
+          ends_at?: string | null
+          id?: string
+          starts_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "announcements_audience_space_id_fkey"
+            columns: ["audience_space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           ciphertext: string
@@ -734,6 +807,45 @@ export type Database = {
           },
         ]
       }
+      feature_flags: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          key: string
+          rollout_percentage: number
+          scope: string
+          scope_id: string | null
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key: string
+          rollout_percentage?: number
+          scope?: string
+          scope_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          key?: string
+          rollout_percentage?: number
+          scope?: string
+          scope_id?: string | null
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       file_chunks: {
         Row: {
           chunk_index: number
@@ -792,6 +904,7 @@ export type Database = {
         Row: {
           blob_key: string
           deleted_at: string | null
+          deleted_by: string | null
           filename: string
           folder: string
           id: string
@@ -817,6 +930,7 @@ export type Database = {
         Insert: {
           blob_key: string
           deleted_at?: string | null
+          deleted_by?: string | null
           filename: string
           folder?: string
           id?: string
@@ -842,6 +956,7 @@ export type Database = {
         Update: {
           blob_key?: string
           deleted_at?: string | null
+          deleted_by?: string | null
           filename?: string
           folder?: string
           id?: string
@@ -1209,6 +1324,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      platform_config: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -2116,6 +2252,97 @@ export type Database = {
           {
             foreignKeyName: "vendors_space_id_fkey"
             columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_deliveries: {
+        Row: {
+          attempt: number
+          attempted_at: string
+          destination_id: string
+          event_name: string
+          id: string
+          payload: Json
+          response_body: string | null
+          response_code: number | null
+          status: string
+        }
+        Insert: {
+          attempt?: number
+          attempted_at?: string
+          destination_id: string
+          event_name: string
+          id?: string
+          payload: Json
+          response_body?: string | null
+          response_code?: number | null
+          status?: string
+        }
+        Update: {
+          attempt?: number
+          attempted_at?: string
+          destination_id?: string
+          event_name?: string
+          id?: string
+          payload?: Json
+          response_body?: string | null
+          response_code?: number | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_deliveries_destination_id_fkey"
+            columns: ["destination_id"]
+            isOneToOne: false
+            referencedRelation: "webhook_destinations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_destinations: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          events: string[]
+          id: string
+          owner_space_id: string | null
+          secret: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          events?: string[]
+          id?: string
+          owner_space_id?: string | null
+          secret: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          events?: string[]
+          id?: string
+          owner_space_id?: string | null
+          secret?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_destinations_owner_space_id_fkey"
+            columns: ["owner_space_id"]
             isOneToOne: false
             referencedRelation: "spaces"
             referencedColumns: ["id"]

@@ -16,6 +16,13 @@ import {
   AlertOctagon,
   XCircle,
   Download,
+  Megaphone,
+  ToggleLeft,
+  HardDrive,
+  HeartPulse,
+  Send,
+  ScrollText,
+  Palette,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
@@ -175,6 +182,44 @@ export default async function AdminLayout({
                 icon={<Download className="h-3.5 w-3.5" />}
               >
                 Export audit
+              </NavLink>
+            </NavGroup>
+            <NavGroup label="Platform">
+              <NavLink
+                href="/admin/announcements"
+                icon={<Megaphone className="h-3.5 w-3.5" />}
+              >
+                Announcements
+              </NavLink>
+              <NavLink
+                href="/admin/flags"
+                icon={<ToggleLeft className="h-3.5 w-3.5" />}
+              >
+                Feature flags
+              </NavLink>
+              <NavLink
+                href="/admin/storage"
+                icon={<HardDrive className="h-3.5 w-3.5" />}
+              >
+                Storage
+              </NavLink>
+              <NavLink
+                href="/admin/health"
+                icon={<HeartPulse className="h-3.5 w-3.5" />}
+              >
+                Health
+              </NavLink>
+              <NavLink
+                href="/admin/webhooks"
+                icon={<Send className="h-3.5 w-3.5" />}
+              >
+                Webhooks
+              </NavLink>
+              <NavLink
+                href="/admin/legal"
+                icon={<Palette className="h-3.5 w-3.5" />}
+              >
+                Legal & branding
               </NavLink>
             </NavGroup>
           </nav>
