@@ -14,6 +14,15 @@ import { useEffect, useRef, useState } from "react";
  *   - video is decorative — no captions, aria-hidden
  *   - a black fallback background paints before the video decodes so the
  *     form never sits on a flash of unstyled white
+ *
+ * Robustness:
+ *   - We try to autoplay manually after mount (some browsers will silently
+ *     refuse the declarative `autoPlay` attr but accept an explicit
+ *     `play()` call once the document is interactive)
+ *   - We flip `ready` on the *earliest* of `loadeddata`, `canplay`,
+ *     `playing`, OR a 1500ms safety timer. This stops the video sitting at
+ *     `opacity-0` indefinitely on slow dev servers where `loadeddata`
+ *     doesn't fire promptly for a 32MB MP4.
  */
 export function LoginBackground() {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -22,12 +31,45 @@ export function LoginBackground() {
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
+
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
+
+    let cancelled = false;
+    const flip = () => {
+      if (!cancelled) setReady(true);
+    };
+
+    v.addEventListener("loadeddata", flip);
+    v.addEventListener("canplay", flip);
+    v.addEventListener("playing", flip);
+
+    // Safety net: if none of those fire (slow connection, browser quirks,
+    // big MP4 still buffering), reveal the video anyway after 1.5s. The
+    // user gets the first decoded frame plus whatever streams in.
+    const timer = setTimeout(flip, 1500);
+
     if (reduceMotion) {
       v.pause();
+    } else {
+      // Some browsers ignore the declarative autoPlay; an explicit play
+      // call after hydration is more reliable. Muted is required for
+      // autoplay to be allowed in Chrome/Safari.
+      v.play().catch(() => {
+        // Autoplay blocked entirely — still reveal the video so the
+        // poster frame shows.
+        flip();
+      });
     }
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      v.removeEventListener("loadeddata", flip);
+      v.removeEventListener("canplay", flip);
+      v.removeEventListener("playing", flip);
+    };
   }, []);
 
   return (
@@ -35,7 +77,7 @@ export function LoginBackground() {
       {/* 4K looping video */}
       <video
         ref={videoRef}
-        className={`fixed inset-0 z-0 h-full w-full object-cover transition-opacity duration-1000 ${
+        className={`fixed inset-0 z-0 h-full w-full object-cover transition-opacity duration-700 ${
           ready ? "opacity-100" : "opacity-0"
         }`}
         autoPlay
@@ -43,7 +85,6 @@ export function LoginBackground() {
         loop
         playsInline
         preload="auto"
-        onLoadedData={() => setReady(true)}
         aria-hidden="true"
       >
         <source src="/video/space-nebula.mp4" type="video/mp4" />
