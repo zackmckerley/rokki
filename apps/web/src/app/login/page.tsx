@@ -21,29 +21,32 @@ export default function LoginPage() {
     <div className="relative flex min-h-[100dvh] items-center justify-center overflow-hidden bg-black px-4">
       <LoginBackground />
 
-      {/* Content layer — sits above video + overlays */}
-      <div className="relative z-10 w-full max-w-sm space-y-8">
-        <div className="flex flex-col items-center gap-2">
+      {/* Content layer — sits above video + overlays. Each text block
+          gets its own translucent dark backing so the nebula doesn't
+          fight the wordmark or footer copy. The form panel stays fully
+          opaque (most important visual hierarchy). */}
+      <div className="relative z-10 w-full max-w-sm space-y-3">
+        <div className="flex flex-col items-center gap-1.5 rounded-lg border border-border bg-bg-1/70 px-5 py-3 backdrop-blur-md">
           <Wordmark size="lg" />
-          <p className="text-xs text-white/70 drop-shadow">
+          <p className="text-[11px] text-text-1">
             The terminal for your projects.
           </p>
         </div>
 
-        {/* Solid panel — not see-through. Matches the dark-theme bg-bg-1
-            token used everywhere else, with a stronger ring + outer
-            shadow so the card sits clearly above the nebula. */}
+        {/* Solid form panel. */}
         <div className="rounded-lg border border-border bg-bg-1 p-5 shadow-2xl ring-1 ring-black/40">
           <Suspense fallback={null}>
             <LoginForm />
           </Suspense>
         </div>
 
-        <p className="text-center text-xs text-white/60 drop-shadow">
-          Email: we send you a magic link.
-          <br />
-          Admins: use your username and password.
-        </p>
+        <div className="rounded-lg border border-border bg-bg-1/70 px-3 py-2 backdrop-blur-md">
+          <p className="text-center text-[11px] leading-snug text-text-2">
+            Email: we send you a magic link.
+            <br />
+            Admins: use your username and password.
+          </p>
+        </div>
       </div>
     </div>
   );
