@@ -90,20 +90,26 @@ export function LoginBackground() {
         <source src="/video/space-nebula.mp4" type="video/mp4" />
       </video>
 
-      {/* Gradient overlay — darker at top and bottom edges */}
+      {/* Gradient overlay + radial vignette. Both fade in with the
+          video so the pre-load state is pure black (page bg) instead of
+          a gradient on black, which reads as a half-rendered loading
+          state.  */}
       <div
         aria-hidden="true"
-        className="fixed inset-0 z-[1]"
+        className={`fixed inset-0 z-[1] transition-opacity duration-700 ${
+          ready ? "opacity-100" : "opacity-0"
+        }`}
         style={{
           background:
             "linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 35%, rgba(0,0,0,0.25) 65%, rgba(0,0,0,0.6) 100%)",
         }}
       />
 
-      {/* Radial vignette — focuses attention on the card */}
       <div
         aria-hidden="true"
-        className="fixed inset-0 z-[2]"
+        className={`fixed inset-0 z-[2] transition-opacity duration-700 ${
+          ready ? "opacity-100" : "opacity-0"
+        }`}
         style={{
           background:
             "radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.55) 100%)",
