@@ -16,6 +16,28 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // Pure-admin shortcut: a user who is platform admin AND has zero space
+  // memberships has nothing to do on the user dashboard. Send them
+  // straight to /admin so the operator console is their landing.
+  const adminCheck = await supabase
+    .from("profiles")
+    .select("is_platform_admin")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const isAdmin = Boolean(
+    (adminCheck.data as { is_platform_admin?: boolean } | null)
+      ?.is_platform_admin,
+  );
+  if (isAdmin) {
+    const { count: spaceCount } = await supabase
+      .from("space_members")
+      .select("space_id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    if ((spaceCount ?? 0) === 0) {
+      redirect("/admin");
+    }
+  }
+
   // Parallelise: every card fetches independently against RLS.
   const [
     spaces,

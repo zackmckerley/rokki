@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Wordmark } from "./Wordmark";
+import { AdminChip } from "./AdminChip";
 
 interface TopBarProps {
   children?: React.ReactNode;
@@ -29,6 +30,7 @@ export function TopBar({ children }: TopBarProps) {
         {children}
       </div>
       <div className="flex items-center gap-2">
+        <AdminChip />
         <kbd className="rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 font-mono text-xs text-text-2">
           ⌘K
         </kbd>

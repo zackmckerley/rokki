@@ -8,15 +8,20 @@ import {
   Activity,
   ShieldAlert,
   Ban,
+  Mail,
+  ShieldCheck,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 
 /**
- * Platform admin shell. Only `profiles.is_platform_admin = true` users
- * can see any child route. This check is defense-in-depth on top of
- * RLS — individual queries inside the pages still enforce admin access
- * via service-role or explicit `is_platform_admin` filters.
+ * Platform admin shell.
+ *
+ *   - Gates every /admin/* route on `is_platform_admin = true`
+ *   - Adds a thin "PLATFORM ADMIN" ribbon under the TopBar so the operator
+ *     never forgets they're in the ops console
+ *   - Sidebar lists every admin section (Wave 1 + later waves added as
+ *     they ship)
  */
 export default async function AdminLayout({
   children,
@@ -46,51 +51,101 @@ export default async function AdminLayout({
           ← Dashboard
         </Link>
         <span className="text-text-3">·</span>
-        <span className="text-accent">Platform admin</span>
+        <span className="font-mono text-xs uppercase tracking-wider text-accent">
+          Platform admin
+        </span>
       </TopBar>
-      <div className="mx-auto flex w-full max-w-6xl flex-1">
-        <aside className="sticky top-0 hidden w-48 flex-shrink-0 border-r border-border bg-bg-1 md:block">
-          <nav className="flex flex-col gap-0.5 p-2 text-sm">
-            <NavLink href="/admin" icon={<Gauge className="h-3.5 w-3.5" />}>
-              Overview
-            </NavLink>
-            <NavLink href="/admin/users" icon={<Users className="h-3.5 w-3.5" />}>
-              Users
-            </NavLink>
-            <NavLink
-              href="/admin/spaces"
-              icon={<Building2 className="h-3.5 w-3.5" />}
-            >
-              Spaces
-            </NavLink>
-            <NavLink
-              href="/admin/terminals"
-              icon={<Terminal className="h-3.5 w-3.5" />}
-            >
-              Terminals
-            </NavLink>
-            <NavLink
-              href="/admin/activity"
-              icon={<Activity className="h-3.5 w-3.5" />}
-            >
-              Activity
-            </NavLink>
-            <NavLink
-              href="/admin/revocations"
-              icon={<Ban className="h-3.5 w-3.5" />}
-            >
-              Revocations
-            </NavLink>
-            <NavLink
-              href="/admin/infected"
-              icon={<ShieldAlert className="h-3.5 w-3.5" />}
-            >
-              Infected files
-            </NavLink>
+      <div
+        role="banner"
+        aria-label="You are in the platform admin console"
+        className="border-b border-accent/30 bg-accent-subtle/40 px-4 py-1 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-accent"
+      >
+        Platform admin · all actions audited
+      </div>
+      <div className="mx-auto flex w-full max-w-7xl flex-1">
+        <aside className="sticky top-0 hidden w-52 flex-shrink-0 border-r border-border bg-bg-1 md:block">
+          <nav
+            aria-label="Admin sections"
+            className="flex flex-col gap-0.5 p-2 text-sm"
+          >
+            <NavGroup label="Operations">
+              <NavLink href="/admin" icon={<Gauge className="h-3.5 w-3.5" />}>
+                Overview
+              </NavLink>
+            </NavGroup>
+            <NavGroup label="Tenancy">
+              <NavLink
+                href="/admin/users"
+                icon={<Users className="h-3.5 w-3.5" />}
+              >
+                Users
+              </NavLink>
+              <NavLink
+                href="/admin/spaces"
+                icon={<Building2 className="h-3.5 w-3.5" />}
+              >
+                Spaces
+              </NavLink>
+              <NavLink
+                href="/admin/terminals"
+                icon={<Terminal className="h-3.5 w-3.5" />}
+              >
+                Terminals
+              </NavLink>
+              <NavLink
+                href="/admin/invitations"
+                icon={<Mail className="h-3.5 w-3.5" />}
+              >
+                Invitations
+              </NavLink>
+            </NavGroup>
+            <NavGroup label="Audit">
+              <NavLink
+                href="/admin/activity"
+                icon={<Activity className="h-3.5 w-3.5" />}
+              >
+                Activity
+              </NavLink>
+              <NavLink
+                href="/admin/revocations"
+                icon={<Ban className="h-3.5 w-3.5" />}
+              >
+                Revocations
+              </NavLink>
+              <NavLink
+                href="/admin/infected"
+                icon={<ShieldAlert className="h-3.5 w-3.5" />}
+              >
+                Infected files
+              </NavLink>
+              <NavLink
+                href="/approvals"
+                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+              >
+                Approvals
+              </NavLink>
+            </NavGroup>
           </nav>
         </aside>
         <main className="flex-1 overflow-x-auto p-6">{children}</main>
       </div>
+    </div>
+  );
+}
+
+function NavGroup({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="mb-3">
+      <div className="px-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+        {label}
+      </div>
+      <div className="flex flex-col gap-0.5">{children}</div>
     </div>
   );
 }
