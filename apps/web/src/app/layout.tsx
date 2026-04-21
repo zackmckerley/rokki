@@ -45,7 +45,12 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/* Paint pure black before the CSS file even arrives. Without
+            this the browser shows a flash of default white on cold
+            loads (especially noticeable on the dark-themed login page
+            with the nebula). */}
         <style>{`
+          html, body { background: #000; }
           :root {
             --font-sans: ${GeistSans.style.fontFamily};
             --font-mono: ${GeistMono.style.fontFamily};
