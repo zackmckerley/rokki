@@ -30,7 +30,10 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-black/40 p-5 shadow-2xl backdrop-blur-md">
+        {/* Solid panel — not see-through. Matches the dark-theme bg-bg-1
+            token used everywhere else, with a stronger ring + outer
+            shadow so the card sits clearly above the nebula. */}
+        <div className="rounded-lg border border-border bg-bg-1 p-5 shadow-2xl ring-1 ring-black/40">
           <Suspense fallback={null}>
             <LoginForm />
           </Suspense>
