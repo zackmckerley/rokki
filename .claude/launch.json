@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "comment": "Rokki needs port 3000 specifically — Supabase Auth redirect URLs and all .env.local defaults reference http://localhost:3000. autoPort is false so the preview reuses the dev server already on 3000 instead of spinning up a fresh one.",
+  "autoPort": false,
+  "configurations": [
+    {
+      "name": "rokki-web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@rokki/web", "dev"],
+      "port": 3000
+    }
+  ]
+}

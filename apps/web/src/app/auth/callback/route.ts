@@ -98,7 +98,40 @@ export async function GET(request: NextRequest) {
     await acceptPendingInvites(supabase, user.id, user.email);
   }
 
+  // Append to the account ring so the user can stack multiple
+  // identities. Pulled into a helper to keep this callback readable.
+  await maybeAppendToRing(supabase, request, response);
+
   return response;
+}
+
+async function maybeAppendToRing(
+  supabase: ReturnType<typeof createServerClient<Database>>,
+  request: NextRequest,
+  response: NextResponse,
+): Promise<void> {
+  try {
+    const { cryptoEnabled } = await import("@/lib/token-crypto");
+    if (!cryptoEnabled()) return;
+    const {
+      RING_COOKIE,
+      addToRing,
+      parseRing,
+      ringCookieOptions,
+      serializeRing,
+    } = await import("@/lib/account-ring");
+    const { data } = await supabase.auth.getSession();
+    if (!data?.session?.user || !data.session.refresh_token) return;
+    const ring = parseRing(request.cookies.get(RING_COOKIE)?.value);
+    const next = addToRing(ring, {
+      user_id: data.session.user.id,
+      email: data.session.user.email ?? "",
+      refresh_token: data.session.refresh_token,
+    });
+    response.cookies.set(RING_COOKIE, serializeRing(next), ringCookieOptions);
+  } catch {
+    // Best-effort.
+  }
 }
 
 interface InviteRow {

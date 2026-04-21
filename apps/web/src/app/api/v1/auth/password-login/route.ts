@@ -2,6 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { Database } from "@rokki/db";
 import { rateLimitCheck, rateLimitToken } from "@/lib/ratelimit";
+import {
+  RING_COOKIE,
+  addToRing,
+  parseRing,
+  ringCookieOptions,
+  serializeRing,
+} from "@/lib/account-ring";
+import { cryptoEnabled } from "@/lib/token-crypto";
 
 interface CookieToSet {
   name: string;
@@ -109,7 +117,7 @@ export async function POST(request: NextRequest) {
     },
   );
 
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data: signIn, error } = await supabase.auth.signInWithPassword({
     email,
     password,
   });
@@ -128,6 +136,32 @@ export async function POST(request: NextRequest) {
       },
       { status: 401 },
     );
+  }
+
+  // Append the new account to the ring so the user can switch back to
+  // it later. Best-effort: if TOKEN_ENCRYPTION_KEY is unset we skip the
+  // ring write rather than fail the sign-in (the ring is a convenience,
+  // not a security boundary).
+  if (
+    cryptoEnabled() &&
+    signIn?.session?.refresh_token &&
+    signIn.user
+  ) {
+    try {
+      const ring = parseRing(request.cookies.get(RING_COOKIE)?.value);
+      const next = addToRing(ring, {
+        user_id: signIn.user.id,
+        email: signIn.user.email ?? email,
+        refresh_token: signIn.session.refresh_token,
+      });
+      response.cookies.set(
+        RING_COOKIE,
+        serializeRing(next),
+        ringCookieOptions,
+      );
+    } catch {
+      // swallow — ring is best-effort
+    }
   }
 
   return response;

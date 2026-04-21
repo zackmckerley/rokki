@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Wordmark } from "./Wordmark";
-import { AdminChip } from "./AdminChip";
+import { AccountSwitcher } from "./AccountSwitcher";
 
 interface TopBarProps {
   children?: React.ReactNode;
@@ -8,10 +8,11 @@ interface TopBarProps {
 
 /**
  * Top bar — §6.3 BUILD_SPEC and §08.5.4 UI design.
- * 44px tall, Rokki wordmark at left, slot for breadcrumb, ⌘K hint at right.
+ * 44px tall, Rokki wordmark at left, slot for breadcrumb, account
+ * switcher + ⌘K hint at right.
  *
- * The former notification bell has been removed — updates flow through the
- * ticker tape directly below the top bar. Keep this slim.
+ * The AccountSwitcher folds the former AdminChip into a richer dropdown
+ * that handles sign-in / sign-out / multi-account stacking.
  */
 export function TopBar({ children }: TopBarProps) {
   return (
@@ -30,7 +31,7 @@ export function TopBar({ children }: TopBarProps) {
         {children}
       </div>
       <div className="flex items-center gap-2">
-        <AdminChip />
+        <AccountSwitcher />
         <kbd className="rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 font-mono text-xs text-text-2">
           ⌘K
         </kbd>
