@@ -16,6 +16,7 @@ import {
   StickyNote,
   AlertCircle,
   Check,
+  UserCog,
 } from "lucide-react";
 import {
   AdminBadge,
@@ -289,6 +290,11 @@ function OverviewTab({
             onError={onError}
           />
           <div className="flex gap-2">
+            <ImpersonateButton
+              userId={data.user.id}
+              email={data.user.email}
+              onError={onError}
+            />
             <SuspendButton
               userId={data.user.id}
               isSuspended={isSuspended}
@@ -531,6 +537,72 @@ function SuspendButton({
             <p className="text-[11px] text-text-3">
               All current sessions will be terminated immediately.
             </p>
+          </div>
+        }
+      />
+    </>
+  );
+}
+
+function ImpersonateButton({
+  userId,
+  email,
+  onError,
+}: {
+  userId: string;
+  email: string;
+  onError: (m: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function go() {
+    setBusy(true);
+    try {
+      const r = await fetch("/api/v1/admin/impersonate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ target_user_id: userId, justification: reason }),
+      });
+      if (!r.ok) {
+        onError(await msg(r));
+        return;
+      }
+      window.location.href = "/";
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <AdminButton onClick={() => setOpen(true)}>
+        <UserCog className="h-3 w-3" /> Impersonate
+      </AdminButton>
+      <ConfirmDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        onConfirm={go}
+        title={`Impersonate ${email}`}
+        confirmLabel="Sign in as user"
+        destructive
+        busy={busy}
+        body={
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-text-3">
+              Your admin session will be replaced. Sign back in as yourself
+              when you&apos;re done.
+            </p>
+            <textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={3}
+              maxLength={1000}
+              placeholder="Justification (≥ 10 chars). Visible in audit."
+              className="rounded-sm border border-border bg-bg-0 px-2 py-1.5 text-sm text-text-0 outline-none focus:border-border-focus"
+            />
           </div>
         }
       />

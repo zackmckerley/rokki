@@ -10,6 +10,12 @@ import {
   Ban,
   Mail,
   ShieldCheck,
+  Wrench,
+  Gauge as GaugeMeter,
+  KeyRound,
+  AlertOctagon,
+  XCircle,
+  Download,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
@@ -99,6 +105,52 @@ export default async function AdminLayout({
                 Invitations
               </NavLink>
             </NavGroup>
+            <NavGroup label="Marketplace">
+              <NavLink
+                href="/admin/tools"
+                icon={<Wrench className="h-3.5 w-3.5" />}
+              >
+                Tools
+              </NavLink>
+              <NavLink
+                href="/admin/quotas"
+                icon={<GaugeMeter className="h-3.5 w-3.5" />}
+              >
+                Quotas
+              </NavLink>
+              <NavLink
+                href="/approvals"
+                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+              >
+                Approvals
+              </NavLink>
+            </NavGroup>
+            <NavGroup label="Security">
+              <NavLink
+                href="/admin/tokens"
+                icon={<KeyRound className="h-3.5 w-3.5" />}
+              >
+                Tokens
+              </NavLink>
+              <NavLink
+                href="/admin/rate-limits"
+                icon={<AlertOctagon className="h-3.5 w-3.5" />}
+              >
+                Rate limits
+              </NavLink>
+              <NavLink
+                href="/admin/failed-logins"
+                icon={<XCircle className="h-3.5 w-3.5" />}
+              >
+                Failed logins
+              </NavLink>
+              <NavLink
+                href="/admin/emergency"
+                icon={<ShieldAlert className="h-3.5 w-3.5" />}
+              >
+                Emergency access
+              </NavLink>
+            </NavGroup>
             <NavGroup label="Audit">
               <NavLink
                 href="/admin/activity"
@@ -119,10 +171,10 @@ export default async function AdminLayout({
                 Infected files
               </NavLink>
               <NavLink
-                href="/approvals"
-                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                href="/api/v1/admin/export/audit?since_days=30"
+                icon={<Download className="h-3.5 w-3.5" />}
               >
-                Approvals
+                Export audit
               </NavLink>
             </NavGroup>
           </nav>

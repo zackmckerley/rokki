@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, { params }: Props) {
   const { data: toolData } = await supabase
     .from("tools")
     .select(
-      "id, slug, name, current_version, timeout_seconds, owner_space_id, visibility, owner_user_id, approval_mode, cost_credits",
+      "id, slug, name, current_version, timeout_seconds, owner_space_id, visibility, owner_user_id, approval_mode, cost_credits, moderation_status",
     )
     .eq("slug", slug)
     .is("deleted_at", null)
@@ -52,7 +52,42 @@ export async function POST(request: NextRequest, { params }: Props) {
     visibility: string;
     approval_mode: "auto" | "one_time" | "per_invocation";
     cost_credits: number;
+    moderation_status: "approved" | "pending" | "disabled" | "featured";
   };
+
+  // 0) Moderation gate. Disabled tools are blocked for everyone (the
+  // owner can still see them in /tools, but the admin has flagged the
+  // executable). Pending tools block non-owners until an admin approves.
+  if (tool.moderation_status === "disabled") {
+    return NextResponse.json(
+      {
+        errors: [
+          {
+            code: "tool_disabled",
+            message:
+              "This tool was disabled by a platform administrator. Contact support.",
+          },
+        ],
+      },
+      { status: 403 },
+    );
+  }
+  if (
+    tool.moderation_status === "pending" &&
+    tool.owner_user_id !== user.id
+  ) {
+    return NextResponse.json(
+      {
+        errors: [
+          {
+            code: "tool_pending",
+            message: "This tool is awaiting admin review.",
+          },
+        ],
+      },
+      { status: 403 },
+    );
+  }
 
   // 1) Quota gate. Reject upfront so the user sees a clean 429 with a
   // reset time rather than an opaque executor error.

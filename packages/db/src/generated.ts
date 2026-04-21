@@ -656,36 +656,51 @@ export type Database = {
       }
       emergency_access_events: {
         Row: {
+          active_until: string | null
           admin_id: string
           ended_at: string | null
           id: string
           notified_target: boolean
           reason: string
+          revoked_at: string | null
+          revoked_by: string | null
           started_at: string
           target_org_id: string | null
           target_project_id: string | null
+          target_space_id: string | null
+          target_terminal_id: string | null
           target_user_id: string | null
         }
         Insert: {
+          active_until?: string | null
           admin_id: string
           ended_at?: string | null
           id?: string
           notified_target?: boolean
           reason: string
+          revoked_at?: string | null
+          revoked_by?: string | null
           started_at?: string
           target_org_id?: string | null
           target_project_id?: string | null
+          target_space_id?: string | null
+          target_terminal_id?: string | null
           target_user_id?: string | null
         }
         Update: {
+          active_until?: string | null
           admin_id?: string
           ended_at?: string | null
           id?: string
           notified_target?: boolean
           reason?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
           started_at?: string
           target_org_id?: string | null
           target_project_id?: string | null
+          target_space_id?: string | null
+          target_terminal_id?: string | null
           target_user_id?: string | null
         }
         Relationships: [
@@ -699,6 +714,20 @@ export type Database = {
           {
             foreignKeyName: "emergency_access_events_target_project_id_fkey"
             columns: ["target_project_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_access_events_target_space_id_fkey"
+            columns: ["target_space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "emergency_access_events_target_terminal_id_fkey"
+            columns: ["target_terminal_id"]
             isOneToOne: false
             referencedRelation: "terminals"
             referencedColumns: ["id"]
@@ -895,6 +924,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      impersonation_events: {
+        Row: {
+          admin_user_id: string
+          ended_at: string | null
+          id: string
+          ip_address: string | null
+          justification: string
+          started_at: string
+          target_user_id: string
+          user_agent: string | null
+        }
+        Insert: {
+          admin_user_id: string
+          ended_at?: string | null
+          id?: string
+          ip_address?: string | null
+          justification: string
+          started_at?: string
+          target_user_id: string
+          user_agent?: string | null
+        }
+        Update: {
+          admin_user_id?: string
+          ended_at?: string | null
+          id?: string
+          ip_address?: string | null
+          justification?: string
+          started_at?: string
+          target_user_id?: string
+          user_agent?: string | null
+        }
+        Relationships: []
       }
       invites: {
         Row: {
@@ -1934,6 +1996,7 @@ export type Database = {
           id: string
           input_schema: Json
           memory_mb: number
+          moderation_status: Database["public"]["Enums"]["tool_moderation"]
           name: string
           output_schema: Json | null
           owner_space_id: string
@@ -1957,6 +2020,7 @@ export type Database = {
           id?: string
           input_schema: Json
           memory_mb?: number
+          moderation_status?: Database["public"]["Enums"]["tool_moderation"]
           name: string
           output_schema?: Json | null
           owner_space_id: string
@@ -1980,6 +2044,7 @@ export type Database = {
           id?: string
           input_schema?: Json
           memory_mb?: number
+          moderation_status?: Database["public"]["Enums"]["tool_moderation"]
           name?: string
           output_schema?: Json | null
           owner_space_id?: string
@@ -2218,6 +2283,7 @@ export type Database = {
         | "family"
         | "guest"
       token_scope: "read" | "write" | "admin"
+      tool_moderation: "approved" | "pending" | "disabled" | "featured"
       tool_visibility: "private" | "org" | "project" | "public"
       virus_scan_status: "pending" | "clean" | "infected" | "skipped"
     }
@@ -2408,6 +2474,7 @@ export const Constants = {
         "guest",
       ],
       token_scope: ["read", "write", "admin"],
+      tool_moderation: ["approved", "pending", "disabled", "featured"],
       tool_visibility: ["private", "org", "project", "public"],
       virus_scan_status: ["pending", "clean", "infected", "skipped"],
     },
