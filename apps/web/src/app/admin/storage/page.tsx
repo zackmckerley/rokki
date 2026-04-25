@@ -9,6 +9,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { StorageOps } from "./StorageOps";
 
 export const metadata = { title: "Storage — Admin" };
 export const dynamic = "force-dynamic";
@@ -87,6 +88,8 @@ export default async function AdminStoragePage() {
         title="Storage"
         description="Storage usage by space, plus the 50 largest live files."
       />
+
+      <StorageOps />
 
       <AdminPanel title="Usage by space">
         {enrichedRollup.length === 0 ? (

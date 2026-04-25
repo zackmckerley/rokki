@@ -20,6 +20,14 @@ import {
   PlayCircle,
   Sparkles,
   HelpCircle,
+  ShieldCheck,
+  ShieldAlert,
+  Users,
+  Building2,
+  Megaphone,
+  ToggleLeft,
+  Activity,
+  HeartPulse,
 } from "lucide-react";
 import { CommandContext, type Command, type CommandAPI } from "@/lib/commands";
 import { createClient } from "@/lib/supabase/client";
@@ -79,6 +87,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
   // Built-in global commands.
   const router = useRouter();
   const [projects, setProjects] = useState<ProjectHit[]>([]);
+  const [isAdmin, setIsAdmin] = useState(false);
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
@@ -86,6 +95,14 @@ export function CommandPalette({ children }: { children: ReactNode }) {
       .then((r) => r.json())
       .then((body: { data?: { projects?: ProjectHit[] } }) => {
         if (!cancelled) setProjects(body.data?.projects ?? []);
+      })
+      .catch(() => {});
+    // Resolve admin flag once per palette-open. Cheap (cached via /me).
+    fetch("/api/v1/me", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((body: { data?: { is_platform_admin?: boolean } } | null) => {
+        if (!cancelled)
+          setIsAdmin(Boolean(body?.data?.is_platform_admin));
       })
       .catch(() => {});
     return () => {
@@ -179,8 +196,89 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         },
       },
     ];
-    return [...nav, ...projectNav, ...create];
-  }, [projects, router]);
+    // Admin actions — gated on is_platform_admin so non-admins don't see
+    // a list of admin destinations they'd 403 on. Slugged under the
+    // "action" category since cmdk renders categories together; we
+    // prefix titles so admins can search "admin: …".
+    const admin: Command[] = isAdmin
+      ? [
+          {
+            id: "admin/overview",
+            title: "Admin: Operator console",
+            subtitle: "KPIs, health, recent events",
+            category: "action",
+            icon: <ShieldCheck className="h-4 w-4 text-accent" />,
+            onRun: go("/admin"),
+          },
+          {
+            id: "admin/users",
+            title: "Admin: Users",
+            subtitle: "Search, suspend, impersonate",
+            category: "action",
+            icon: <Users className="h-4 w-4 text-accent" />,
+            onRun: go("/admin/users"),
+          },
+          {
+            id: "admin/users/new",
+            title: "Admin: New user",
+            category: "action",
+            icon: <Plus className="h-4 w-4 text-accent" />,
+            onRun: go("/admin/users/new"),
+          },
+          {
+            id: "admin/spaces",
+            title: "Admin: Spaces",
+            category: "action",
+            icon: <Building2 className="h-4 w-4 text-accent" />,
+            onRun: go("/admin/spaces"),
+          },
+          {
+            id: "admin/spaces/new",
+            title: "Admin: New space",
+            category: "action",
+            icon: <Plus className="h-4 w-4 text-accent" />,
+            onRun: go("/admin/spaces/new"),
+          },
+          {
+            id: "admin/emergency",
+            title: "Admin: Emergency access",
+            subtitle: "Time-boxed break-glass into a terminal",
+            category: "action",
+            icon: <ShieldAlert className="h-4 w-4 text-danger" />,
+            onRun: go("/admin/emergency"),
+          },
+          {
+            id: "admin/announcements",
+            title: "Admin: Announcements",
+            category: "action",
+            icon: <Megaphone className="h-4 w-4 text-accent" />,
+            onRun: go("/admin/announcements"),
+          },
+          {
+            id: "admin/flags",
+            title: "Admin: Feature flags",
+            category: "action",
+            icon: <ToggleLeft className="h-4 w-4 text-accent" />,
+            onRun: go("/admin/flags"),
+          },
+          {
+            id: "admin/health",
+            title: "Admin: Health",
+            category: "action",
+            icon: <HeartPulse className="h-4 w-4 text-accent" />,
+            onRun: go("/admin/health"),
+          },
+          {
+            id: "admin/activity",
+            title: "Admin: Activity log",
+            category: "action",
+            icon: <Activity className="h-4 w-4 text-accent" />,
+            onRun: go("/admin/activity"),
+          },
+        ]
+      : [];
+    return [...nav, ...projectNav, ...create, ...admin];
+  }, [projects, router, isAdmin]);
 
   const all = useMemo(() => [...built, ...scoped], [built, scoped]);
 

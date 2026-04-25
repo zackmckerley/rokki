@@ -11,6 +11,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { SpacePicker, type PickedSpace } from "@/components/admin/SpacePicker";
 
 interface Row {
   id: string;
@@ -145,12 +146,17 @@ function NewAnnouncementForm({
   const [audience, setAudience] = useState<"all" | "admins" | "space">("all");
   const [endsDays, setEndsDays] = useState(7);
   const [dismissible, setDismissible] = useState(true);
+  const [space, setSpace] = useState<PickedSpace | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (body.trim().length < 1) {
       onError("Body required.");
+      return;
+    }
+    if (audience === "space" && !space) {
+      onError("Pick a space when audience is 'space'.");
       return;
     }
     setBusy(true);
@@ -166,6 +172,7 @@ function NewAnnouncementForm({
         body: JSON.stringify({
           body: body.trim(),
           audience,
+          audience_space_id: audience === "space" ? space?.space_id : null,
           ends_at,
           dismissible,
         }),
@@ -207,11 +214,19 @@ function NewAnnouncementForm({
             >
               <option value="all">all users</option>
               <option value="admins">admins only</option>
-              <option value="space" disabled>
-                space (use API)
-              </option>
+              <option value="space">one space</option>
             </select>
           </label>
+          {audience === "space" ? (
+            <label className="flex flex-1 min-w-[240px] items-center gap-2 text-sm">
+              <span className="text-[10px] uppercase tracking-wide text-text-3">
+                Space
+              </span>
+              <div className="flex-1">
+                <SpacePicker selected={space} onSelect={setSpace} />
+              </div>
+            </label>
+          ) : null}
           <label className="flex items-center gap-2 text-sm">
             <span className="text-[10px] uppercase tracking-wide text-text-3">
               Expires (days)

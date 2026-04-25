@@ -81,6 +81,7 @@ export function AdminQuotasClient() {
 
   return (
     <div className="flex flex-col gap-4">
+      <NearCapPanel />
       <NewQuotaForm
         tools={tools}
         onCreated={() => {
@@ -176,6 +177,84 @@ export function AdminQuotasClient() {
         )}
       </AdminPanel>
     </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Near-cap panel — surface users about to be blocked before they ticket.     */
+/* -------------------------------------------------------------------------- */
+
+interface NearCapRow {
+  id: string;
+  subject_type: string;
+  subject_id: string;
+  subject_email: string | null;
+  tool: { id: string; slug: string; name: string } | null;
+  period: "day" | "month";
+  limit_credits: number;
+  used_credits: number;
+  pct: number;
+  reset_at: string;
+}
+
+function NearCapPanel() {
+  const [rows, setRows] = useState<NearCapRow[] | null>(null);
+
+  useEffect(() => {
+    fetch("/api/v1/admin/quotas/near-cap?threshold=0.9", {
+      credentials: "include",
+    })
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then((b: { data?: NearCapRow[] }) => setRows(b.data ?? []))
+      .catch(() => setRows([]));
+  }, []);
+
+  if (rows === null || rows.length === 0) return null;
+
+  return (
+    <AdminPanel
+      title={`Near cap (${rows.length}) — ≥ 90% used`}
+      className="border-warning/40"
+    >
+      <AdminTable className="border-0">
+        <thead>
+          <tr className="border-b border-border bg-bg-2">
+            <AdminTh>Subject</AdminTh>
+            <AdminTh>Tool</AdminTh>
+            <AdminTh>Period</AdminTh>
+            <AdminTh align="right">Used / limit</AdminTh>
+            <AdminTh>Resets</AdminTh>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((r) => (
+            <tr key={r.id}>
+              <AdminTd mono>
+                {r.subject_email ?? `${r.subject_type}:${r.subject_id.slice(0, 8)}`}
+              </AdminTd>
+              <AdminTd>
+                {r.tool?.name ?? <span className="text-text-3">unknown</span>}
+              </AdminTd>
+              <AdminTd>
+                <AdminBadge>{r.period}</AdminBadge>
+              </AdminTd>
+              <AdminTd align="right" mono>
+                {r.used_credits.toLocaleString()} /{" "}
+                {r.limit_credits.toLocaleString()}{" "}
+                <AdminBadge variant={r.pct >= 1 ? "danger" : "warning"}>
+                  {Math.round(r.pct * 100)}%
+                </AdminBadge>
+              </AdminTd>
+              <AdminTd>
+                <span className="text-xs text-text-3">
+                  {new Date(r.reset_at).toLocaleString()}
+                </span>
+              </AdminTd>
+            </tr>
+          ))}
+        </tbody>
+      </AdminTable>
+    </AdminPanel>
   );
 }
 

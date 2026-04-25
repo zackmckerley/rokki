@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     },
   );
 
-  const { error: verifyErr } = await supabase.auth.verifyOtp({
+  const { data: verified, error: verifyErr } = await supabase.auth.verifyOtp({
     token_hash: tokenHash,
     type: "magiclink",
   });
@@ -120,6 +120,41 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Add the impersonated user to the account ring so the admin can also
+  // switch back via the AccountSwitcher dropdown if they prefer that to
+  // the dedicated /api/v1/admin/impersonate/end route.
+  if (
+    verified?.session?.refresh_token &&
+    verified?.user?.id &&
+    targetUser.user.email
+  ) {
+    try {
+      const { cryptoEnabled } = await import("@/lib/token-crypto");
+      if (cryptoEnabled()) {
+        const {
+          RING_COOKIE,
+          addToRing,
+          parseRing,
+          ringCookieOptions,
+          serializeRing,
+        } = await import("@/lib/account-ring");
+        const ring = parseRing(request.cookies.get(RING_COOKIE)?.value);
+        const next = addToRing(ring, {
+          user_id: verified.user.id,
+          email: targetUser.user.email,
+          refresh_token: verified.session.refresh_token,
+        });
+        response.cookies.set(
+          RING_COOKIE,
+          serializeRing(next),
+          ringCookieOptions,
+        );
+      }
+    } catch {
+      // Ring is best-effort; impersonation still succeeds.
+    }
+  }
+
   // Audit row — ip + user agent for the record.
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
@@ -129,6 +164,18 @@ export async function POST(request: NextRequest) {
     justification: reason,
     ip_address: ip,
     user_agent: request.headers.get("user-agent") ?? null,
+  } as never);
+
+  // Notify the target user — they should know an admin used their
+  // identity, with the justification, even if they were offline at
+  // the time. The notification kind is 'system' so it always reaches
+  // them regardless of digest preferences.
+  void admin.from("notifications").insert({
+    user_id: target,
+    kind: "system",
+    title: "An administrator signed in as you",
+    body: `Reason: ${reason}\n\nIf you don't recognise this, contact support immediately.`,
+    entity_type: "impersonation",
   } as never);
 
   void emitEvent("admin.impersonation.started", {

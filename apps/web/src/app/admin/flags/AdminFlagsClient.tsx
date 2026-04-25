@@ -11,6 +11,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { SpacePicker, type PickedSpace } from "@/components/admin/SpacePicker";
 
 interface Row {
   id: string;
@@ -150,10 +151,16 @@ function NewFlagForm({
   const [valueJson, setValueJson] = useState("true");
   const [rollout, setRollout] = useState(100);
   const [description, setDescription] = useState("");
+  const [scope, setScope] = useState<"global" | "space">("global");
+  const [space, setSpace] = useState<PickedSpace | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (scope === "space" && !space) {
+      onError("Pick a space when scope is per-space.");
+      return;
+    }
     setBusy(true);
     try {
       let parsed: unknown;
@@ -171,7 +178,8 @@ function NewFlagForm({
         credentials: "include",
         body: JSON.stringify({
           key,
-          scope: "global",
+          scope,
+          scope_id: scope === "space" ? space?.space_id : null,
           value: parsed,
           rollout_percentage: rollout,
           description,
@@ -181,9 +189,10 @@ function NewFlagForm({
         onError(await msg(r));
         return;
       }
-      onSuccess(`Flag ${key} set`);
+      onSuccess(`Flag ${key} set (${scope})`);
       setKey("");
       setValueJson("true");
+      setSpace(null);
       onCreated();
     } finally {
       setBusy(false);
@@ -191,7 +200,7 @@ function NewFlagForm({
   }
 
   return (
-    <AdminPanel title="Set or update a global flag">
+    <AdminPanel title="Set or update a flag">
       <form
         onSubmit={submit}
         className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2"
@@ -222,6 +231,29 @@ function NewFlagForm({
             className="rounded-sm border border-border bg-bg-0 px-2 py-1.5 font-mono text-sm text-text-0 outline-none focus:border-border-focus"
           />
         </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wide text-text-3">
+            Scope
+          </span>
+          <select
+            value={scope}
+            onChange={(e) => setScope(e.target.value as "global" | "space")}
+            className="rounded-sm border border-border bg-bg-2 px-2 py-1.5 font-mono text-[11px] uppercase text-text-1 outline-none focus:border-border-focus"
+          >
+            <option value="global">global</option>
+            <option value="space">per-space override</option>
+          </select>
+        </label>
+        {scope === "space" ? (
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-text-3">
+              Space *
+            </span>
+            <SpacePicker selected={space} onSelect={setSpace} />
+          </label>
+        ) : (
+          <div />
+        )}
         <label className="flex flex-col gap-1 md:col-span-2">
           <span className="text-[10px] uppercase tracking-wide text-text-3">
             Value (JSON) *
