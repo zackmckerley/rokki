@@ -1,0 +1,28 @@
+/**
+ * Sentry — browser side. Loaded by Next 15.3+ via the new
+ * `instrumentation-client.ts` convention. Replaces the legacy
+ * `sentry.client.config.ts` that the @sentry/nextjs webpack plugin
+ * used to auto-discover (deprecated; broken under Turbopack).
+ *
+ * No-op if NEXT_PUBLIC_SENTRY_DSN isn't set.
+ *
+ * https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client
+ */
+import * as Sentry from "@sentry/nextjs";
+
+const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+if (dsn) {
+  Sentry.init({
+    dsn,
+    tracesSampleRate: Number(process.env.NEXT_PUBLIC_SENTRY_TRACES ?? "0.1"),
+    replaysSessionSampleRate: 0,
+    replaysOnErrorSampleRate: 0,
+    environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? "development",
+    enabled: process.env.NODE_ENV !== "test",
+  });
+}
+
+// Required by @sentry/nextjs to instrument client-side navigation
+// transitions. Without this the browser SDK can't link route changes
+// to error events.
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

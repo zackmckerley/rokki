@@ -7,6 +7,8 @@
  *
  * https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
  */
+import * as Sentry from "@sentry/nextjs";
+
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("../sentry.server.config");
@@ -15,3 +17,9 @@ export async function register() {
     await import("../sentry.edge.config");
   }
 }
+
+// Routes errors thrown inside nested React Server Components to Sentry.
+// Without this hook, RSC render-time exceptions only show as generic
+// 500s in the network tab — Sentry never sees them.
+// https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation#onrequesterror-optional
+export const onRequestError = Sentry.captureRequestError;
