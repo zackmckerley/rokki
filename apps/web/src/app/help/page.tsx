@@ -31,9 +31,9 @@ export default function HelpPage() {
 
       <main className="mx-auto w-full max-w-5xl flex-1 p-6">
         <header className="mb-6">
-          <h1 className="flex items-center gap-2 text-xl font-semibold text-text-0">
-            <BookOpen className="h-5 w-5 text-accent" />
-            Help & keyboard shortcuts
+          <h1 className="font-display flex items-center gap-3 text-3xl text-text-0">
+            <BookOpen className="h-6 w-6 text-accent" />
+            Help &amp; keyboard shortcuts
           </h1>
           <p className="mt-1 text-xs text-text-3">
             Rokki is keyboard-first. The faster you learn these, the faster it

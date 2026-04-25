@@ -32,7 +32,7 @@ export default async function ProfilePage() {
         <span className="text-text-0">Profile</span>
       </TopBar>
       <main className="mx-auto w-full max-w-2xl flex-1 p-6">
-        <h1 className="mb-1 text-xl font-semibold text-text-0">Profile</h1>
+        <h1 className="font-display mb-1 text-3xl text-text-0">Profile</h1>
         <p className="mb-6 text-xs text-text-3">
           How you appear to teammates.
         </p>

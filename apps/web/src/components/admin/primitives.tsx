@@ -22,7 +22,7 @@ export function AdminSectionHeader({
   return (
     <header className="mb-4 flex items-end justify-between gap-3">
       <div>
-        <h1 className="text-xl font-semibold text-text-0">{title}</h1>
+        <h1 className="font-display text-2xl text-text-0">{title}</h1>
         {description ? (
           <p className="mt-1 text-xs text-text-3">{description}</p>
         ) : null}

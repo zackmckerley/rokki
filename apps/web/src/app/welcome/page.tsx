@@ -131,7 +131,7 @@ export default async function WelcomePage() {
       <main className="mx-auto w-full max-w-2xl flex-1 p-8">
         <header className="mb-8 flex flex-col items-start gap-2">
           <Wordmark size="lg" />
-          <h1 className="mt-2 text-2xl font-semibold text-text-0">
+          <h1 className="font-display mt-2 text-4xl text-text-0">
             Welcome{first ? `, ${first}` : ""}.
           </h1>
           <p className="text-sm text-text-2">

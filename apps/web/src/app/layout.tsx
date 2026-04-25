@@ -1,6 +1,22 @@
 import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
+import { Newsreader } from "next/font/google";
+
+/**
+ * Editorial display font for major headings and the wordmark.
+ * Paired with Geist body — distinctive serif against the dense
+ * mono/sans ground keeps Rokki out of generic-AI-aesthetic territory
+ * without abandoning the Bloomberg-terminal POV. Subset to Latin to
+ * keep the bundle tight; weights 500/700 only.
+ */
+const Newsreader_ = Newsreader({
+  subsets: ["latin"],
+  weight: ["500", "700"],
+  style: ["normal", "italic"],
+  display: "swap",
+  variable: "--font-display-loaded",
+});
 import { CommandPalette } from "@/components/CommandPalette";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { ShortcutsOverlay } from "@/components/ShortcutsOverlay";
@@ -41,7 +57,7 @@ export default function RootLayout({
     <html
       lang="en"
       data-theme="dark"
-      className={`${GeistSans.variable} ${GeistMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${Newsreader_.variable}`}
       suppressHydrationWarning
     >
       <head>
@@ -54,6 +70,7 @@ export default function RootLayout({
           :root {
             --font-sans: ${GeistSans.style.fontFamily};
             --font-mono: ${GeistMono.style.fontFamily};
+            --font-display: var(--font-display-loaded), "GT Sectra", "Source Serif Pro", Georgia, serif;
           }
         `}</style>
         {/*

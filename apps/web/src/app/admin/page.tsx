@@ -185,7 +185,7 @@ export default async function AdminOverviewPage() {
       </div>
 
       <header>
-        <h1 className="text-xl font-semibold text-text-0">Operator console</h1>
+        <h1 className="font-display text-3xl text-text-0">Operator console</h1>
         <p className="mt-1 text-xs text-text-3">
           Provision tenants, audit activity, and respond to ops alerts.
         </p>

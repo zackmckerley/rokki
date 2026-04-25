@@ -43,7 +43,7 @@ export default async function AppearancePage() {
         <span className="text-text-0">Appearance</span>
       </TopBar>
       <main className="mx-auto w-full max-w-2xl flex-1 p-6">
-        <h1 className="mb-1 text-xl font-semibold text-text-0">Appearance</h1>
+        <h1 className="font-display mb-1 text-3xl text-text-0">Appearance</h1>
         <p className="mb-6 text-xs text-text-3">
           Density + display preferences. Changes apply on next page load.
         </p>

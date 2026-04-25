@@ -31,11 +31,16 @@ export default async function AdminSpacePage({ params }: Props) {
   if (!space) notFound();
   const s = space as AdminSpaceDetailData["space"];
 
+  // Wave 1: every fetch that doesn't depend on the member list runs in
+  // parallel — including listUsers (we always pull all users to build the
+  // email map). Previously listUsers was sequential after profiles, which
+  // added ~100ms of waterfall to every space detail load.
   const [
     { data: rawMembers },
     { data: rawTerminals },
     { count: fileCount },
     { count: taskCount },
+    { data: authList },
   ] = await Promise.all([
     admin
       .from("space_members")
@@ -62,6 +67,7 @@ export default async function AdminSpacePage({ params }: Props) {
         head: true,
       })
       .eq("terminals.space_id", s.id),
+    admin.auth.admin.listUsers({ perPage: 200, page: 1 }),
   ]);
 
   const memberRows = (rawMembers ?? []) as {
@@ -69,6 +75,9 @@ export default async function AdminSpacePage({ params }: Props) {
     role: "owner" | "admin" | "member";
     joined_at: string;
   }[];
+
+  // Wave 2: profiles must wait for memberRows (need the userIds) — that's
+  // a real data dependency, not a waterfall.
   const userIds = memberRows.map((m) => m.user_id);
   const { data: profiles } = userIds.length
     ? await admin
@@ -81,10 +90,6 @@ export default async function AdminSpacePage({ params }: Props) {
       (p) => [p.user_id, p.full_name],
     ),
   );
-  const { data: authList } = await admin.auth.admin.listUsers({
-    perPage: 200,
-    page: 1,
-  });
   const emailMap = new Map(
     (authList?.users ?? []).map((u) => [u.id, u.email ?? ""]),
   );
