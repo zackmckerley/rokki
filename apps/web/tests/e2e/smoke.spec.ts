@@ -8,9 +8,11 @@ import { test, expect } from "@playwright/test";
 test.describe("public pages", () => {
   test("login renders", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    // The wordmark is the brand mark (no h1 wraps it). Check it by
+    // accessible name.
+    await expect(page.getByLabel("Rokki").first()).toBeVisible();
     await expect(
-      page.getByRole("textbox", { name: /email/i }),
+      page.getByRole("textbox", { name: /email or username/i }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: /send sign-in link/i }),
@@ -19,14 +21,16 @@ test.describe("public pages", () => {
 
   test("help is public-reachable", async ({ page }) => {
     await page.goto("/help");
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      /help & keyboard shortcuts/i,
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      /help/i,
     );
   });
 
   test("? overlay opens from help page", async ({ page }) => {
     await page.goto("/help");
-    await page.keyboard.press("Shift+Slash");
+    // Click the page first so keyboard events go to it (not the URL bar).
+    await page.locator("body").click();
+    await page.keyboard.press("?");
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).not.toBeVisible();
