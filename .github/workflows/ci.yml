@@ -90,8 +90,18 @@ jobs:
   security:
     name: Security audit
     runs-on: ubuntu-latest
+    permissions:
+      # gitleaks-action posts PR commit annotations and reads the PR's
+      # commit list — both require explicit grants under restrictive
+      # default token scopes.
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          # gitleaks scans full history on PRs. Default checkout depth is
+          # 1, which makes it skip everything except the merge commit.
+          fetch-depth: 0
 
       - name: Setup pnpm
         # Version comes from `packageManager` in root package.json — passing
