@@ -22,9 +22,11 @@ CREATE TABLE announcements (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Plain B-tree on both bounds — Postgres can range-scan starts_at and
+-- filter ends_at against now() at query time. We can't put now() in a
+-- partial-index predicate because it's STABLE, not IMMUTABLE.
 CREATE INDEX idx_announcements_active
-  ON announcements(starts_at)
-  WHERE ends_at IS NULL OR ends_at > now();
+  ON announcements(starts_at, ends_at);
 
 CREATE TABLE announcement_dismissals (
   announcement_id UUID NOT NULL REFERENCES announcements(id) ON DELETE CASCADE,

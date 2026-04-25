@@ -48,8 +48,8 @@ describe("hybrid search (RRF)", () => {
   beforeAll(async () => {
     // Find or create a throwaway space + terminal owned by zack.
     const { data: users } = await admin.auth.admin.listUsers();
-    const zack = users?.users.find((u) => u.email === "zack@test.rokki.ai");
-    if (!zack) throw new Error("seed user zack@test.rokki.ai missing");
+    const zack = users?.users.find((u) => u.email === "zack@rokki.local");
+    if (!zack) throw new Error("seed user zack@rokki.local missing");
 
     let spaceId: string;
     const { data: existing } = await admin

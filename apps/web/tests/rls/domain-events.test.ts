@@ -47,7 +47,7 @@ describe("domain_events", () => {
 
   beforeAll(async () => {
     const { data: users } = await admin.auth.admin.listUsers();
-    const zack = users?.users.find((u) => u.email === "zack@test.rokki.ai");
+    const zack = users?.users.find((u) => u.email === "zack@rokki.local");
     if (!zack) throw new Error("seed user missing");
 
     // Reuse / create a throwaway terminal + space.
@@ -107,7 +107,7 @@ describe("domain_events", () => {
     eventId = (ev as { id: string }).id;
 
     // Ensure a stranger exists with no membership in any of zack's stuff.
-    const strangerEmail = "events-stranger@test.rokki.ai";
+    const strangerEmail = "events-stranger@rokki.local";
     const exists = users?.users.find((u) => u.email === strangerEmail);
     if (!exists) {
       await admin.auth.admin.createUser({
@@ -116,7 +116,7 @@ describe("domain_events", () => {
       });
     }
 
-    zackClient = await makeClientFor("zack@test.rokki.ai");
+    zackClient = await makeClientFor("zack@rokki.local");
     strangerClient = await makeClientFor(strangerEmail);
   }, 30_000);
 

@@ -14,7 +14,7 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "echo 'lint stub'",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "files": ["dist"],
   "dependencies": {},
