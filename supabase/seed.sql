@@ -27,7 +27,7 @@ DECLARE
   _term   UUID;
 BEGIN
   -- --------------------------------------------------------------------
-  -- Username-based admin login (admin / Pringles2191)
+  -- Username-based admin login (admin / local-dev-only)
   --
   -- We store a real user in auth.users with the pseudo-email
   -- admin@rokki.local; the password-login endpoint maps the username
@@ -35,8 +35,16 @@ BEGIN
   -- uses crypt(..., gen_salt('bf')) — the same bcrypt format Supabase
   -- Auth uses — so Supabase accepts the password at sign-in.
   --
-  -- Local-dev only. For production, either set a different password via
-  -- the auth admin API or disable the password-login endpoint via env.
+  -- LOCAL-DEV ONLY. The hardcoded password here is intentionally generic
+  -- ("local-dev-only") so the public source code never holds anyone's
+  -- real credentials. After your first local sign-in, change it via the
+  -- admin UI (Settings > Profile > Change password) — that re-hashes
+  -- through Supabase's auth admin API and the new value lives only in
+  -- your local database, not in source.
+  --
+  -- For staging/prod, set a real password via the auth admin API at
+  -- environment-bootstrap time, or disable the password-login endpoint
+  -- entirely via env (recommended — magic links are safer).
   -- --------------------------------------------------------------------
   SELECT id INTO _admin FROM auth.users WHERE email = 'admin@rokki.local';
   IF _admin IS NULL THEN
@@ -59,7 +67,7 @@ BEGIN
       _admin,
       '00000000-0000-0000-0000-000000000000',
       'admin@rokki.local',
-      crypt('Pringles2191', gen_salt('bf')),
+      crypt('local-dev-only', gen_salt('bf')),
       now(),
       'authenticated', 'authenticated',
       '', '', '', '', '', '', '',
@@ -69,7 +77,7 @@ BEGIN
     );
   ELSE
     UPDATE auth.users
-    SET encrypted_password = crypt('Pringles2191', gen_salt('bf'))
+    SET encrypted_password = crypt('local-dev-only', gen_salt('bf'))
     WHERE id = _admin;
   END IF;
 
