@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 import { rateLimitCheck, rateLimitToken } from "@/lib/ratelimit";
+import { logEvent, withObservability } from "@/lib/observability";
 
 /**
  * POST /api/v1/auth/send-link  { email, redirect_to? }
@@ -14,8 +15,12 @@ import { rateLimitCheck, rateLimitToken } from "@/lib/ratelimit";
  * whether an email is registered. Supabase itself won't create a user
  * from `signInWithOtp` unless `shouldCreateUser` is true — which we leave
  * at the Supabase default (true).
+ *
+ * Wrapped in withObservability so the request lifecycle (status, latency)
+ * is logged to Axiom and any thrown exception traces to Sentry. Rate-limit
+ * trips emit their own structured event for abuse-pattern detection.
  */
-export async function POST(request: NextRequest) {
+async function handler(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     email?: string;
     redirect_to?: string;
@@ -50,6 +55,11 @@ export async function POST(request: NextRequest) {
 
   if (!perEmail.ok || !perIp.ok) {
     const retry = Math.max(perEmail.retryAfterSeconds, perIp.retryAfterSeconds);
+    logEvent("warn", "auth.send_link.rate_limited", {
+      email_hash: emailBucket, // already hashed by rateLimitToken
+      bucket: !perEmail.ok ? "email" : "ip",
+      retry_after_s: retry,
+    });
     return NextResponse.json(
       {
         errors: [
@@ -107,3 +117,5 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ data: { sent: true } });
 }
+
+export const POST = withObservability(handler, "POST /api/v1/auth/send-link");
