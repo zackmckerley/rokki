@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withObservability } from "@/lib/observability";
 import type { TaskStatus } from "@rokki/db";
 
 interface Props {
@@ -13,7 +14,7 @@ interface Props {
  *
  * Spec: docs/02_API.md §2.7
  */
-export async function GET(_request: NextRequest, { params }: Props) {
+async function handleGet(_request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -34,7 +35,7 @@ export async function GET(_request: NextRequest, { params }: Props) {
   return NextResponse.json({ data });
 }
 
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -102,7 +103,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data });
 }
 
-export async function DELETE(_request: NextRequest, { params }: Props) {
+async function handleDelete(_request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -161,3 +162,7 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(handleGet, "GET /api/v1/tasks/:id");
+export const PATCH = withObservability<Props>(handlePatch, "PATCH /api/v1/tasks/:id");
+export const DELETE = withObservability<Props>(handleDelete, "DELETE /api/v1/tasks/:id");

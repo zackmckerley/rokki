@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withObservability } from "@/lib/observability";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -37,7 +38,7 @@ const VALID_ROLES: ProjectRole[] = [
  * RLS enforces read access; this PATCH updates the declarative state. When
  * switching to a non-custom mode, the explicit arrays are cleared.
  */
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -160,7 +161,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data: { id, ...patch } });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -228,3 +229,6 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const PATCH = withObservability<Props>(handlePatch, "PATCH /api/v1/files/:id");
+export const DELETE = withObservability<Props>(handleDelete, "DELETE /api/v1/files/:id");

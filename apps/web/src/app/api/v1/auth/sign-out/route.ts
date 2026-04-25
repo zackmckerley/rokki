@@ -14,6 +14,7 @@ import {
   type CookieOptions,
 } from "@supabase/ssr";
 import type { Database } from "@rokki/db";
+import { withObservability } from "@/lib/observability";
 
 interface CookieToSet {
   name: string;
@@ -31,7 +32,7 @@ interface CookieToSet {
  * Both modes also call supabase.auth.signOut so the access token gets
  * invalidated server-side.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const url = new URL(request.url);
   const scope = url.searchParams.get("scope") === "all" ? "all" : "current";
 
@@ -145,3 +146,5 @@ function clearSupabaseCookies(
     }
   }
 }
+
+export const POST = withObservability(handlePost, "POST /api/v1/auth/sign-out");

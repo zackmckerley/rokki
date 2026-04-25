@@ -15,6 +15,7 @@ import {
   addToRing,
 } from "@/lib/account-ring";
 import { emitEvent } from "@/lib/events";
+import { withObservability } from "@/lib/observability";
 
 interface CookieToSet {
   name: string;
@@ -33,7 +34,7 @@ interface CookieToSet {
  * for themselves — the route gates by checking the impersonation log,
  * not by requireAdmin (the impersonated user might NOT be admin).
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -165,3 +166,5 @@ export async function POST(request: NextRequest) {
 
   return response;
 }
+
+export const POST = withObservability(handlePost, "POST /api/v1/admin/impersonate/end");

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
+import { withObservability } from "@/lib/observability";
 
 const SCOPES = ["global", "space", "user"] as const;
 
@@ -11,7 +12,7 @@ const SCOPES = ["global", "space", "user"] as const;
  *
  * DELETE /api/v1/admin/flags?id=...
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -24,7 +25,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -88,7 +89,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDelete(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -119,3 +120,7 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const GET = withObservability(handleGet, "GET /api/v1/admin/flags");
+export const POST = withObservability(handlePost, "POST /api/v1/admin/flags");
+export const DELETE = withObservability(handleDelete, "DELETE /api/v1/admin/flags");

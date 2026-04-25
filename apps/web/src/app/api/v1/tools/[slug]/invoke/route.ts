@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkQuota, recordQuotaUsage } from "@/lib/quotas";
 import { decryptToken } from "@/lib/token-crypto";
+import { withObservability } from "@/lib/observability";
 import crypto from "node:crypto";
 
 interface Props {
@@ -18,7 +19,7 @@ interface Props {
  *
  * Logs to tool_invocations + activity same as the MCP path.
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const supabase = await createClient();
   const {
@@ -409,3 +410,5 @@ function forbidden() {
     { status: 403 },
   );
 }
+
+export const POST = withObservability<Props>(handlePost, "POST /api/v1/tools/:slug/invoke");

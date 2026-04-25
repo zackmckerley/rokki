@@ -6,6 +6,7 @@ import {
 import type { Database } from "@rokki/db";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
+import { withObservability } from "@/lib/observability";
 
 interface CookieToSet {
   name: string;
@@ -26,7 +27,7 @@ interface CookieToSet {
  *   Logs the swap in `impersonation_events`. Justification is required and
  *   audited — this is meant for support, not for fun.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -194,3 +195,5 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const POST = withObservability(handlePost, "POST /api/v1/admin/impersonate");

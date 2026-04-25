@@ -5,6 +5,7 @@ import {
 } from "@supabase/ssr";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import type { Database, OrgRole, ProjectRole } from "@rokki/db";
+import { withObservability } from "@/lib/observability";
 
 type ServerClient = ReturnType<typeof createServerClient<Database>>;
 
@@ -35,7 +36,7 @@ function isOtpType(v: string): v is EmailOtpType {
  * Cookies are bound to the outgoing NextResponse explicitly so the session
  * survives the redirect (see https://supabase.com/docs/guides/auth/server-side/nextjs).
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
@@ -238,3 +239,5 @@ function hashFragmentHandler(redirectTo: string): string {
 </script>
 </body></html>`;
 }
+
+export const GET = withObservability(handleGet, "GET /auth/callback");

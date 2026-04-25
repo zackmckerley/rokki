@@ -87,12 +87,12 @@ export function captureError(
  *
  *   export const POST = withObservability(async (req) => { … });
  */
-type Handler<C = unknown> = (
+type Handler<C = undefined> = (
   req: NextRequest,
-  ctx?: C,
+  ctx: C,
 ) => Promise<Response> | Response;
 
-export function withObservability<C = unknown>(
+export function withObservability<C = undefined>(
   fn: Handler<C>,
   routeLabel?: string,
 ): Handler<C> {

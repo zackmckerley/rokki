@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { revokeSessions } from "@/lib/revocations";
 import { emitEvent } from "@/lib/events";
+import { withObservability } from "@/lib/observability";
 
 interface Props {
   params: Promise<{ userId: string }>;
@@ -13,7 +14,7 @@ interface Props {
  * Fires a revocation row that the `SessionGuard` listens for on every
  * logged-in client belonging to this user — they sign out within ~seconds.
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -44,3 +45,5 @@ export async function POST(request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data: { revoked: true } });
 }
+
+export const POST = withObservability<Props>(handlePost, "POST /api/v1/admin/users/:userId/revoke-sessions");

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withObservability } from "@/lib/observability";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -9,7 +10,7 @@ interface Props {
  * POST /api/v1/tasks/:id/complete — convenience: set status=done + completed_at=now.
  * Spec: docs/02_API.md §2.7.5
  */
-export async function POST(_request: NextRequest, { params }: Props) {
+async function handlePost(_request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -51,3 +52,5 @@ export async function POST(_request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data });
 }
+
+export const POST = withObservability<Props>(handlePost, "POST /api/v1/tasks/:id/complete");

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 import { revokeSessions } from "@/lib/revocations";
+import { withObservability } from "@/lib/observability";
 
 interface Props {
   params: Promise<{ userId: string }>;
@@ -17,7 +18,7 @@ interface Props {
  * DELETE (aka unsuspend) /api/v1/admin/users/:userId/suspend
  *   Clears the ban.
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest, { params }: Props) {
   });
 }
 
-export async function DELETE(request: NextRequest, { params }: Props) {
+async function handleDelete(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -98,3 +99,6 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const POST = withObservability<Props>(handlePost, "POST /api/v1/admin/users/:userId/suspend");
+export const DELETE = withObservability<Props>(handleDelete, "DELETE /api/v1/admin/users/:userId/suspend");

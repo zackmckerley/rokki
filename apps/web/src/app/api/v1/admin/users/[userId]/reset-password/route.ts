@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 import { revokeSessions } from "@/lib/revocations";
+import { withObservability } from "@/lib/observability";
 
 interface Props {
   params: Promise<{ userId: string }>;
@@ -16,7 +17,7 @@ interface Props {
  *   - email a reset link   — generates a recovery link (Mailpit/Supabase mails it)
  * Both can be used together.
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -100,3 +101,5 @@ export async function POST(request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data: { reset: true } });
 }
+
+export const POST = withObservability<Props>(handlePost, "POST /api/v1/admin/users/:userId/reset-password");

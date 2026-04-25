@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { emitEvent } from "@/lib/events";
+import { withObservability } from "@/lib/observability";
 import type { TaskStatus } from "@rokki/db";
 
 interface Props {
@@ -13,7 +14,7 @@ interface Props {
  *
  * Spec: docs/02_API.md §2.7
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
 
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
 
@@ -168,3 +169,6 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(handleGet, "GET /api/v1/projects/:ticker/tasks");
+export const POST = withObservability<Props>(handlePost, "POST /api/v1/projects/:ticker/tasks");

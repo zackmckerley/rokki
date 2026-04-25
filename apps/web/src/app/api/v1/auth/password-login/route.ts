@@ -10,6 +10,7 @@ import {
   serializeRing,
 } from "@/lib/account-ring";
 import { cryptoEnabled } from "@/lib/token-crypto";
+import { withObservability } from "@/lib/observability";
 
 interface CookieToSet {
   name: string;
@@ -37,7 +38,7 @@ const USERNAME_MAP: Record<string, string> = {
   admin: "admin@rokki.local",
 };
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   if (process.env.DISABLE_PASSWORD_LOGIN === "true") {
     return NextResponse.json(
       {
@@ -179,3 +180,5 @@ function forbidden(msg: string) {
     { status: 403 },
   );
 }
+
+export const POST = withObservability(handlePost, "POST /api/v1/auth/password-login");

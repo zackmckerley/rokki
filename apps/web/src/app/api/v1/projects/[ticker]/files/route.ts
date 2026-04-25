@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildBlobKey, putObject } from "@/lib/storage";
+import { withObservability } from "@/lib/observability";
 import crypto from "node:crypto";
 
 const MAX_UPLOAD_BYTES = 25 * 1024 * 1024; // 25 MB
@@ -16,7 +17,7 @@ interface Props {
  * Phase 1: small uploads only. Large-file signed-URL flow ships next slice.
  * No virus scan, no folder support, no versioning UX in v1.
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const {
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const {
@@ -230,3 +231,6 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(handleGet, "GET /api/v1/projects/:ticker/files");
+export const POST = withObservability<Props>(handlePost, "POST /api/v1/projects/:ticker/files");
