@@ -1,7 +1,7 @@
 /**
  * RLS smoke tests. Runs against the local Supabase stack.
  *
- *   - Signs in as zack@test.rokki.ai and verifies project-scoped SELECTs.
+ *   - Signs in as zack@rokki.local and verifies project-scoped SELECTs.
  *   - Signs in as a non-member and verifies they can't see the project.
  *
  * These tests require supabase to be running locally (the CI job spins it
@@ -56,11 +56,11 @@ describe("RLS — project scoping", () => {
   beforeAll(async () => {
     // Make sure we have a project zack owns.
     const { data: users } = await admin.auth.admin.listUsers();
-    const zackUser = users?.users.find((u) => u.email === "zack@test.rokki.ai");
+    const zackUser = users?.users.find((u) => u.email === "zack@rokki.local");
     if (!zackUser) {
-      throw new Error("seed user zack@test.rokki.ai missing — run db reset");
+      throw new Error("seed user zack@rokki.local missing — run db reset");
     }
-    const strangerEmail = "rls-stranger@test.rokki.ai";
+    const strangerEmail = "rls-stranger@rokki.local";
     let strangerUser = users?.users.find((u) => u.email === strangerEmail);
     if (!strangerUser) {
       const { data } = await admin.auth.admin.createUser({
@@ -123,7 +123,7 @@ describe("RLS — project scoping", () => {
     }
     expect(projectId).toBeTruthy();
 
-    zack = await makeClientFor("zack@test.rokki.ai");
+    zack = await makeClientFor("zack@rokki.local");
     stranger = await makeClientFor(strangerEmail);
   }, 30_000);
 
