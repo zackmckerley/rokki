@@ -1,4 +1,13 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// Resolve apps/web absolutely so the @/* alias works regardless of the
+// CWD next is launched from. Vercel was failing to resolve `@/lib/*`
+// even though the tsconfig paths were correct — registering the alias
+// explicitly with webpack bypasses whatever auto-detection breaks
+// there.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -9,6 +18,14 @@ const nextConfig = {
     serverActions: {
       allowedOrigins: ["localhost:3000", "app.rokki.ai", "staging.rokki.ai"],
     },
+  },
+  webpack: (config) => {
+    config.resolve = config.resolve || {};
+    config.resolve.alias = {
+      ...(config.resolve.alias || {}),
+      "@": path.resolve(__dirname, "src"),
+    };
+    return config;
   },
   async headers() {
     return [
