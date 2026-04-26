@@ -233,7 +233,7 @@ export function AdminTerminalDetail({
         <div className="flex flex-col gap-3 p-4">
           {archived ? (
             <div className="flex items-start gap-3 rounded border border-warning/40 bg-warning-subtle p-3">
-              <ArchiveRestore className="mt-0.5 h-4 w-4 text-warning" />
+              <ArchiveRestore className="mt-0.5 h-3.5 w-3.5 text-warning" />
               <div className="flex-1 text-sm">
                 <p className="text-text-0">Terminal is archived</p>
                 <p className="mt-0.5 text-xs text-text-3">
@@ -247,7 +247,7 @@ export function AdminTerminalDetail({
             </div>
           ) : (
             <div className="flex items-start gap-3 rounded border border-border bg-bg-2 p-3">
-              <Archive className="mt-0.5 h-4 w-4 text-danger" />
+              <Archive className="mt-0.5 h-3.5 w-3.5 text-danger" />
               <div className="flex-1 text-sm">
                 <p className="text-text-0">Archive this terminal</p>
                 <p className="mt-0.5 text-xs text-text-3">

@@ -79,7 +79,7 @@ export function ApprovalsClient({ scope }: { scope: "mine" | "inbox" }) {
             key={a.id}
             className="flex items-start gap-3 rounded border border-border bg-bg-1 p-3"
           >
-            <Clock className="mt-0.5 h-4 w-4 flex-shrink-0 text-warning" />
+            <Clock className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-warning" />
             <div className="flex-1 min-w-0">
               <p className="text-sm text-text-0">
                 {labelOf(a)}

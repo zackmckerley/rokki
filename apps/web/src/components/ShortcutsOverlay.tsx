@@ -57,7 +57,7 @@ export function ShortcutsOverlay() {
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center gap-3 border-b border-border bg-bg-2 px-4 py-2.5">
-          <Keyboard className="h-4 w-4 text-accent" aria-hidden="true" />
+          <Keyboard className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
           <h2
             id="shortcuts-title"
             className="text-sm font-semibold text-text-0"
@@ -84,7 +84,7 @@ export function ShortcutsOverlay() {
             aria-label="Close shortcuts"
             className="rounded p-1 text-text-2 hover:bg-bg-3 hover:text-text-0"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         </header>
         <div className="grid max-h-[70vh] grid-cols-1 gap-x-6 gap-y-5 overflow-y-auto p-5 md:grid-cols-2">

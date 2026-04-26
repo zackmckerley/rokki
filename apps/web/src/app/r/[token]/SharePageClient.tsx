@@ -128,7 +128,7 @@ export function SharePageClient({ token }: { token: string }) {
         ) : data ? (
           <>
             <div className="mb-4 flex items-center gap-3 text-sm">
-              <FileText className="h-4 w-4 text-text-3" aria-hidden="true" />
+              <FileText className="h-3.5 w-3.5 text-text-3" aria-hidden="true" />
               <span className="flex-1 truncate font-mono text-text-1">
                 {data.filename}
               </span>

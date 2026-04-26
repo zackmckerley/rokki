@@ -211,9 +211,9 @@ function OverviewMain({ project }: { project: ProjectRow }) {
           >
             <span className="text-accent">
               {m.icon === "CheckSquare" ? (
-                <CheckSquare className="h-4 w-4" />
+                <CheckSquare className="h-3.5 w-3.5" />
               ) : (
-                <Users className="h-4 w-4" />
+                <Users className="h-3.5 w-3.5" />
               )}
             </span>
             <p className="text-sm font-medium text-text-1">{m.name}</p>

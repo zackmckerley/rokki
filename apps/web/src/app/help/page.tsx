@@ -47,7 +47,7 @@ export default function HelpPage() {
           className="mb-6 overflow-hidden rounded border border-border bg-bg-1"
         >
           <header className="flex items-center gap-1.5 border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
-            <Keyboard className="h-3 w-3" />
+            <Keyboard className="h-2.5 w-2.5" />
             <span id="tldr-h">Start here</span>
           </header>
           <ul className="grid grid-cols-1 gap-0 divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
@@ -75,7 +75,7 @@ export default function HelpPage() {
           className="mb-6 overflow-hidden rounded border border-border bg-bg-1"
         >
           <header className="flex items-center gap-1.5 border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
-            <Terminal className="h-3 w-3" />
+            <Terminal className="h-2.5 w-2.5" />
             <span id="concepts-h">Concepts</span>
           </header>
           <div className="grid grid-cols-1 divide-y divide-border text-sm md:grid-cols-2 md:divide-x md:divide-y-0">
@@ -170,7 +170,7 @@ export default function HelpPage() {
           className="mt-6 overflow-hidden rounded border border-border bg-bg-1"
         >
           <header className="flex items-center gap-1.5 border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
-            <MessageSquare className="h-3 w-3" />
+            <MessageSquare className="h-2.5 w-2.5" />
             <span id="support-h">Support</span>
           </header>
           <div className="p-4 text-sm text-text-1">

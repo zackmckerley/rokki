@@ -48,7 +48,7 @@ export function ConfirmDialog({
       <div className="flex flex-col gap-3">
         {destructive ? (
           <div className="flex items-start gap-2 rounded-sm border border-danger/40 bg-danger-subtle/50 px-3 py-2 text-xs text-danger">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+            <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0" />
             <span>This action can&apos;t be undone quickly. Read carefully.</span>
           </div>
         ) : null}

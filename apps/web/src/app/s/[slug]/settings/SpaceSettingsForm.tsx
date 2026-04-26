@@ -287,7 +287,7 @@ function MembersCard({
                   aria-label={m.is_you ? "Leave space" : "Remove member"}
                   className="rounded p-1 text-text-3 hover:bg-bg-3 hover:text-danger"
                 >
-                  <UserMinus className="h-4 w-4" />
+                  <UserMinus className="h-3.5 w-3.5" />
                 </button>
               ) : null}
             </li>
@@ -436,7 +436,7 @@ function InvitesCard({
               key={i.id}
               className="flex items-center gap-3 px-4 py-2 text-sm"
             >
-              <Mail className="h-4 w-4 text-text-3" />
+              <Mail className="h-3.5 w-3.5 text-text-3" />
               <span className="flex-1 truncate text-text-1">{i.email}</span>
               <span className="font-mono text-[11px] uppercase text-text-3">
                 {i.role}

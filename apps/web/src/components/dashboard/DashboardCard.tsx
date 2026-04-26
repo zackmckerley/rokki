@@ -63,7 +63,7 @@ export function DashboardCard({
               aria-label={`Open ${title}`}
               className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
             >
-              <Maximize2 className="h-3.5 w-3.5" />
+              <Maximize2 className="h-3 w-3" />
             </Link>
           ) : null}
         </div>

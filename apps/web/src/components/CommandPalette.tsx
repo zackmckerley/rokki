@@ -120,21 +120,21 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         id: "go/dashboard",
         title: "Dashboard",
         category: "navigation",
-        icon: <LayoutDashboard className="h-4 w-4" />,
+        icon: <LayoutDashboard className="h-3.5 w-3.5" />,
         onRun: go("/"),
       },
       {
         id: "go/tools",
         title: "Tools",
         category: "navigation",
-        icon: <Wrench className="h-4 w-4" />,
+        icon: <Wrench className="h-3.5 w-3.5" />,
         onRun: go("/tools"),
       },
       {
         id: "go/settings",
         title: "Settings",
         category: "navigation",
-        icon: <Settings className="h-4 w-4" />,
+        icon: <Settings className="h-3.5 w-3.5" />,
         onRun: go("/settings"),
       },
       {
@@ -143,7 +143,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         subtitle: "Full reference — or press ? anywhere",
         category: "help",
         shortcut: "?",
-        icon: <HelpCircle className="h-4 w-4" />,
+        icon: <HelpCircle className="h-3.5 w-3.5" />,
         onRun: go("/help"),
       },
     ];
@@ -166,7 +166,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         title: "New terminal",
         subtitle: "A working context — project, matter, goal, client",
         category: "action",
-        icon: <Plus className="h-4 w-4" />,
+        icon: <Plus className="h-3.5 w-3.5" />,
         onRun: go("/?new=terminal"),
       },
       {
@@ -174,7 +174,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         title: "New space",
         subtitle: "A company, family, or household (platform admin only)",
         category: "action",
-        icon: <Plus className="h-4 w-4" />,
+        icon: <Plus className="h-3.5 w-3.5" />,
         onRun: go("/?new=space"),
       },
       {
@@ -182,7 +182,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         title: "New tool",
         subtitle: "Register a custom skill",
         category: "action",
-        icon: <Plus className="h-4 w-4" />,
+        icon: <Plus className="h-3.5 w-3.5" />,
         onRun: go("/tools/new"),
       },
       {
@@ -207,7 +207,7 @@ export function CommandPalette({ children }: { children: ReactNode }) {
             title: "Admin: Operator console",
             subtitle: "KPIs, health, recent events",
             category: "action",
-            icon: <ShieldCheck className="h-4 w-4 text-accent" />,
+            icon: <ShieldCheck className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin"),
           },
           {
@@ -215,28 +215,28 @@ export function CommandPalette({ children }: { children: ReactNode }) {
             title: "Admin: Users",
             subtitle: "Search, suspend, impersonate",
             category: "action",
-            icon: <Users className="h-4 w-4 text-accent" />,
+            icon: <Users className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin/users"),
           },
           {
             id: "admin/users/new",
             title: "Admin: New user",
             category: "action",
-            icon: <Plus className="h-4 w-4 text-accent" />,
+            icon: <Plus className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin/users/new"),
           },
           {
             id: "admin/spaces",
             title: "Admin: Spaces",
             category: "action",
-            icon: <Building2 className="h-4 w-4 text-accent" />,
+            icon: <Building2 className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin/spaces"),
           },
           {
             id: "admin/spaces/new",
             title: "Admin: New space",
             category: "action",
-            icon: <Plus className="h-4 w-4 text-accent" />,
+            icon: <Plus className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin/spaces/new"),
           },
           {
@@ -244,35 +244,35 @@ export function CommandPalette({ children }: { children: ReactNode }) {
             title: "Admin: Emergency access",
             subtitle: "Time-boxed break-glass into a terminal",
             category: "action",
-            icon: <ShieldAlert className="h-4 w-4 text-danger" />,
+            icon: <ShieldAlert className="h-3.5 w-3.5 text-danger" />,
             onRun: go("/admin/emergency"),
           },
           {
             id: "admin/announcements",
             title: "Admin: Announcements",
             category: "action",
-            icon: <Megaphone className="h-4 w-4 text-accent" />,
+            icon: <Megaphone className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin/announcements"),
           },
           {
             id: "admin/flags",
             title: "Admin: Feature flags",
             category: "action",
-            icon: <ToggleLeft className="h-4 w-4 text-accent" />,
+            icon: <ToggleLeft className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin/flags"),
           },
           {
             id: "admin/health",
             title: "Admin: Health",
             category: "action",
-            icon: <HeartPulse className="h-4 w-4 text-accent" />,
+            icon: <HeartPulse className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin/health"),
           },
           {
             id: "admin/activity",
             title: "Admin: Activity log",
             category: "action",
-            icon: <Activity className="h-4 w-4 text-accent" />,
+            icon: <Activity className="h-3.5 w-3.5 text-accent" />,
             onRun: go("/admin/activity"),
           },
         ]
@@ -373,7 +373,7 @@ function PaletteUI({
       >
         <CmdkCommand loop shouldFilter>
           <div className="flex items-center gap-3 border-b border-border px-4 py-3">
-            <Search className="h-4 w-4 text-text-2" aria-hidden="true" />
+            <Search className="h-3.5 w-3.5 text-text-2" aria-hidden="true" />
             <CmdkCommand.Input
               value={query}
               onValueChange={setQuery}

@@ -146,7 +146,7 @@ export function TeamPane({ ticker, projectId, canInvite }: TeamPaneProps) {
               id: `team/invite:${projectId}`,
               title: "Invite someone",
               category: "action" as const,
-              icon: <UserPlus className="h-4 w-4" />,
+              icon: <UserPlus className="h-3.5 w-3.5" />,
               shortcut: "I",
               onRun: () => setInviteOpen(true),
             },
@@ -291,7 +291,7 @@ function InviteRow({ invite }: { invite: PendingInvite }) {
     new Date(invite.expires_at).getTime() - Date.now() < 2 * 86400 * 1000;
   return (
     <li className="flex items-center gap-3 px-4 py-2.5">
-      <Mail className="h-4 w-4 flex-shrink-0 text-text-3" aria-hidden="true" />
+      <Mail className="h-3.5 w-3.5 flex-shrink-0 text-text-3" aria-hidden="true" />
       <span className="flex-1 truncate text-sm text-text-1">{invite.email}</span>
       <span
         className={cn(
@@ -299,7 +299,7 @@ function InviteRow({ invite }: { invite: PendingInvite }) {
           expiresSoon ? "text-warning" : "text-text-3",
         )}
       >
-        <Clock className="h-3 w-3" /> pending
+        <Clock className="h-2.5 w-2.5" /> pending
       </span>
       <RolePill role={invite.role} />
     </li>

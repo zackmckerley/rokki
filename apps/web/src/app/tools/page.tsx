@@ -59,7 +59,7 @@ export default async function ToolsPage() {
             href="/tools/new"
             className="flex items-center gap-1.5 rounded border border-border bg-bg-1 px-3 py-1.5 text-sm text-text-0 hover:bg-bg-2"
           >
-            <Plus className="h-4 w-4" /> New tool
+            <Plus className="h-3.5 w-3.5" /> New tool
           </Link>
         </div>
 
@@ -121,15 +121,15 @@ function VisibilityIcon({
   v: "private" | "org" | "project" | "public";
 }) {
   if (v === "public")
-    return <Globe className="mt-0.5 h-4 w-4 text-accent" aria-label="Public" />;
+    return <Globe className="mt-0.5 h-3.5 w-3.5 text-accent" aria-label="Public" />;
   if (v === "org")
     return (
       <Building2
-        className="mt-0.5 h-4 w-4 text-text-2"
+        className="mt-0.5 h-3.5 w-3.5 text-text-2"
         aria-label="Org-shared"
       />
     );
-  return <Lock className="mt-0.5 h-4 w-4 text-text-3" aria-label="Private" />;
+  return <Lock className="mt-0.5 h-3.5 w-3.5 text-text-3" aria-label="Private" />;
 }
 
 function Empty() {

@@ -137,7 +137,7 @@ export function NotificationBell() {
                 onClick={markAll}
                 className="flex items-center gap-1 text-[11px] text-text-3 hover:text-text-0"
               >
-                <CheckCheck className="h-3 w-3" /> Mark all read
+                <CheckCheck className="h-2.5 w-2.5" /> Mark all read
               </button>
             ) : null}
           </div>

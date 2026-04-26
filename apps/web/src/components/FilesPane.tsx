@@ -165,7 +165,7 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
         title: "Upload file",
         subtitle: currentFolder,
         category: "action" as const,
-        icon: <Upload className="h-4 w-4" />,
+        icon: <Upload className="h-3.5 w-3.5" />,
         onRun: () => inputRef.current?.click(),
       },
       {
@@ -173,7 +173,7 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
         title: "Take photo and upload",
         subtitle: currentFolder,
         category: "action" as const,
-        icon: <Upload className="h-4 w-4" />,
+        icon: <Upload className="h-3.5 w-3.5" />,
         onRun: () => cameraRef.current?.click(),
       },
       {
@@ -181,14 +181,14 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
         title: "New folder",
         subtitle: currentFolder,
         category: "action" as const,
-        icon: <FolderPlus className="h-4 w-4" />,
+        icon: <FolderPlus className="h-3.5 w-3.5" />,
         onRun: () => setNewFolderOpen(true),
       },
       {
         id: `files/trash:${projectId}`,
         title: view === "trash" ? "Exit trash" : "Show trash",
         category: "action" as const,
-        icon: <Trash2 className="h-4 w-4" />,
+        icon: <Trash2 className="h-3.5 w-3.5" />,
         onRun: () => setView(view === "trash" ? "live" : "trash"),
       },
     ],
@@ -701,7 +701,7 @@ function FolderItem({
   if (renaming) {
     return (
       <li className="flex items-center gap-3 bg-bg-2 px-4 py-2.5">
-        <FolderIcon className="h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
+        <FolderIcon className="h-3.5 w-3.5 flex-shrink-0 text-accent" aria-hidden="true" />
         <input
           autoFocus
           value={draft}
@@ -748,7 +748,7 @@ function FolderItem({
         isDropTarget && "bg-accent-subtle",
       )}
     >
-      <FolderIcon className="h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
+      <FolderIcon className="h-3.5 w-3.5 flex-shrink-0 text-accent" aria-hidden="true" />
       <button
         onClick={onOpen}
         className="flex-1 truncate text-left text-sm text-text-0"
@@ -819,7 +819,7 @@ function FileItem({
     return (
       <li className="flex items-center gap-3 bg-bg-2 px-4 py-2.5">
         <FileText
-          className="h-4 w-4 flex-shrink-0 text-text-3"
+          className="h-3.5 w-3.5 flex-shrink-0 text-text-3"
           aria-hidden="true"
         />
         <input
@@ -852,7 +852,7 @@ function FileItem({
       onDragEnd={onDragEnd}
       className="group flex items-center gap-3 px-4 py-2.5 hover:bg-bg-2"
     >
-      <FileText className="h-4 w-4 flex-shrink-0 text-text-3" aria-hidden="true" />
+      <FileText className="h-3.5 w-3.5 flex-shrink-0 text-text-3" aria-hidden="true" />
       {file.mime_type === "application/pdf" ? (
         <a
           href={`/p/${ticker}/drawings/${file.id}`}
@@ -957,7 +957,7 @@ function TrashItem({
 }) {
   return (
     <li className="group flex items-center gap-3 px-4 py-2.5">
-      <FileText className="h-4 w-4 flex-shrink-0 text-text-3" aria-hidden="true" />
+      <FileText className="h-3.5 w-3.5 flex-shrink-0 text-text-3" aria-hidden="true" />
       <span
         className="flex-1 truncate text-sm text-text-2 line-through"
         title={file.filename}
@@ -997,7 +997,7 @@ function NewFolderInline({
   const [draft, setDraft] = useState("");
   return (
     <div className="flex items-center gap-3 border-b border-border bg-bg-1 px-4 py-2.5">
-      <FolderIcon className="h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
+      <FolderIcon className="h-3.5 w-3.5 flex-shrink-0 text-accent" aria-hidden="true" />
       <input
         autoFocus
         placeholder="New folder name… Enter to save, Esc to cancel"

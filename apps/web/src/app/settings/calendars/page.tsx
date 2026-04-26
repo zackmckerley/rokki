@@ -65,13 +65,13 @@ export default async function CalendarsPage({ searchParams }: Props) {
 
         {params.connected ? (
           <div className="mb-4 flex items-center gap-2 rounded border border-success-subtle bg-success-subtle px-3 py-2 text-xs text-success">
-            <CheckCircle2 className="h-3.5 w-3.5" />
+            <CheckCircle2 className="h-3 w-3" />
             Connected {params.connected} successfully.
           </div>
         ) : null}
         {params.error ? (
           <div className="mb-4 flex items-center gap-2 rounded border border-danger-subtle bg-danger-subtle px-3 py-2 text-xs text-danger">
-            <AlertTriangle className="h-3.5 w-3.5" />
+            <AlertTriangle className="h-3 w-3" />
             {errorMessage(params.error, params.provider)}
           </div>
         ) : null}

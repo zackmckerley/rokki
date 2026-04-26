@@ -63,19 +63,19 @@ export default async function SettingsPage() {
         <Group title="Account">
           <Row
             href="/settings/profile"
-            icon={<User className="h-4 w-4 text-accent" />}
+            icon={<User className="h-3.5 w-3.5 text-accent" />}
             title="Profile"
             subtitle="Name, avatar, timezone."
           />
           <Row
             href="/settings/appearance"
-            icon={<Palette className="h-4 w-4 text-accent" />}
+            icon={<Palette className="h-3.5 w-3.5 text-accent" />}
             title="Appearance"
             subtitle="Density and display preferences."
           />
           <Row
             href="/settings/notifications"
-            icon={<Bell className="h-4 w-4 text-accent" />}
+            icon={<Bell className="h-3.5 w-3.5 text-accent" />}
             title="Notifications"
             subtitle="Digest cadence, quiet hours, per-kind routing."
           />
@@ -84,25 +84,25 @@ export default async function SettingsPage() {
         <Group title="Integrations">
           <Row
             href="/settings/tokens"
-            icon={<Sparkles className="h-4 w-4 text-accent" />}
+            icon={<Sparkles className="h-3.5 w-3.5 text-accent" />}
             title="API tokens"
             subtitle="Access tokens for Claude Desktop and other MCP clients."
           />
           <Row
             href="/settings/keys"
-            icon={<Key className="h-4 w-4 text-accent" />}
+            icon={<Key className="h-3.5 w-3.5 text-accent" />}
             title="Provider keys (BYOK)"
             subtitle="Your own OpenAI, Anthropic, Google keys — encrypted at rest."
           />
           <Row
             href="/settings/calendars"
-            icon={<Calendar className="h-4 w-4 text-accent" />}
+            icon={<Calendar className="h-3.5 w-3.5 text-accent" />}
             title="Calendars"
             subtitle="Connect Google Calendar and Outlook — events feed This Week."
           />
           <Row
             href="/approvals"
-            icon={<ShieldCheck className="h-4 w-4 text-accent" />}
+            icon={<ShieldCheck className="h-3.5 w-3.5 text-accent" />}
             title="Approvals"
             subtitle="Review tool runs awaiting your yes / no."
           />
@@ -111,13 +111,13 @@ export default async function SettingsPage() {
         <Group title="Support">
           <Row
             href="/help"
-            icon={<Keyboard className="h-4 w-4 text-accent" />}
+            icon={<Keyboard className="h-3.5 w-3.5 text-accent" />}
             title="Help & shortcuts"
             subtitle="Full keyboard reference, concepts primer, support contact."
           />
           <Row
             href="/welcome"
-            icon={<PartyPopper className="h-4 w-4 text-accent" />}
+            icon={<PartyPopper className="h-3.5 w-3.5 text-accent" />}
             title="Welcome tour"
             subtitle="The first-run checklist — revisit to finish setup."
           />
@@ -127,7 +127,7 @@ export default async function SettingsPage() {
           <Group title="Platform admin">
             <Row
               href="/settings/events"
-              icon={<Activity className="h-4 w-4 text-accent" />}
+              icon={<Activity className="h-3.5 w-3.5 text-accent" />}
               title="Domain events"
               subtitle="Append-only log of every state transition — for audit and webhooks."
             />
