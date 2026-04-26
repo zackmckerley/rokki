@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { currentTimeIn, shortZoneLabel } from "@/lib/timezone";
+import { setDragPayload } from "@/lib/drag-drop";
 import type { ProjectRole } from "@rokki/db";
 
 interface MemberProfile {
@@ -266,8 +267,21 @@ function MemberRow({ member, online }: { member: Member; online: boolean }) {
   const tz = member.profiles?.timezone ?? null;
   const timeStr = tz ? currentTimeIn(tz) : null;
   const cityStr = tz ? shortZoneLabel(tz) : null;
+  const [dragging, setDragging] = useState(false);
   return (
-    <li className="flex items-center gap-3 px-4 py-2.5">
+    <li
+      draggable
+      title="Drag onto a task to assign"
+      onDragStart={(e) => {
+        setDragPayload(e.dataTransfer, "user", member.user_id, name);
+        setDragging(true);
+      }}
+      onDragEnd={() => setDragging(false)}
+      className={cn(
+        "flex items-center gap-3 px-4 py-2.5",
+        dragging && "opacity-50",
+      )}
+    >
       <SharedAvatar name={name} size="sm" online={online} />
       <div className="flex flex-1 flex-col min-w-0">
         <span className="truncate text-sm text-text-0">{name}</span>
