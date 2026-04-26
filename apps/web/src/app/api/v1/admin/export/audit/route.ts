@@ -1,13 +1,22 @@
 import { type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { toCsv } from "@/lib/csv";
+import { redactPII } from "@/lib/pii-redact";
 
 /**
- * GET /api/v1/admin/export/audit?since_days=30
+ * GET /api/v1/admin/export/audit?since_days=30&include_pii=false
  *
  * CSV export combining `activity` and `domain_events` for compliance.
  * Caps at 50,000 rows so we don't accidentally OOM on a large tenant —
  * narrow the window if you hit the cap.
+ *
+ * The `metadata` / `payload` JSON columns regularly carry user emails
+ * and IPs (login attempts, magic-link sends, invite events). By
+ * default we run every row through `redactPII` so the resulting CSV
+ * is safe to share with non-admin reviewers. Pass `?include_pii=true`
+ * to bypass the redactor for legitimate admin exports — it's logged
+ * in the response filename so the recipient can tell which version
+ * they're holding.
  */
 export async function GET(request: NextRequest) {
   const gate = await requireAdmin(request);
@@ -19,7 +28,10 @@ export async function GET(request: NextRequest) {
     1,
     parseInt(url.searchParams.get("since_days") ?? "30", 10),
   );
+  const includePII = url.searchParams.get("include_pii") === "true";
   const since = new Date(Date.now() - days * 86_400_000).toISOString();
+
+  const sanitize = (v: unknown): unknown => (includePII ? v : redactPII(v));
 
   const [{ data: events }, { data: activity }, { data: revocations }] =
     await Promise.all([
@@ -66,7 +78,7 @@ export async function GET(request: NextRequest) {
       e.terminal_id,
       e.entity_type,
       e.entity_id,
-      JSON.stringify(e.payload ?? {}),
+      JSON.stringify(sanitize(e.payload ?? {})),
     ]);
   }
   for (const a of (activity ?? []) as Array<{
@@ -88,7 +100,7 @@ export async function GET(request: NextRequest) {
       a.terminal_id,
       a.entity_type,
       a.entity_id,
-      JSON.stringify(a.metadata ?? {}),
+      JSON.stringify(sanitize(a.metadata ?? {})),
     ]);
   }
   for (const r of (revocations ?? []) as Array<{
@@ -127,11 +139,12 @@ export async function GET(request: NextRequest) {
     rows,
   );
 
+  const piiTag = includePII ? "raw" : "redacted";
   return new Response(csv, {
     status: 200,
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="rokki-audit-${days}d.csv"`,
+      "Content-Disposition": `attachment; filename="rokki-audit-${days}d-${piiTag}.csv"`,
     },
   });
 }
