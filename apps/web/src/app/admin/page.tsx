@@ -228,6 +228,7 @@ export default async function AdminOverviewPage() {
               }
             />
             <Stat
+              href="/admin/storage"
               icon={<FileText />}
               label="Files"
               value={fileCount ?? 0}
@@ -255,6 +256,7 @@ export default async function AdminOverviewPage() {
               }
             />
             <Stat
+              href="/admin/storage"
               icon={<ShieldAlert />}
               label="Scans pending"
               value={pendingScans ?? 0}
