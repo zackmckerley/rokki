@@ -22,6 +22,7 @@ import {
   Send,
   Palette,
   Timer,
+  LineChart,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
@@ -91,6 +92,12 @@ export default async function AdminLayout({
                 icon={<Timer className="h-3.5 w-3.5" />}
               >
                 Performance
+              </NavLink>
+              <NavLink
+                href="/admin/metrics"
+                icon={<LineChart className="h-3.5 w-3.5" />}
+              >
+                Metrics
               </NavLink>
             </NavGroup>
             <NavGroup label="Tenancy">
