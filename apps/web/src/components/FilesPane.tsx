@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import { breadcrumbOf, isValidFolderName } from "@/lib/folder-path";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
-import { EmptyState } from "./EmptyState";
+import { useVirtualList } from "@/lib/use-virtual-list";
 
 interface FileRow {
   id: string;
@@ -57,6 +57,9 @@ interface FilesPaneProps {
 }
 
 type View = "live" | "trash";
+
+/** Fixed file-row height in px. Matches FileItem/TrashItem `py-2.5` + content. */
+const FILE_ROW_HEIGHT = 38;
 
 export function FilesPane({ ticker, projectId }: FilesPaneProps) {
   const [view, setView] = useState<View>("live");
@@ -166,7 +169,7 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
         title: "Upload file",
         subtitle: currentFolder,
         category: "action" as const,
-        icon: <Upload className="h-3.5 w-3.5" />,
+        icon: <Upload className="h-4 w-4" />,
         onRun: () => inputRef.current?.click(),
       },
       {
@@ -174,7 +177,7 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
         title: "Take photo and upload",
         subtitle: currentFolder,
         category: "action" as const,
-        icon: <Upload className="h-3.5 w-3.5" />,
+        icon: <Upload className="h-4 w-4" />,
         onRun: () => cameraRef.current?.click(),
       },
       {
@@ -182,14 +185,14 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
         title: "New folder",
         subtitle: currentFolder,
         category: "action" as const,
-        icon: <FolderPlus className="h-3.5 w-3.5" />,
+        icon: <FolderPlus className="h-4 w-4" />,
         onRun: () => setNewFolderOpen(true),
       },
       {
         id: `files/trash:${projectId}`,
         title: view === "trash" ? "Exit trash" : "Show trash",
         category: "action" as const,
-        icon: <Trash2 className="h-3.5 w-3.5" />,
+        icon: <Trash2 className="h-4 w-4" />,
         onRun: () => setView(view === "trash" ? "live" : "trash"),
       },
     ],
@@ -364,6 +367,19 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
     if (r.ok) await load();
   }
 
+  // Virtualization for the file list when there are a lot of files in
+  // the current folder (or in trash). Folder rows aren't virtualized
+  // because folder counts at any level are typically small enough that
+  // the absolute-position cost outweighs the savings.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualize = files.length > 200;
+  const virtual = useVirtualList({
+    count: virtualize ? files.length : 0,
+    rowHeight: FILE_ROW_HEIGHT,
+    scrollRef,
+    overscan: 8,
+  });
+
   return (
     <div
       className="relative flex h-full flex-col"
@@ -436,6 +452,7 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
       ) : null}
 
       <div
+        ref={scrollRef}
         className={cn(
           "flex-1 overflow-y-auto transition-colors",
           dragging && !isTrash && "bg-accent-subtle",
@@ -479,37 +496,88 @@ export function FilesPane({ ticker, projectId }: FilesPaneProps) {
             ) : null}
 
             {files.length > 0 ? (
-              <ul className="divide-y divide-border">
-                {files.map((file) =>
-                  isTrash ? (
-                    <TrashItem
-                      key={file.id}
-                      file={file}
-                      onRestore={() => restore(file.id)}
-                      onPermanent={() => permanent(file.id, file.filename)}
-                    />
-                  ) : (
-                    <FileItem
-                      key={file.id}
-                      file={file}
-                      ticker={ticker}
-                      renaming={renamingFileId === file.id}
-                      currentFolder={currentFolder}
-                      onStartRename={() => setRenamingFileId(file.id)}
-                      onSubmitRename={(name) => renameFile(file.id, name)}
-                      onCancelRename={() => setRenamingFileId(null)}
-                      onDuplicate={() => duplicateFile(file.id)}
-                      onDelete={() => softDeleteFile(file.id, file.filename)}
-                      onEditPermissions={() => setPermFile(file)}
-                      onDragStart={() => setDraggingFileId(file.id)}
-                      onDragEnd={() => {
-                        setDraggingFileId(null);
-                        setDropTargetPath(null);
-                      }}
-                    />
-                  ),
-                )}
-              </ul>
+              virtualize ? (
+                // Virtualized — only paint the rows in view. The wrapper
+                // <ul> stays so li children remain valid HTML; absolute
+                // positioning gives us the windowing.
+                <ul
+                  className="relative m-0 list-none p-0"
+                  style={{ height: virtual.totalHeight }}
+                >
+                  {virtual.items.map((vi) => {
+                    const file = files[vi.index];
+                    if (!file) return null;
+                    const positioned: React.CSSProperties = {
+                      position: "absolute",
+                      top: vi.offset,
+                      left: 0,
+                      right: 0,
+                      height: FILE_ROW_HEIGHT,
+                    };
+                    return isTrash ? (
+                      <TrashItem
+                        key={file.id}
+                        file={file}
+                        onRestore={() => restore(file.id)}
+                        onPermanent={() => permanent(file.id, file.filename)}
+                        style={positioned}
+                      />
+                    ) : (
+                      <FileItem
+                        key={file.id}
+                        file={file}
+                        ticker={ticker}
+                        renaming={renamingFileId === file.id}
+                        currentFolder={currentFolder}
+                        onStartRename={() => setRenamingFileId(file.id)}
+                        onSubmitRename={(name) => renameFile(file.id, name)}
+                        onCancelRename={() => setRenamingFileId(null)}
+                        onDuplicate={() => duplicateFile(file.id)}
+                        onDelete={() => softDeleteFile(file.id, file.filename)}
+                        onEditPermissions={() => setPermFile(file)}
+                        onDragStart={() => setDraggingFileId(file.id)}
+                        onDragEnd={() => {
+                          setDraggingFileId(null);
+                          setDropTargetPath(null);
+                        }}
+                        style={positioned}
+                      />
+                    );
+                  })}
+                </ul>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {files.map((file) =>
+                    isTrash ? (
+                      <TrashItem
+                        key={file.id}
+                        file={file}
+                        onRestore={() => restore(file.id)}
+                        onPermanent={() => permanent(file.id, file.filename)}
+                      />
+                    ) : (
+                      <FileItem
+                        key={file.id}
+                        file={file}
+                        ticker={ticker}
+                        renaming={renamingFileId === file.id}
+                        currentFolder={currentFolder}
+                        onStartRename={() => setRenamingFileId(file.id)}
+                        onSubmitRename={(name) => renameFile(file.id, name)}
+                        onCancelRename={() => setRenamingFileId(null)}
+                        onDuplicate={() => duplicateFile(file.id)}
+                        onDelete={() => softDeleteFile(file.id, file.filename)}
+                        onEditPermissions={() => setPermFile(file)}
+                        onDragStart={() => setDraggingFileId(file.id)}
+                        onDragEnd={() => {
+                          setDraggingFileId(null);
+                          setDropTargetPath(null);
+                        }}
+                      />
+                    ),
+                  )}
+                </ul>
+              )
             ) : null}
 
             {!loading &&
@@ -702,7 +770,7 @@ function FolderItem({
   if (renaming) {
     return (
       <li className="flex items-center gap-3 bg-bg-2 px-4 py-2.5">
-        <FolderIcon className="h-3.5 w-3.5 flex-shrink-0 text-accent" aria-hidden="true" />
+        <FolderIcon className="h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
         <input
           autoFocus
           value={draft}
@@ -749,7 +817,7 @@ function FolderItem({
         isDropTarget && "bg-accent-subtle",
       )}
     >
-      <FolderIcon className="h-3.5 w-3.5 flex-shrink-0 text-accent" aria-hidden="true" />
+      <FolderIcon className="h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
       <button
         onClick={onOpen}
         className="flex-1 truncate text-left text-sm text-text-0"
@@ -798,6 +866,7 @@ function FileItem({
   onEditPermissions,
   onDragStart,
   onDragEnd,
+  style,
 }: {
   file: FileRow;
   ticker: string;
@@ -811,6 +880,8 @@ function FileItem({
   onEditPermissions: () => void;
   onDragStart: () => void;
   onDragEnd: () => void;
+  /** Inline style hook used by the virtualized renderer (absolute pos + height). */
+  style?: React.CSSProperties;
 }) {
   const [draft, setDraft] = useState(file.filename);
   useEffect(() => setDraft(file.filename), [file.filename, renaming]);
@@ -818,9 +889,12 @@ function FileItem({
 
   if (renaming) {
     return (
-      <li className="flex items-center gap-3 bg-bg-2 px-4 py-2.5">
+      <li
+        style={style}
+        className="flex items-center gap-3 bg-bg-2 px-4 py-2.5"
+      >
         <FileText
-          className="h-3.5 w-3.5 flex-shrink-0 text-text-3"
+          className="h-4 w-4 flex-shrink-0 text-text-3"
           aria-hidden="true"
         />
         <input
@@ -843,6 +917,7 @@ function FileItem({
 
   return (
     <li
+      style={style}
       draggable
       onDragStart={(e) => {
         // Use a custom mime so external file drops don't collide with row drags
@@ -853,7 +928,7 @@ function FileItem({
       onDragEnd={onDragEnd}
       className="group flex items-center gap-3 px-4 py-2.5 hover:bg-bg-2"
     >
-      <FileText className="h-3.5 w-3.5 flex-shrink-0 text-text-3" aria-hidden="true" />
+      <FileText className="h-4 w-4 flex-shrink-0 text-text-3" aria-hidden="true" />
       {file.mime_type === "application/pdf" ? (
         <a
           href={`/p/${ticker}/drawings/${file.id}`}
@@ -951,14 +1026,17 @@ function TrashItem({
   file,
   onRestore,
   onPermanent,
+  style,
 }: {
   file: FileRow;
   onRestore: () => void;
   onPermanent: () => void;
+  /** Inline style hook used by the virtualized renderer. */
+  style?: React.CSSProperties;
 }) {
   return (
-    <li className="group flex items-center gap-3 px-4 py-2.5">
-      <FileText className="h-3.5 w-3.5 flex-shrink-0 text-text-3" aria-hidden="true" />
+    <li style={style} className="group flex items-center gap-3 px-4 py-2.5">
+      <FileText className="h-4 w-4 flex-shrink-0 text-text-3" aria-hidden="true" />
       <span
         className="flex-1 truncate text-sm text-text-2 line-through"
         title={file.filename}
@@ -998,7 +1076,7 @@ function NewFolderInline({
   const [draft, setDraft] = useState("");
   return (
     <div className="flex items-center gap-3 border-b border-border bg-bg-1 px-4 py-2.5">
-      <FolderIcon className="h-3.5 w-3.5 flex-shrink-0 text-accent" aria-hidden="true" />
+      <FolderIcon className="h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
       <input
         autoFocus
         placeholder="New folder name… Enter to save, Esc to cancel"
@@ -1027,25 +1105,36 @@ function EmptyFolder({
   atRoot: boolean;
 }) {
   return (
-    <EmptyState
-      icon={FileText}
-      title={atRoot ? "No files yet." : "This folder is empty."}
-      body="Drag files here, or use the buttons below. Up to 25 MB per file."
-      action={{ label: "Upload", onClick: onUpload, variant: "accent" }}
-      secondaryAction={{ label: "New folder", onClick: onNewFolder }}
-      className="p-10"
-    />
+    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+      <p className="text-sm text-text-2">
+        {atRoot ? "No files yet." : "This folder is empty."}
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={onUpload}
+          className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
+        >
+          Upload
+        </button>
+        <button
+          onClick={onNewFolder}
+          className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
+        >
+          New folder
+        </button>
+      </div>
+    </div>
   );
 }
 
 function EmptyTrash() {
   return (
-    <EmptyState
-      icon={Trash2}
-      title="Trash is empty."
-      body="Deleted files and folders land here, recoverable until you remove them for good."
-      className="p-10"
-    />
+    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
+      <p className="text-sm text-text-2">Trash is empty.</p>
+      <p className="text-xs text-text-3">
+        Deleted files and folders land here, recoverable until you remove them for good.
+      </p>
+    </div>
   );
 }
 

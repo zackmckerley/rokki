@@ -28,6 +28,10 @@ import {
   ToggleLeft,
   Activity,
   HeartPulse,
+  CheckSquare,
+  FileText,
+  MessageSquare,
+  Terminal as TerminalIcon,
 } from "lucide-react";
 import { CommandContext, type Command, type CommandAPI } from "@/lib/commands";
 import { createClient } from "@/lib/supabase/client";
@@ -36,6 +40,16 @@ interface ProjectHit {
   id: string;
   ticker: string;
   name: string;
+}
+
+interface SearchHit {
+  kind: "task" | "file" | "comment" | "terminal" | "space";
+  id: string;
+  title: string;
+  snippet: string;
+  terminalTicker: string | null;
+  terminalId: string | null;
+  score: number;
 }
 
 /**
@@ -50,6 +64,12 @@ interface ProjectHit {
  */
 export function CommandPalette({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
+  /**
+   * `initialQuery` is set when the palette is opened via cmd+/, so the
+   * caller doesn't have to reach inside. The string itself is shoved into
+   * the input so live search starts firing immediately.
+   */
+  const [initialQuery, setInitialQuery] = useState("");
   const [scopedCommands, setScopedCommands] = useState<
     Record<string, Command[]>
   >({});
@@ -307,29 +327,31 @@ export function CommandPalette({ children }: { children: ReactNode }) {
     [register, all, open, notifyOpen],
   );
 
-  // Global hotkey. ⌘K toggles the palette from anywhere; Escape closes
-  // the palette ONLY when it's open. Guarding on `open` matters because
-  // multiple components in the tree (Dialog, ShortcutsOverlay, inline
-  // editors) also listen for Escape — if the palette unconditionally
-  // calls setOpen(false) on every Escape it churns render state and can
-  // mask which handler is "the one" closing the active surface.
+  // Global hotkeys.
+  //   ⌘K / ⌃K  — toggle palette (commands shown first, search runs as you type)
+  //   ⌘/ / ⌃/  — open palette (alias — same UI; future: prepend `/` to bias toward search)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
+        setInitialQuery("");
         setOpen((o) => {
           const next = !o;
           notifyOpen(next);
           return next;
         });
-      } else if (e.key === "Escape" && open) {
+      } else if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        setInitialQuery("");
+        setOpen(true);
+        notifyOpen(true);
+      } else if (e.key === "Escape") {
         setOpen(false);
-        notifyOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [notifyOpen, open]);
+  }, [notifyOpen]);
 
   return (
     <CommandContext.Provider value={api}>
@@ -341,6 +363,8 @@ export function CommandPalette({ children }: { children: ReactNode }) {
             notifyOpen(false);
           }}
           commands={all}
+          initialQuery={initialQuery}
+          router={router}
         />
       ) : null}
     </CommandContext.Provider>
@@ -350,11 +374,52 @@ export function CommandPalette({ children }: { children: ReactNode }) {
 function PaletteUI({
   close,
   commands,
+  initialQuery,
+  router,
 }: {
   close: () => void;
   commands: Command[];
+  initialQuery: string;
+  router: ReturnType<typeof useRouter>;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
+  const [searchHits, setSearchHits] = useState<SearchHit[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const lastQueryRef = useRef("");
+
+  // Live search — debounced 200ms. Skip very short queries so we don't
+  // hammer the DB on every keystroke; ts-rank requires real tokens anyway.
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setSearchHits([]);
+      setSearchLoading(false);
+      lastQueryRef.current = "";
+      return;
+    }
+    setSearchLoading(true);
+    const handle = setTimeout(() => {
+      const requestId = trimmed;
+      lastQueryRef.current = requestId;
+      fetch(`/api/v1/search?q=${encodeURIComponent(trimmed)}&limit=20`, {
+        credentials: "include",
+      })
+        .then((r) => (r.ok ? r.json() : { data: { results: [] } }))
+        .then((body: { data?: { results?: SearchHit[] } }) => {
+          // Drop stale responses if a newer query has fired in the interim.
+          if (lastQueryRef.current !== requestId) return;
+          setSearchHits(body.data?.results ?? []);
+          setSearchLoading(false);
+        })
+        .catch(() => {
+          if (lastQueryRef.current === requestId) {
+            setSearchHits([]);
+            setSearchLoading(false);
+          }
+        });
+    }, 200);
+    return () => clearTimeout(handle);
+  }, [query]);
 
   const grouped = useMemo(() => {
     const g: Record<string, Command[]> = {};
@@ -364,6 +429,39 @@ function PaletteUI({
     }
     return g;
   }, [commands]);
+
+  // When a search hit is chosen, navigate to the entity. Comments deep-link
+  // to their parent task because /comments/:id isn't routable on its own.
+  function navigateHit(hit: SearchHit) {
+    const ticker = hit.terminalTicker;
+    switch (hit.kind) {
+      case "task":
+        // We don't carry ticker_seq through the API result; route to the
+        // terminal's task list and let the user pick. Cheap, accurate.
+        if (ticker) router.push(`/p/${ticker}?task=${hit.id}`);
+        break;
+      case "file":
+        if (ticker) router.push(`/p/${ticker}?file=${hit.id}`);
+        break;
+      case "comment":
+        if (ticker) router.push(`/p/${ticker}?comment=${hit.id}`);
+        break;
+      case "terminal":
+        if (ticker) router.push(`/p/${ticker}`);
+        break;
+      case "space":
+        // No per-space landing yet; admin spaces page is the closest match.
+        router.push(`/admin/spaces/${hit.id}`);
+        break;
+    }
+    close();
+  }
+
+  // Disable cmdk's built-in fuzzy filter once the user is typing a search
+  // query — cmdk hides every command row that doesn't match the input,
+  // which would also hide the search hits we render below. We control
+  // visibility ourselves in that case.
+  const inSearchMode = query.trim().length >= 2;
 
   return (
     <div
@@ -377,24 +475,29 @@ function PaletteUI({
         className="mt-24 w-full max-w-xl overflow-hidden rounded-md border border-border bg-bg-1 shadow-lg"
         onClick={(e) => e.stopPropagation()}
       >
-        <CmdkCommand loop shouldFilter>
+        <CmdkCommand loop shouldFilter={!inSearchMode}>
           <div className="flex items-center gap-3 border-b border-border px-4 py-3">
             <Search className="h-3.5 w-3.5 text-text-2" aria-hidden="true" />
             <CmdkCommand.Input
               value={query}
               onValueChange={setQuery}
               autoFocus
-              placeholder="Type a command, tool, or space…"
+              placeholder="Type a command, or search tasks, files, comments…"
               className="flex-1 bg-transparent text-sm text-text-0 placeholder:text-text-3 outline-none"
             />
+            {searchLoading ? (
+              <span className="font-mono text-[10px] text-text-3">…</span>
+            ) : null}
             <kbd className="rounded-sm border border-border bg-bg-3 px-1.5 py-0.5 font-mono text-xs text-text-2">
               Esc
             </kbd>
           </div>
           <CmdkCommand.List className="max-h-[60vh] overflow-y-auto p-2">
-            <CmdkCommand.Empty className="px-3 py-6 text-center text-sm text-text-2">
-              Nothing matches.
-            </CmdkCommand.Empty>
+            {!inSearchMode ? (
+              <CmdkCommand.Empty className="px-3 py-6 text-center text-sm text-text-2">
+                Nothing matches.
+              </CmdkCommand.Empty>
+            ) : null}
             {(
               [
                 ["navigation", "Navigate", Compass],
@@ -445,6 +548,15 @@ function PaletteUI({
                 </CmdkCommand.Group>
               ) : null,
             )}
+
+            {inSearchMode ? (
+              <SearchResultsSection
+                hits={searchHits}
+                loading={searchLoading}
+                query={query.trim()}
+                onPick={navigateHit}
+              />
+            ) : null}
           </CmdkCommand.List>
           <div className="border-t border-border bg-bg-2 px-3 py-1.5 text-[10px] text-text-3">
             <span>↵ run</span>
@@ -452,9 +564,127 @@ function PaletteUI({
             <span>↑↓ move</span>
             <span className="mx-2">·</span>
             <span>esc close</span>
+            <span className="mx-2">·</span>
+            <span>⌘/ search</span>
           </div>
         </CmdkCommand>
       </div>
     </div>
+  );
+}
+
+/** Icon mapping per result kind — reuse what other panes use so it reads naturally. */
+function kindIcon(kind: SearchHit["kind"]): ReactNode {
+  switch (kind) {
+    case "task":
+      return <CheckSquare className="h-4 w-4" />;
+    case "file":
+      return <FileText className="h-4 w-4" />;
+    case "comment":
+      return <MessageSquare className="h-4 w-4" />;
+    case "terminal":
+      return <TerminalIcon className="h-4 w-4" />;
+    case "space":
+      return <Building2 className="h-4 w-4" />;
+  }
+}
+
+function SearchResultsSection({
+  hits,
+  loading,
+  query,
+  onPick,
+}: {
+  hits: SearchHit[];
+  loading: boolean;
+  query: string;
+  onPick: (hit: SearchHit) => void;
+}) {
+  // Group by kind so the visual hierarchy stays put even as the score
+  // ordering shuffles. Headings only render when the section has content.
+  const byKind = useMemo(() => {
+    const g: Record<SearchHit["kind"], SearchHit[]> = {
+      task: [],
+      file: [],
+      comment: [],
+      terminal: [],
+      space: [],
+    };
+    for (const h of hits) g[h.kind].push(h);
+    return g;
+  }, [hits]);
+
+  if (loading && hits.length === 0) {
+    return (
+      <div className="px-3 py-6 text-center text-xs text-text-3">
+        Searching…
+      </div>
+    );
+  }
+  if (!loading && hits.length === 0) {
+    return (
+      <div className="px-3 py-6 text-center text-xs text-text-3">
+        No results for{" "}
+        <span className="font-mono text-text-2">{query}</span>.
+      </div>
+    );
+  }
+
+  const sections: { kind: SearchHit["kind"]; label: string }[] = [
+    { kind: "task", label: "Tasks" },
+    { kind: "file", label: "Files" },
+    { kind: "comment", label: "Comments" },
+    { kind: "terminal", label: "Terminals" },
+    { kind: "space", label: "Spaces" },
+  ];
+
+  return (
+    <>
+      {sections.map(({ kind, label }) =>
+        byKind[kind].length > 0 ? (
+          <CmdkCommand.Group
+            key={`search:${kind}`}
+            heading={
+              <span className="flex items-center gap-1.5 px-2 py-1 text-xs uppercase tracking-wide text-text-3">
+                <Search className="h-3 w-3" />
+                {label}
+              </span>
+            }
+          >
+            {byKind[kind].map((hit) => (
+              <CmdkCommand.Item
+                key={`${hit.kind}:${hit.id}`}
+                value={`__search__::${hit.kind}::${hit.id}`}
+                onSelect={() => onPick(hit)}
+                className="flex cursor-pointer items-start gap-3 rounded px-2 py-2 text-sm text-text-1 aria-selected:bg-accent-subtle aria-selected:text-text-0"
+              >
+                <span className="mt-0.5 flex h-5 w-8 items-center justify-center text-text-2">
+                  {kindIcon(hit.kind)}
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="truncate font-medium text-text-0">
+                    {hit.title || "(untitled)"}
+                  </span>
+                  {hit.snippet ? (
+                    <span
+                      className="mt-0.5 line-clamp-2 text-xs text-text-2 [&_mark.rk-hit]:rounded-sm [&_mark.rk-hit]:bg-accent-subtle [&_mark.rk-hit]:px-0.5 [&_mark.rk-hit]:text-accent"
+                      // ts_headline returns server-side HTML-escaped text
+                      // wrapped in <mark class="rk-hit">. Safe to render
+                      // because ts_headline escapes everything else.
+                      dangerouslySetInnerHTML={{ __html: hit.snippet }}
+                    />
+                  ) : null}
+                </span>
+                {hit.terminalTicker ? (
+                  <span className="ml-2 mt-1 flex-shrink-0 font-mono text-[10px] text-text-3">
+                    {hit.terminalTicker}
+                  </span>
+                ) : null}
+              </CmdkCommand.Item>
+            ))}
+          </CmdkCommand.Group>
+        ) : null,
+      )}
+    </>
   );
 }
