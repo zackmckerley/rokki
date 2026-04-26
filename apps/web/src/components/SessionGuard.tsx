@@ -52,6 +52,14 @@ export function SessionGuard() {
           async (payload: { new: { reason?: string } }) => {
             const reason = payload.new?.reason ?? "admin_action";
             const label = humanReason(reason);
+            // Diagnostic: helps us see which revocation triggered an
+            // unexpected sign-out (e.g. clicking around admin shouldn't
+            // create a revocation row, but if it does, this print shows
+            // what reason came over the wire).
+            console.warn(
+              "[SessionGuard] forced sign-out:",
+              { userId, reason, payload: payload.new },
+            );
             try {
               await supabase.auth.signOut();
             } catch {}

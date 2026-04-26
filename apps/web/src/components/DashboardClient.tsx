@@ -105,6 +105,7 @@ export function DashboardClient({
             toolCount={toolCount}
             userName={userName}
             userEmail={userEmail}
+            isPlatformAdmin={isPlatformAdmin}
             canCreateSpace={isPlatformAdmin}
           />
         }

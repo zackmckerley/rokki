@@ -88,7 +88,7 @@ export default async function TaskDetailPage({ params }: Props) {
   }[];
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg-0">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg-0">
       <TopBar>
         <Link href="/" className="text-text-3 hover:text-text-1">
           ← Dashboard
@@ -105,7 +105,7 @@ export default async function TaskDetailPage({ params }: Props) {
           {term.ticker}-{(taskRow as { ticker_seq: number }).ticker_seq}
         </span>
       </TopBar>
-      <main className="mx-auto w-full max-w-5xl flex-1 p-6">
+      <main className="mx-auto w-full max-w-5xl flex-1 overflow-y-auto p-6">
         <TaskDetail
           initialTask={
             taskRow as {

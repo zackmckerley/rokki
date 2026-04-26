@@ -89,9 +89,16 @@ export default async function AdminTerminalsPage({
             {rows.map((t) => (
               <tr key={t.id} className="hover:bg-bg-2">
                 <td className="px-3 py-2 font-mono text-xs text-accent">
-                  <Link href={`/p/${t.ticker}/settings`}>{t.ticker}</Link>
+                  <Link href={`/admin/terminals/${t.ticker}`}>{t.ticker}</Link>
                 </td>
-                <td className="px-3 py-2 text-text-0">{t.name}</td>
+                <td className="px-3 py-2 text-text-0">
+                  <Link
+                    href={`/admin/terminals/${t.ticker}`}
+                    className="hover:underline"
+                  >
+                    {t.name}
+                  </Link>
+                </td>
                 <td className="px-3 py-2 text-xs text-text-2">
                   {t.spaces?.name ?? "—"}
                 </td>
