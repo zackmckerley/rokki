@@ -21,6 +21,7 @@
 import * as SentryNs from "@sentry/nextjs";
 import { Axiom } from "@axiomhq/js";
 import type { NextRequest } from "next/server";
+import { redactPII } from "@/lib/pii-redact";
 
 const sentryEnabled =
   Boolean(process.env.SENTRY_DSN) || Boolean(process.env.NEXT_PUBLIC_SENTRY_DSN);
@@ -41,6 +42,9 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error";
 /**
  * Send a structured event to Axiom. No-ops if AXIOM_TOKEN/DATASET aren't set.
  * Fire-and-forget — don't await; never blocks request paths.
+ *
+ * Every field passes through `redactPII` first so emails/phones/IPs/
+ * tokens never reach the Axiom dataset.
  */
 export function logEvent(
   level: LogLevel,
@@ -50,12 +54,13 @@ export function logEvent(
   const ax = axiomClient();
   if (!ax) return;
   try {
+    const safeFields = redactPII(fields) as Record<string, unknown>;
     ax.ingest(process.env.AXIOM_DATASET!, [
       {
         _time: new Date().toISOString(),
         level,
         event,
-        ...fields,
+        ...safeFields,
       },
     ]);
   } catch {
@@ -72,12 +77,15 @@ export function captureError(
   context: Record<string, unknown> = {},
 ): void {
   const message = err instanceof Error ? err.message : String(err);
+  // Sentry's beforeSend already redacts the event body, but `extra`
+  // arrives as-is — pre-redact so we never depend on a single layer.
+  const safeContext = redactPII(context) as Record<string, unknown>;
   if (sentryEnabled) {
     try {
-      SentryNs.captureException(err, { extra: context });
+      SentryNs.captureException(err, { extra: safeContext });
     } catch {}
   }
-  logEvent("error", "exception", { message, ...context });
+  logEvent("error", "exception", { message, ...safeContext });
 }
 
 /**

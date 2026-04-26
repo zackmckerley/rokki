@@ -9,6 +9,7 @@
  * https://nextjs.org/docs/app/api-reference/file-conventions/instrumentation-client
  */
 import * as Sentry from "@sentry/nextjs";
+import { redactPII } from "@/lib/pii-redact";
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
 if (dsn) {
@@ -19,6 +20,12 @@ if (dsn) {
     replaysOnErrorSampleRate: 0,
     environment: process.env.NEXT_PUBLIC_VERCEL_ENV ?? "development",
     enabled: process.env.NODE_ENV !== "test",
+    beforeSend(event) {
+      return redactPII(event) as typeof event;
+    },
+    beforeBreadcrumb(breadcrumb) {
+      return redactPII(breadcrumb) as typeof breadcrumb;
+    },
   });
 }
 
