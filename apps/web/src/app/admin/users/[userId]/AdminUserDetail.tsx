@@ -1018,7 +1018,7 @@ function DangerTab({
     <AdminPanel title="Danger zone">
       <div className="flex flex-col gap-3 p-4">
         <Row
-          icon={<Shield className="h-4 w-4 text-warning" />}
+          icon={<Shield className="h-3.5 w-3.5 text-warning" />}
           title="Suspended status"
           body={
             isSuspended
@@ -1027,7 +1027,7 @@ function DangerTab({
           }
         />
         <Row
-          icon={<ShieldOff className="h-4 w-4 text-text-2" />}
+          icon={<ShieldOff className="h-3.5 w-3.5 text-text-2" />}
           title="Platform admin"
           body={
             data.profile?.is_platform_admin
@@ -1036,7 +1036,7 @@ function DangerTab({
           }
         />
         <Row
-          icon={<Trash2 className="h-4 w-4 text-danger" />}
+          icon={<Trash2 className="h-3.5 w-3.5 text-danger" />}
           title="Delete user permanently"
           body={
             <span>
