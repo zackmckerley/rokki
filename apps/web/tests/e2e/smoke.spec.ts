@@ -1,8 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 /**
- * Smoke: the login page renders, has an email input, and accepts input.
- * No actual Supabase round-trip — that's in `acceptance.spec.ts`.
+ * Smoke: the login page renders, has an email/username + password input,
+ * and accepts input. No actual Supabase round-trip — that's in
+ * `acceptance.spec.ts`.
+ *
+ * Magic-link sign-in was removed (closed system, admins provision
+ * accounts). The form is now password-only.
  */
 
 test.describe("public pages", () => {
@@ -14,8 +18,9 @@ test.describe("public pages", () => {
     await expect(
       page.getByRole("textbox", { name: /email or username/i }),
     ).toBeVisible();
+    await expect(page.getByLabel(/password/i)).toBeVisible();
     await expect(
-      page.getByRole("button", { name: /send sign-in link/i }),
+      page.getByRole("button", { name: /^sign in$/i }),
     ).toBeVisible();
   });
 
@@ -36,17 +41,31 @@ test.describe("public pages", () => {
     await expect(page.getByRole("dialog")).not.toBeVisible();
   });
 
-  test("rate limit responds 429 after 6 rapid requests", async ({ request }) => {
+  test("send-link endpoint returns 410 Gone (magic-link removed)", async ({
+    request,
+  }) => {
+    // The endpoint was deliberately disabled (closed-system policy).
+    // Anything other than 410 means the disabling regressed.
+    const r = await request.post("/api/v1/auth/send-link", {
+      data: { email: `e2e-${Date.now()}@example.com` },
+    });
+    expect(r.status()).toBe(410);
+  });
+
+  test("password-login rate-limits after 11 rapid requests", async ({
+    request,
+  }) => {
+    // Same shape as the old send-link rate-limit test, just pointed at
+    // the password-login endpoint that's now the only auth path.
+    // 10/10min per (IP, email) — the 11th must 429.
     const email = `e2e-rate-${Date.now()}@example.com`;
-    const url = "/api/v1/auth/send-link";
-    // Burst past the 5/min cap for a fresh email.
     const codes: number[] = [];
-    for (let i = 0; i < 7; i++) {
-      const r = await request.post(url, { data: { email } });
+    for (let i = 0; i < 12; i++) {
+      const r = await request.post("/api/v1/auth/password-login", {
+        data: { email, password: "wrong-on-purpose" },
+      });
       codes.push(r.status());
     }
-    // At least one of those should be 429; earlier successful ones can be
-    // 200 or 502 (if SMTP isn't wired in test), but one must be rate-limited.
     expect(codes).toContain(429);
   });
 });
