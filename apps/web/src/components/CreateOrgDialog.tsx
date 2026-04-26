@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Dialog } from "./Dialog";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
+import { FormError } from "./ui/FormError";
 
 interface CreateOrgDialogProps {
   open: boolean;
@@ -28,6 +29,9 @@ export function CreateOrgDialog({ open, onClose }: CreateOrgDialogProps) {
   const [slugDirty, setSlugDirty] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  /** Have we tried to submit yet? Drives "Required" hints on the inputs
+   * — silent until the user actually attempts the action. */
+  const [submitted, setSubmitted] = useState(false);
 
   function handleNameChange(v: string) {
     setName(v);
@@ -36,6 +40,11 @@ export function CreateOrgDialog({ open, onClose }: CreateOrgDialogProps) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setSubmitted(true);
+    if (!name.trim() || !slug.trim()) {
+      // Inline "Required" markers do the talking; no need for a banner too.
+      return;
+    }
     setLoading(true);
     setError("");
     const res = await fetch("/api/v1/orgs", {
@@ -57,7 +66,8 @@ export function CreateOrgDialog({ open, onClose }: CreateOrgDialogProps) {
 
   return (
     <Dialog open={open} onClose={onClose} title="Create space">
-      <form onSubmit={submit} className="space-y-3">
+      <form onSubmit={submit} className="space-y-3" noValidate>
+        <FormError message={error} />
         <Input
           name="name"
           label="Name"
@@ -66,6 +76,7 @@ export function CreateOrgDialog({ open, onClose }: CreateOrgDialogProps) {
           required
           value={name}
           onChange={(e) => handleNameChange(e.target.value)}
+          error={!name.trim() && submitted ? "Required" : undefined}
         />
         <Input
           name="slug"
@@ -79,7 +90,7 @@ export function CreateOrgDialog({ open, onClose }: CreateOrgDialogProps) {
             setSlug(e.target.value);
             setSlugDirty(true);
           }}
-          error={error || undefined}
+          error={!slug.trim() && submitted ? "Required" : undefined}
         />
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="ghost" onClick={onClose}>

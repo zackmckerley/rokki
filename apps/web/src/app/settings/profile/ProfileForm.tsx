@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { Avatar } from "@/components/primitives";
 import { detectClientTimezone } from "@/lib/timezone";
+import { FormError } from "@/components/ui/FormError";
+import { FieldHint } from "@/components/ui/FieldHint";
 
 interface ProfileFormProps {
   email: string;
@@ -66,6 +68,7 @@ export function ProfileForm({ email, initial }: ProfileFormProps) {
       onSubmit={submit}
       className="flex flex-col gap-5 rounded border border-border bg-bg-1 p-5"
     >
+      <FormError message={error} onDismiss={() => setError(null)} />
       <section className="flex items-center gap-4">
         <Avatar name={fullName || email} size="md" />
         <div className="flex-1">
@@ -119,9 +122,7 @@ export function ProfileForm({ email, initial }: ProfileFormProps) {
       </Field>
 
       <footer className="flex items-center justify-between">
-        {error ? (
-          <span className="text-xs text-danger">{error}</span>
-        ) : savedAt ? (
+        {savedAt ? (
           <span className="flex items-center gap-1 text-xs text-success">
             <Check className="h-3 w-3" /> Saved
           </span>
@@ -155,7 +156,7 @@ function Field({
         {label}
       </span>
       {children}
-      {hint ? <span className="text-[11px] text-text-3">{hint}</span> : null}
+      {hint ? <FieldHint>{hint}</FieldHint> : null}
     </label>
   );
 }

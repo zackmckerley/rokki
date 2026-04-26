@@ -5,6 +5,7 @@ import { Lock, Users, UserCheck, Check, AlertCircle } from "lucide-react";
 import { Dialog } from "./Dialog";
 import { Avatar } from "./primitives";
 import { cn } from "@/lib/utils";
+import { FormError } from "./ui/FormError";
 
 export type FileVisibility = "project" | "owners" | "custom";
 
@@ -267,11 +268,7 @@ export function FilePermissionsDialog({
           </>
         ) : null}
 
-        {error ? (
-          <p className="rounded-sm border border-danger/40 bg-danger-subtle px-2.5 py-1.5 text-xs text-danger">
-            {error}
-          </p>
-        ) : null}
+        <FormError message={error} onDismiss={() => setError(null)} />
 
         <footer className="flex items-center justify-end gap-2">
           <button

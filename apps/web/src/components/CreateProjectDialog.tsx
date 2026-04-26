@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Dialog } from "./Dialog";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
+import { FormError } from "./ui/FormError";
+import { FieldHint } from "./ui/FieldHint";
 
 interface Org {
   id: string;
@@ -37,12 +39,14 @@ export function CreateProjectDialog({
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setName("");
       setDescription("");
       setError("");
+      setSubmitted(false);
       return;
     }
     // On open, honour a pre-selected space slug if it's in the user's list.
@@ -54,6 +58,8 @@ export function CreateProjectDialog({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setSubmitted(true);
+    if (!name.trim()) return;
     setLoading(true);
     setError("");
     const res = await fetch("/api/v1/projects", {
@@ -80,7 +86,8 @@ export function CreateProjectDialog({
 
   return (
     <Dialog open={open} onClose={onClose} title="New terminal">
-      <form onSubmit={submit} className="space-y-3">
+      <form onSubmit={submit} className="space-y-3" noValidate>
+        <FormError message={error} />
         {orgs.length > 1 ? (
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-text-1">Space</label>
@@ -106,7 +113,7 @@ export function CreateProjectDialog({
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          error={error || undefined}
+          error={!name.trim() && submitted ? "Required" : undefined}
         />
 
         <div className="flex flex-col gap-1">
@@ -120,6 +127,7 @@ export function CreateProjectDialog({
             placeholder="What is this space for?"
             className="rounded border border-border bg-bg-2 px-3 py-2 text-sm text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none"
           />
+          <FieldHint>Optional — describe the goal or scope.</FieldHint>
         </div>
 
         <div className="flex justify-end gap-2 pt-2">

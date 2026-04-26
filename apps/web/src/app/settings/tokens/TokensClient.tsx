@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Check, Copy, KeyRound } from "lucide-react";
+import { Plus, Trash2, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/Dialog";
 import { Input } from "@/components/ui/Input";
-import { EmptyState } from "@/components/EmptyState";
+import { FormError } from "@/components/ui/FormError";
 
 interface TokenRow {
   id: string;
@@ -65,7 +65,7 @@ export function TokensClient() {
         {loading ? (
           <Skeleton />
         ) : active.length === 0 ? (
-          <TokensEmpty onCreate={() => setCreateOpen(true)} />
+          <EmptyState onCreate={() => setCreateOpen(true)} />
         ) : (
           <div className="divide-y divide-border overflow-hidden rounded border border-border bg-bg-1">
             {active.map((t) => (
@@ -139,19 +139,16 @@ function Skeleton() {
   );
 }
 
-function TokensEmpty({ onCreate }: { onCreate: () => void }) {
+function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="rounded border border-border bg-bg-1">
-      <EmptyState
-        icon={KeyRound}
-        title="No tokens yet."
-        body="Create one to let your Claude / ChatGPT read this account."
-        action={{
-          label: "+ New token",
-          onClick: onCreate,
-          variant: "accent",
-        }}
-      />
+    <div className="rounded border border-border bg-bg-1 p-8 text-center">
+      <p className="text-sm text-text-1">No tokens yet.</p>
+      <p className="mt-1 text-xs text-text-3">
+        Create one to let your Claude / ChatGPT read this account.
+      </p>
+      <Button variant="accent" className="mt-4" onClick={onCreate}>
+        Create token
+      </Button>
     </div>
   );
 }
@@ -172,6 +169,7 @@ function CreateDialog({
   const [expiresDays, setExpiresDays] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
 
   useEffect(() => {
     if (!open) {
@@ -179,11 +177,13 @@ function CreateDialog({
       setScope("write");
       setExpiresDays(null);
       setError("");
+      setSubmitted(false);
     }
   }, [open]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    setSubmitted(true);
     if (!name.trim()) return;
     setLoading(true);
     setError("");
@@ -211,7 +211,8 @@ function CreateDialog({
 
   return (
     <Dialog open={open} onClose={onClose} title="New AI token">
-      <form onSubmit={submit} className="space-y-3">
+      <form onSubmit={submit} className="space-y-3" noValidate>
+        <FormError message={error} />
         <Input
           name="name"
           label="Name"
@@ -221,7 +222,7 @@ function CreateDialog({
           required
           value={name}
           onChange={(e) => setName(e.target.value)}
-          error={error || undefined}
+          error={!name.trim() && submitted ? "Required" : undefined}
         />
 
         <div className="flex flex-col gap-1">
