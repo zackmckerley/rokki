@@ -22,7 +22,7 @@ import type { TaskRecurrenceRule } from "@rokki/db";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { CommentThread } from "@/components/CommentThread";
-import { HistoryTimeline, type HistoryRow } from "@/components/HistoryTimeline";
+import { RichTextarea } from "@/components/ui/RichTextarea";
 import {
   PriorityDots,
   StatusPill,
@@ -101,8 +101,6 @@ interface Activity {
   actor_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
-  before_json?: unknown;
-  after_json?: unknown;
 }
 
 interface Bundle {
@@ -161,6 +159,8 @@ export function TaskDetail({
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [loadingBundle, setLoadingBundle] = useState(true);
   const [editingDescription, setEditingDescription] = useState(false);
+  // Description draft — owned by RichTextarea via value/onChange. The
+  // editor has built-in undo/redo, slash commands, and a markdown preview.
   const [draftDescription, setDraftDescription] = useState(
     initialTask.description ?? "",
   );
@@ -450,10 +450,14 @@ export function TaskDetail({
           >
             {editingDescription ? (
               <div className="flex flex-col gap-2">
-                <textarea
-                  autoFocus
+                <RichTextarea
                   value={draftDescription}
-                  onChange={(e) => setDraftDescription(e.target.value)}
+                  onChange={setDraftDescription}
+                  autoFocus
+                  minHeight={160}
+                  placeholder="Markdown supported. ⌘↵ to save, Esc to cancel. ⌘Z to undo. Type / for blocks."
+                  ariaLabel="Task description"
+                  undoContext="description"
                   onKeyDown={(e) => {
                     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                       e.preventDefault();
@@ -464,8 +468,6 @@ export function TaskDetail({
                       setEditingDescription(false);
                     }
                   }}
-                  placeholder="Markdown supported. ⌘↵ to save, Esc to cancel."
-                  className="min-h-[160px] w-full resize-y rounded border border-border bg-bg-0 p-3 text-sm text-text-0 outline-none focus:border-border-focus"
                 />
                 <div className="flex items-center justify-end gap-2 text-xs">
                   <button
@@ -536,16 +538,24 @@ export function TaskDetail({
           >
             {loadingBundle && !bundle ? (
               <p className="text-[11px] text-text-3">Loading…</p>
+            ) : (bundle?.activity?.length ?? 0) === 0 ? (
+              <p className="text-[11px] text-text-3">
+                No history yet — actions taken on this task will appear here.
+              </p>
             ) : (
-              <HistoryTimeline
-                entityType="task"
-                entityId={task.id}
-                initialRows={(bundle?.activity ?? []) as HistoryRow[]}
-                actorNames={buildActorNameMap({
-                  members,
-                  creator: bundle?.creator ?? null,
-                })}
-              />
+              <ul className="flex flex-col gap-1.5 text-xs">
+                {(bundle?.activity ?? []).slice(0, 50).map((a) => (
+                  <li
+                    key={a.id}
+                    className="flex items-center gap-2 text-text-2"
+                  >
+                    <span className="font-mono text-[10px] text-text-3">
+                      {formatDate(a.created_at)}
+                    </span>
+                    <span>{describeActivity(a)}</span>
+                  </li>
+                ))}
+              </ul>
             )}
           </SectionCard>
         </div>
@@ -1506,24 +1516,24 @@ function formatDate(iso: string): string {
     : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-/**
- * Build a user_id → name map for the History timeline. Pulls from the
- * terminal members already loaded for the assignee picker, plus the task
- * creator from the bundle.
- */
-function buildActorNameMap({
-  members,
-  creator,
-}: {
-  members: Member[];
-  creator: { user_id: string; full_name: string | null } | null;
-}): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const m of members) {
-    if (m.full_name) out[m.user_id] = m.full_name;
+function describeActivity(a: Activity): string {
+  const m = (a.metadata ?? {}) as Record<string, unknown>;
+  const pick = (k: string): string | null =>
+    typeof m[k] === "string" ? (m[k] as string) : null;
+  switch (a.action) {
+    case "task.create":
+      return `created this task`;
+    case "task.update":
+      return `updated the task`;
+    case "task.complete":
+      return `marked complete`;
+    case "task.assign":
+      return `assigned ${pick("to") ?? "someone"}`;
+    case "task.unassign":
+      return `unassigned ${pick("from") ?? "someone"}`;
+    case "task.delete":
+      return `deleted the task`;
+    default:
+      return a.action.replace(/[._]/g, " ");
   }
-  if (creator && creator.full_name) {
-    out[creator.user_id] = creator.full_name;
-  }
-  return out;
 }
