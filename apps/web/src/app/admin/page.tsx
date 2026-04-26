@@ -19,6 +19,8 @@ import {
 } from "lucide-react";
 import type { Database } from "@rokki/db";
 import { AdminButton, AdminPanel } from "@/components/admin/primitives";
+import { EmptyState } from "@/components/EmptyState";
+import { Inbox } from "lucide-react";
 
 export const metadata = { title: "Admin — Rokki" };
 export const dynamic = "force-dynamic";
@@ -285,9 +287,12 @@ export default async function AdminOverviewPage() {
 
           <AdminPanel title="Recent events">
             {events.length === 0 ? (
-              <p className="px-4 py-6 text-center text-xs text-text-3">
-                Nothing yet.
-              </p>
+              <EmptyState
+                icon={Inbox}
+                title="No recent events."
+                body="Activity from across the platform shows up here as it happens."
+                className="p-6"
+              />
             ) : (
               <ul className="divide-y divide-border text-xs">
                 {events.map((e) => (

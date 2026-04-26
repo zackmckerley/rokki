@@ -1,8 +1,15 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Calendar, AlertTriangle, Trash2, CheckCircle2 } from "lucide-react";
+import {
+  Calendar,
+  AlertTriangle,
+  Trash2,
+  CheckCircle2,
+  CalendarOff,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
+import { EmptyState } from "@/components/EmptyState";
 import { providerConfig } from "@/lib/calendar-oauth";
 
 interface Props {
@@ -77,9 +84,18 @@ export default async function CalendarsPage({ searchParams }: Props) {
         ) : null}
 
         {active.length === 0 ? (
-          <p className="mb-6 rounded border border-dashed border-border bg-bg-1 p-6 text-center text-sm text-text-3">
-            No calendars connected yet.
-          </p>
+          <div className="mb-6 rounded border border-dashed border-border bg-bg-1">
+            <EmptyState
+              icon={CalendarOff}
+              title="No calendars connected yet."
+              body={
+                available.length > 0
+                  ? "Connect Google or Outlook below to mirror your events into Rokki's week view."
+                  : "Calendar OAuth isn't configured for this deployment yet."
+              }
+              className="p-6"
+            />
+          </div>
         ) : (
           <ul className="mb-6 divide-y divide-border rounded border border-border bg-bg-1 text-sm">
             {active.map((c) => (

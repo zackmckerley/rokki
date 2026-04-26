@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2, Plus, Key, Check, AlertCircle } from "lucide-react";
+import { Trash2, Plus, Key, Check, AlertCircle, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/EmptyState";
 
 export interface StoredKey {
   id: string;
@@ -156,9 +157,12 @@ export function ApiKeysClient({ initial }: { initial: StoredKey[] }) {
           Stored keys
         </header>
         {keys.length === 0 ? (
-          <p className="px-4 py-6 text-center text-xs text-text-3">
-            No keys yet.
-          </p>
+          <EmptyState
+            icon={KeyRound}
+            title="No keys yet."
+            body="Add a provider key above to let your tools call hosted LLMs."
+            className="p-6"
+          />
         ) : (
           <ul className="divide-y divide-border">
             {keys.map((k) => (

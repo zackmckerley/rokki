@@ -85,7 +85,12 @@ export function AdminFlagsClient() {
         </p>
       ) : null}
       {rows.length === 0 ? (
-        <AdminEmpty>No flags configured.</AdminEmpty>
+        <AdminEmpty
+          panel
+          body="Use the form above to ship a feature behind a kill switch."
+        >
+          No flags configured.
+        </AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">

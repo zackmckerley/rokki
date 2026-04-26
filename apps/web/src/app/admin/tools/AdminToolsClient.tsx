@@ -135,7 +135,16 @@ export function AdminToolsClient() {
       ) : null}
 
       {rows.length === 0 ? (
-        <AdminEmpty>No tools match.</AdminEmpty>
+        <AdminEmpty
+          panel
+          body={
+            filter
+              ? "Nothing matches this moderation filter — try clearing it."
+              : "Tools published to the marketplace appear here. None yet."
+          }
+        >
+          {filter ? "No tools match." : "No tools published yet."}
+        </AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">

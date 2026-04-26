@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, BellOff, CheckCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
+import { EmptyState } from "./EmptyState";
 
 interface Notification {
   id: string;
@@ -145,9 +146,12 @@ export function NotificationBell() {
             {loading && items.length === 0 ? (
               <p className="p-4 text-center text-xs text-text-3">Loading…</p>
             ) : items.length === 0 ? (
-              <p className="p-6 text-center text-xs text-text-3">
-                Nothing new.
-              </p>
+              <EmptyState
+                icon={BellOff}
+                title="No notifications."
+                body="Mentions, assignments, and approvals show up here."
+                className="p-6"
+              />
             ) : (
               <ul className="divide-y divide-border">
                 {items.map((n) => {

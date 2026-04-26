@@ -113,9 +113,27 @@ export function AdminUsersClient() {
       ) : null}
 
       {loading && rows.length === 0 ? (
-        <AdminEmpty>Loading…</AdminEmpty>
+        <AdminEmpty panel>Loading…</AdminEmpty>
       ) : rows.length === 0 ? (
-        <AdminEmpty>No users match.</AdminEmpty>
+        <AdminEmpty
+          panel
+          body={
+            q || filter
+              ? "Try clearing the filter or search."
+              : "Create the first user to get started."
+          }
+          action={
+            !q && !filter
+              ? {
+                  label: "+ New user",
+                  href: "/admin/users/new",
+                  variant: "accent",
+                }
+              : undefined
+          }
+        >
+          {q || filter ? "No users match." : "No users yet."}
+        </AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">

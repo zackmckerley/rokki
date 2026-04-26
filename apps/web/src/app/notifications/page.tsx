@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import { BellOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
+import { EmptyState } from "@/components/EmptyState";
 
 /**
  * Dedicated notifications page. The top ticker remains the live surface;
@@ -44,9 +46,14 @@ export default async function NotificationsPage() {
           Notifications
         </h1>
         {rows.length === 0 ? (
-          <p className="rounded border border-dashed border-border bg-bg-1 p-10 text-center text-sm text-text-3">
-            Nothing yet. You&apos;ll see mentions, assignments, and invites here.
-          </p>
+          <div className="rounded border border-dashed border-border bg-bg-1">
+            <EmptyState
+              icon={BellOff}
+              title="No notifications yet."
+              body="Mentions, assignments, approvals, and invites will land here."
+              className="p-10"
+            />
+          </div>
         ) : (
           <ul className="divide-y divide-border rounded border border-border bg-bg-1">
             {rows.map((n) => (

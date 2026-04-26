@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Plus, Sparkles, Lock, Globe, Building2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
+import { EmptyState } from "@/components/EmptyState";
 
 /**
  * /tools — list of tools visible to the signed-in user.
@@ -134,20 +135,18 @@ function VisibilityIcon({
 
 function Empty() {
   return (
-    <div className="rounded border border-dashed border-border bg-bg-1 p-10 text-center">
-      <Sparkles className="mx-auto h-6 w-6 text-text-3" />
-      <h2 className="mt-3 text-sm font-semibold text-text-0">
-        No tools yet.
-      </h2>
-      <p className="mt-1 text-xs text-text-2">
-        Tools are JavaScript skills that Claude can call on your behalf.
-      </p>
-      <Link
-        href="/tools/new"
-        className="mt-4 inline-flex items-center gap-1 rounded bg-accent px-3 py-1.5 text-sm text-bg-0 hover:opacity-90"
-      >
-        <Plus className="h-3 w-3" /> Create your first tool
-      </Link>
+    <div className="rounded border border-dashed border-border bg-bg-1">
+      <EmptyState
+        icon={Sparkles}
+        title="No tools yet."
+        body="Tools are JavaScript skills that Claude can call on your behalf."
+        action={{
+          label: "+ New tool",
+          href: "/tools/new",
+          variant: "accent",
+        }}
+        className="p-10"
+      />
     </div>
   );
 }

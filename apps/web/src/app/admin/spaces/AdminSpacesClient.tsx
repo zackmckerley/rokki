@@ -103,9 +103,27 @@ export function AdminSpacesClient() {
       ) : null}
 
       {loading && rows.length === 0 ? (
-        <AdminEmpty>Loading…</AdminEmpty>
+        <AdminEmpty panel>Loading…</AdminEmpty>
       ) : rows.length === 0 ? (
-        <AdminEmpty>No spaces match.</AdminEmpty>
+        <AdminEmpty
+          panel
+          body={
+            q
+              ? "Try a different search term."
+              : "Spaces are tenants — companies, families, or households."
+          }
+          action={
+            !q
+              ? {
+                  label: "+ New space",
+                  href: "/admin/spaces/new",
+                  variant: "accent",
+                }
+              : undefined
+          }
+        >
+          {q ? "No spaces match." : "No spaces yet."}
+        </AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">

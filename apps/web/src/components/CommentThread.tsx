@@ -1,10 +1,11 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, Send, X, Pencil, Trash2 } from "lucide-react";
+import { MessageSquare, Send, X, Pencil, Trash2, MessagesSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
+import { EmptyState } from "./EmptyState";
 
 interface CommentAuthor {
   user_id: string;
@@ -179,9 +180,12 @@ export function CommentThread({
         {loading && comments.length === 0 ? (
           <p className="text-center text-xs text-text-3">Loading…</p>
         ) : comments.length === 0 ? (
-          <p className="py-8 text-center text-xs text-text-3">
-            No comments yet. Start the thread.
-          </p>
+          <EmptyState
+            icon={MessagesSquare}
+            title="No comments yet."
+            body="Start the thread — @-mention to ping someone."
+            className="p-6"
+          />
         ) : (
           <ul className="flex flex-col gap-3">
             {comments.map((c) => (
