@@ -7,13 +7,12 @@ import {
   AdminBadge,
   AdminCopyButton,
   AdminEmpty,
-  AdminMobileCard,
-  AdminMobileField,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { getUsernameForEmail } from "@/lib/usernames";
 
 interface Row {
   user_id: string;
@@ -137,115 +136,70 @@ export function AdminUsersClient() {
           {q || filter ? "No users match." : "No users yet."}
         </AdminEmpty>
       ) : (
-        <>
-          <div className="hidden sm:block">
-            <AdminPanel>
-              <AdminTable className="border-0">
-                <thead>
-                  <tr className="border-b border-border bg-bg-2">
-                    <AdminTh>Email</AdminTh>
-                    <AdminTh>Name</AdminTh>
-                    <AdminTh>Timezone</AdminTh>
-                    <AdminTh>Last seen</AdminTh>
-                    <AdminTh>Status</AdminTh>
-                    <AdminTh>ID</AdminTh>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {rows.map((u) => (
-                    <tr key={u.user_id} className="hover:bg-bg-2">
-                      <AdminTd mono>
-                        <Link
-                          href={`/admin/users/${u.user_id}`}
-                          className="text-text-0 hover:text-accent"
-                        >
-                          {u.email}
-                        </Link>
-                      </AdminTd>
-                      <AdminTd>{u.full_name ?? "—"}</AdminTd>
-                      <AdminTd>{u.timezone ?? "—"}</AdminTd>
-                      <AdminTd>
-                        <span className="text-xs text-text-3">
-                          {u.last_sign_in_at
-                            ? new Date(u.last_sign_in_at).toLocaleString()
-                            : "never"}
-                        </span>
-                      </AdminTd>
-                      <AdminTd>
-                        <div className="flex gap-1">
-                          {u.is_platform_admin ? (
-                            <AdminBadge variant="accent">admin</AdminBadge>
-                          ) : null}
-                          {u.banned_until &&
-                          new Date(u.banned_until) > new Date() ? (
-                            <AdminBadge variant="danger">suspended</AdminBadge>
-                          ) : (
-                            <AdminBadge variant="muted">active</AdminBadge>
-                          )}
-                        </div>
-                      </AdminTd>
-                      <AdminTd>
-                        <div className="flex items-center gap-1 text-[10px] text-text-3">
-                          <span className="font-mono">
-                            {u.user_id.slice(0, 8)}
-                          </span>
-                          <AdminCopyButton value={u.user_id} />
-                        </div>
-                      </AdminTd>
-                    </tr>
-                  ))}
-                </tbody>
-              </AdminTable>
-            </AdminPanel>
-          </div>
-
-          <div className="flex flex-col gap-2 sm:hidden">
-            {rows.map((u) => (
-              <AdminMobileCard key={u.user_id}>
-                <AdminMobileField label="Email" mono>
-                  <Link
-                    href={`/admin/users/${u.user_id}`}
-                    className="text-text-0 hover:text-accent"
-                  >
-                    {u.email}
-                  </Link>
-                </AdminMobileField>
-                <AdminMobileField label="Name">
-                  {u.full_name ?? "—"}
-                </AdminMobileField>
-                <AdminMobileField label="Timezone">
-                  {u.timezone ?? "—"}
-                </AdminMobileField>
-                <AdminMobileField label="Last seen">
-                  <span className="text-xs text-text-3">
-                    {u.last_sign_in_at
-                      ? new Date(u.last_sign_in_at).toLocaleString()
-                      : "never"}
-                  </span>
-                </AdminMobileField>
-                <AdminMobileField label="Status">
-                  <div className="flex justify-end gap-1">
-                    {u.is_platform_admin ? (
-                      <AdminBadge variant="accent">admin</AdminBadge>
-                    ) : null}
-                    {u.banned_until &&
-                    new Date(u.banned_until) > new Date() ? (
-                      <AdminBadge variant="danger">suspended</AdminBadge>
-                    ) : (
-                      <AdminBadge variant="muted">active</AdminBadge>
-                    )}
-                  </div>
-                </AdminMobileField>
-                <AdminMobileField label="ID" mono>
-                  <span className="inline-flex items-center gap-1 text-[10px] text-text-3">
-                    <span className="font-mono">{u.user_id.slice(0, 8)}</span>
-                    <AdminCopyButton value={u.user_id} />
-                  </span>
-                </AdminMobileField>
-              </AdminMobileCard>
-            ))}
-          </div>
-        </>
+        <AdminPanel>
+          <AdminTable className="border-0">
+            <thead>
+              <tr className="border-b border-border bg-bg-2">
+                <AdminTh>Email</AdminTh>
+                <AdminTh>Username</AdminTh>
+                <AdminTh>Name</AdminTh>
+                <AdminTh>Timezone</AdminTh>
+                <AdminTh>Last seen</AdminTh>
+                <AdminTh>Status</AdminTh>
+                <AdminTh>ID</AdminTh>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {rows.map((u) => {
+                const username = getUsernameForEmail(u.email);
+                return (
+                <tr key={u.user_id} className="hover:bg-bg-2">
+                  <AdminTd mono>
+                    <Link
+                      href={`/admin/users/${u.user_id}`}
+                      className="text-text-0 hover:text-accent"
+                    >
+                      {u.email}
+                    </Link>
+                  </AdminTd>
+                  <AdminTd mono>
+                    {username ?? <span className="text-text-3">—</span>}
+                  </AdminTd>
+                  <AdminTd>{u.full_name ?? "—"}</AdminTd>
+                  <AdminTd>{u.timezone ?? "—"}</AdminTd>
+                  <AdminTd>
+                    <span className="text-xs text-text-3">
+                      {u.last_sign_in_at
+                        ? new Date(u.last_sign_in_at).toLocaleString()
+                        : "never"}
+                    </span>
+                  </AdminTd>
+                  <AdminTd>
+                    <div className="flex gap-1">
+                      {u.is_platform_admin ? (
+                        <AdminBadge variant="accent">admin</AdminBadge>
+                      ) : null}
+                      {u.banned_until && new Date(u.banned_until) > new Date() ? (
+                        <AdminBadge variant="danger">suspended</AdminBadge>
+                      ) : (
+                        <AdminBadge variant="muted">active</AdminBadge>
+                      )}
+                    </div>
+                  </AdminTd>
+                  <AdminTd>
+                    <div className="flex items-center gap-1 text-[10px] text-text-3">
+                      <span className="font-mono">
+                        {u.user_id.slice(0, 8)}
+                      </span>
+                      <AdminCopyButton value={u.user_id} />
+                    </div>
+                  </AdminTd>
+                </tr>
+                );
+              })}
+            </tbody>
+          </AdminTable>
+        </AdminPanel>
       )}
     </>
   );
