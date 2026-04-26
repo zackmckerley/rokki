@@ -253,11 +253,28 @@ export function AdminTd({
   );
 }
 
-export function AdminEmpty({ children }: { children: React.ReactNode }) {
+export function AdminEmpty({
+  children,
+  body,
+  panel,
+}: {
+  children: React.ReactNode;
+  /** Optional additional copy under the title (children). */
+  body?: React.ReactNode;
+  /** When true, render with no border (assumes already inside an AdminPanel). */
+  panel?: boolean;
+}) {
   return (
-    <p className="rounded border border-dashed border-border bg-bg-1 p-8 text-center text-xs text-text-3">
-      {children}
-    </p>
+    <div
+      className={
+        panel
+          ? "p-8 text-center text-xs text-text-3"
+          : "rounded border border-dashed border-border bg-bg-1 p-8 text-center text-xs text-text-3"
+      }
+    >
+      <p>{children}</p>
+      {body ? <p className="mt-1 text-text-3">{body}</p> : null}
+    </div>
   );
 }
 

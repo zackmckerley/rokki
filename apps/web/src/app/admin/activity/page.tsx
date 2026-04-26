@@ -4,6 +4,10 @@ import type { Database } from "@rokki/db";
 import { AdminActivityTable, type ActivityRow } from "./AdminActivityTable";
 import { ActivityFilterBar, type ActivityFilterState } from "./ActivityFilterBar";
 
+// Re-export so the virtualized ActivityRows component (added by feat/search-and-views)
+// can pull the ActivityRow shape from the canonical page module.
+export type { ActivityRow };
+
 export const metadata = { title: "Activity — Admin" };
 export const dynamic = "force-dynamic";
 
