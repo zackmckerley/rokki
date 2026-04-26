@@ -47,7 +47,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   const { data: taskRow } = await supabase
     .from("tasks")
     .select(
-      "id, ticker_seq, title, description, status, priority, due_date, labels, created_at, updated_at, completed_at, created_by",
+      "id, ticker_seq, title, description, status, priority, due_date, labels, recurrence_rule, recurrence_parent_id, created_at, updated_at, completed_at, created_by",
     )
     .eq("terminal_id", term.id)
     .eq("ticker_seq", seq)
@@ -62,6 +62,8 @@ export async function GET(_req: NextRequest, { params }: Props) {
     priority: number;
     due_date: string | null;
     labels: string[] | null;
+    recurrence_rule: Record<string, unknown> | null;
+    recurrence_parent_id: string | null;
     created_at: string;
     updated_at: string;
     completed_at: string | null;
@@ -103,9 +105,37 @@ export async function GET(_req: NextRequest, { params }: Props) {
     ((relatedTasks ?? []) as R[]).map((r) => [r.id, r]),
   );
 
-  // Profiles for assignees + creator
+  // Subtasks (ordered by position)
+  const { data: subtaskRows } = await supabase
+    .from("subtasks")
+    .select("id, label, done, position, created_at, updated_at")
+    .eq("task_id", task.id)
+    .order("position", { ascending: true });
+  type S = {
+    id: string;
+    label: string;
+    done: boolean;
+    position: number;
+    created_at: string;
+    updated_at: string;
+  };
+  const subtasks = (subtaskRows ?? []) as S[];
+
+  // Watchers
+  const { data: watcherRows } = await supabase
+    .from("task_watchers")
+    .select("user_id, added_at")
+    .eq("task_id", task.id);
+  type W = { user_id: string; added_at: string };
+  const watcherList = (watcherRows ?? []) as W[];
+
+  // Profiles for assignees + creator + watchers
   const userIds = Array.from(
-    new Set([task.created_by, ...assigneeList.map((a) => a.user_id)]),
+    new Set([
+      task.created_by,
+      ...assigneeList.map((a) => a.user_id),
+      ...watcherList.map((w) => w.user_id),
+    ]),
   );
   const { data: profiles } = userIds.length
     ? await supabase
@@ -129,6 +159,13 @@ export async function GET(_req: NextRequest, { params }: Props) {
     assigned_at: a.assigned_at,
   }));
 
+  const watchers = watcherList.map((w) => ({
+    user_id: w.user_id,
+    full_name: profileBy.get(w.user_id)?.full_name ?? null,
+    avatar_url: profileBy.get(w.user_id)?.avatar_url ?? null,
+    added_at: w.added_at,
+  }));
+
   const dependsOn = depOutIds
     .map((id) => relatedById.get(id))
     .filter((r): r is R => !!r);
@@ -150,6 +187,8 @@ export async function GET(_req: NextRequest, { params }: Props) {
       terminal: { id: term.id, ticker: term.ticker, name: term.name },
       task,
       assignees,
+      watchers,
+      subtasks,
       depends_on: dependsOn,
       blocks,
       creator: profileBy.get(task.created_by)
