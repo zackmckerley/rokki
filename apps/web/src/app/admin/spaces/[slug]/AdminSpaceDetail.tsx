@@ -305,6 +305,18 @@ function MembersTab({
   }
 
   async function changeRole(userId: string, next: SpaceRole) {
+    const member = data.members.find((m) => m.user_id === userId);
+    const email = member?.email ?? userId.slice(0, 8);
+    const current = member?.role;
+    if (current === next) return;
+    if (
+      !confirm(
+        `Change ${email}'s role from ${current ?? "?"} to ${next}? They take effect on their next request.`,
+      )
+    ) {
+      router.refresh(); // re-render reverts the dropdown
+      return;
+    }
     const r = await fetch(`/api/v1/admin/spaces/${data.space.slug}/members`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -313,6 +325,7 @@ function MembersTab({
     });
     if (!r.ok) {
       onError(await msg(r));
+      router.refresh();
       return;
     }
     onSuccess("Role updated");
