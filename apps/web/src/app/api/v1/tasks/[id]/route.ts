@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { withObservability } from "@/lib/observability";
-import type { TaskStatus } from "@rokki/db";
+import { validateRecurrenceRule } from "@/lib/task-recurrence";
+import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -25,7 +26,7 @@ async function handleGet(_request: NextRequest, { params }: Props) {
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, metadata, created_at, created_by, updated_at, completed_at",
+      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, metadata, recurrence_rule, recurrence_parent_id, created_at, created_by, updated_at, completed_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -50,6 +51,9 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     priority?: number;
     due_date?: string | null;
     labels?: string[];
+    /** Spec also calls these "tags"; we accept either name and map to labels. */
+    tags?: string[];
+    recurrence_rule?: TaskRecurrenceRule | null;
   };
 
   const patch: Record<string, unknown> = {};
@@ -65,6 +69,12 @@ async function handlePatch(request: NextRequest, { params }: Props) {
   }
   if (body.due_date !== undefined) patch.due_date = body.due_date;
   if (body.labels !== undefined) patch.labels = body.labels;
+  if (body.tags !== undefined) patch.labels = body.tags;
+  if (body.recurrence_rule !== undefined) {
+    const rule = validateRecurrenceRule(body.recurrence_rule);
+    if (rule === "invalid") return bad("recurrence_rule shape is invalid");
+    patch.recurrence_rule = rule;
+  }
   if (body.status !== undefined) {
     patch.status = body.status;
     patch.completed_at = body.status === "done" ? new Date().toISOString() : null;
@@ -78,7 +88,7 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     .update(patch)
     .eq("id", id)
     .select(
-      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, completed_at, updated_at",
+      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
     )
     .single();
 
