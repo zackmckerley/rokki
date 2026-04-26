@@ -63,7 +63,7 @@ export function AdminChip() {
       className="inline-flex items-center gap-1 rounded-sm border border-accent/40 bg-accent-subtle px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent hover:bg-accent/20"
       title="Open the platform admin console"
     >
-      <ShieldCheck className="h-3 w-3" />
+      <ShieldCheck className="h-2.5 w-2.5" />
       Admin
     </Link>
   );

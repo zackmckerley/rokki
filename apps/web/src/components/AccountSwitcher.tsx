@@ -182,7 +182,7 @@ export function AccountSwitcher() {
               </div>
               {me.is_platform_admin ? (
                 <span className="inline-flex items-center gap-1 rounded-sm border border-accent/40 bg-accent-subtle px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent">
-                  <ShieldCheck className="h-3 w-3" /> admin
+                  <ShieldCheck className="h-2.5 w-2.5" /> admin
                 </span>
               ) : null}
             </div>
@@ -190,7 +190,7 @@ export function AccountSwitcher() {
 
           {error ? (
             <p className="flex items-center gap-1 border-b border-border bg-danger-subtle px-3 py-1.5 text-[11px] text-danger">
-              <AlertCircle className="h-3 w-3" /> {error}
+              <AlertCircle className="h-2.5 w-2.5" /> {error}
             </p>
           ) : null}
 

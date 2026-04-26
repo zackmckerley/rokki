@@ -158,7 +158,7 @@ export function CommentThread({
     <div className="flex h-full flex-col border-l border-border bg-bg-0">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-2 text-sm text-text-1">
-          <MessageSquare className="h-4 w-4" aria-hidden="true" />
+          <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
           <span className="font-semibold">{label}</span>
           <span className="font-mono text-xs text-text-3">
             {comments.length}
@@ -170,7 +170,7 @@ export function CommentThread({
             aria-label="Close"
             className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-1"
           >
-            <X className="h-4 w-4" />
+            <X className="h-3.5 w-3.5" />
           </button>
         ) : null}
       </div>
@@ -233,13 +233,13 @@ export function CommentThread({
                           }}
                           className="flex items-center gap-1 text-text-3 hover:text-text-1"
                         >
-                          <Pencil className="h-3 w-3" /> edit
+                          <Pencil className="h-2.5 w-2.5" /> edit
                         </button>
                         <button
                           onClick={() => del(c.id)}
                           className="flex items-center gap-1 text-text-3 hover:text-danger"
                         >
-                          <Trash2 className="h-3 w-3" /> delete
+                          <Trash2 className="h-2.5 w-2.5" /> delete
                         </button>
                       </div>
                     ) : null}

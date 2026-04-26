@@ -115,7 +115,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           id: `tasks/new:${projectId}`,
           title: "New task",
           category: "action" as const,
-          icon: <Plus className="h-4 w-4" />,
+          icon: <Plus className="h-3.5 w-3.5" />,
           shortcut: "C",
           onRun: () => setCreating(true),
         },
@@ -129,7 +129,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
                 ? `Reopen "${selected.title}"`
                 : `Complete "${selected.title}"`,
             category: "action" as const,
-            icon: <Check className="h-4 w-4" />,
+            icon: <Check className="h-3.5 w-3.5" />,
             shortcut: "↵",
             onRun: () => toggleComplete(selected),
           },
@@ -137,7 +137,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
             id: `tasks/comment:${projectId}`,
             title: `Comments on "${selected.title}"`,
             category: "action" as const,
-            icon: <MessageSquare className="h-4 w-4" />,
+            icon: <MessageSquare className="h-3.5 w-3.5" />,
             shortcut: ";",
             onRun: () =>
               setCommentTaskId((prev) =>

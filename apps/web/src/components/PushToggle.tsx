@@ -70,9 +70,9 @@ export function PushToggle() {
   return (
     <div className="flex items-center gap-3 px-4 py-3">
       {subscribed ? (
-        <BellRing className="h-4 w-4 text-accent" />
+        <BellRing className="h-3.5 w-3.5 text-accent" />
       ) : (
-        <BellOff className="h-4 w-4 text-text-2" />
+        <BellOff className="h-3.5 w-3.5 text-text-2" />
       )}
       <span className="flex-1">
         <span className="block text-sm text-text-0">Browser notifications</span>

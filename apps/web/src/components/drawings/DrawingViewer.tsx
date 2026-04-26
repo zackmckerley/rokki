@@ -241,7 +241,7 @@ export function DrawingViewer({
               : "bg-bg-2 text-text-1 hover:bg-bg-3",
           )}
         >
-          <MessageSquare className="h-3 w-3" />
+          <MessageSquare className="h-2.5 w-2.5" />
           {annotateMode ? "Annotating — click the drawing" : "Annotate"}
         </button>
       </header>

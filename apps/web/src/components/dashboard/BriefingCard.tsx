@@ -92,7 +92,7 @@ export function BriefingCard({
       className="flex items-start gap-3 rounded border border-accent-subtle bg-accent-subtle/40 p-3"
       aria-label="Morning briefing"
     >
-      <Sparkles className="mt-0.5 h-4 w-4 flex-shrink-0 text-accent" aria-hidden="true" />
+      <Sparkles className="mt-0.5 h-3 w-3 flex-shrink-0 text-accent" aria-hidden="true" />
       <div className="flex-1 min-w-0 text-xs text-text-1">
         <p className="font-semibold text-text-0">
           {greeting}, {userName}.

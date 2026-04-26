@@ -440,7 +440,7 @@ export function TaskDetail({
                   }}
                   className="flex items-center gap-1 text-[11px] text-text-3 hover:text-text-0"
                 >
-                  <Edit3 className="h-3 w-3" /> Edit
+                  <Edit3 className="h-2.5 w-2.5" /> Edit
                 </button>
               ) : null
             }
@@ -499,7 +499,7 @@ export function TaskDetail({
 
           <SectionCard
             title="Subtasks"
-            icon={<ListChecks className="h-3 w-3" />}
+            icon={<ListChecks className="h-2.5 w-2.5" />}
           >
             <SubtaskBlock
               subtasks={bundle?.subtasks ?? []}
@@ -511,7 +511,7 @@ export function TaskDetail({
 
           <SectionCard
             title="Dependencies"
-            icon={<GitBranch className="h-3 w-3" />}
+            icon={<GitBranch className="h-2.5 w-2.5" />}
           >
             <DependencyBlock
               depsOut={bundle?.depends_on ?? []}
@@ -523,13 +523,13 @@ export function TaskDetail({
             />
           </SectionCard>
 
-          <SectionCard title="Tags" icon={<TagIcon className="h-3 w-3" />}>
+          <SectionCard title="Tags" icon={<TagIcon className="h-2.5 w-2.5" />}>
             <LabelBlock labels={task.labels ?? []} onChange={setLabels} />
           </SectionCard>
 
           <SectionCard
             title="History"
-            icon={<LinkIcon className="h-3 w-3" />}
+            icon={<LinkIcon className="h-2.5 w-2.5" />}
           >
             {loadingBundle && !bundle ? (
               <p className="text-[11px] text-text-3">Loading…</p>
@@ -626,7 +626,7 @@ export function TaskDetail({
           <SidebarBlock
             label={
               <span className="flex items-center gap-1">
-                <Eye className="h-3 w-3" /> Watchers
+                <Eye className="h-2.5 w-2.5" /> Watchers
               </span>
             }
           >
@@ -642,7 +642,7 @@ export function TaskDetail({
           <SidebarBlock
             label={
               <span className="flex items-center gap-1">
-                <Repeat className="h-3 w-3" /> Repeats
+                <Repeat className="h-2.5 w-2.5" /> Repeats
               </span>
             }
           >
@@ -826,7 +826,7 @@ function AssigneeBlock({
           onClick={() => setPicking(true)}
           className="flex items-center gap-1 rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
         >
-          <Plus className="h-3 w-3" /> Assign
+          <Plus className="h-2.5 w-2.5" /> Assign
         </button>
       )}
     </div>
@@ -928,7 +928,7 @@ function DependencyBlock({
           onClick={() => setPicking(true)}
           className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
         >
-          <Plus className="h-3 w-3" /> Add dependency
+          <Plus className="h-2.5 w-2.5" /> Add dependency
         </button>
       )}
     </div>
@@ -1264,14 +1264,14 @@ function WatcherBlock({
           onClick={() => onAdd(currentUserId)}
           className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
         >
-          <Eye className="h-3 w-3" /> Watch
+          <Eye className="h-2.5 w-2.5" /> Watch
         </button>
       ) : (
         <button
           onClick={() => onRemove(currentUserId)}
           className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
         >
-          <X className="h-3 w-3" /> Stop watching
+          <X className="h-2.5 w-2.5" /> Stop watching
         </button>
       )}
       {picking ? (
@@ -1323,7 +1323,7 @@ function WatcherBlock({
           onClick={() => setPicking(true)}
           className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
         >
-          <Plus className="h-3 w-3" /> Add watcher
+          <Plus className="h-2.5 w-2.5" /> Add watcher
         </button>
       )}
     </div>
@@ -1357,7 +1357,7 @@ function RecurrenceBlock({
         }}
         className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
       >
-        <Plus className="h-3 w-3" /> Set repeat
+        <Plus className="h-2.5 w-2.5" /> Set repeat
       </button>
     );
   }

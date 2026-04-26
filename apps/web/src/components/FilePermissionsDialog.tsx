@@ -176,7 +176,7 @@ export function FilePermissionsDialog({
             value="project"
             current={visibility}
             onChange={setVisibility}
-            icon={<Users className="h-4 w-4 text-text-2" />}
+            icon={<Users className="h-3.5 w-3.5 text-text-2" />}
             title="Everyone in the terminal"
             body="Any member of this terminal can read."
           />
@@ -184,7 +184,7 @@ export function FilePermissionsDialog({
             value="owners"
             current={visibility}
             onChange={setVisibility}
-            icon={<Lock className="h-4 w-4 text-text-2" />}
+            icon={<Lock className="h-3.5 w-3.5 text-text-2" />}
             title="Owners and managers only"
             body="The uploader, plus terminal owners and managers."
           />
@@ -192,7 +192,7 @@ export function FilePermissionsDialog({
             value="custom"
             current={visibility}
             onChange={setVisibility}
-            icon={<UserCheck className="h-4 w-4 text-text-2" />}
+            icon={<UserCheck className="h-3.5 w-3.5 text-text-2" />}
             title="Custom — pick roles and people"
             body="Owners and managers always have access. Add others below."
           />
@@ -260,7 +260,7 @@ export function FilePermissionsDialog({
             </div>
 
             <p className="flex items-start gap-1.5 rounded-sm border border-info-subtle bg-info-subtle px-2.5 py-1.5 text-[11px] text-info">
-              <AlertCircle className="mt-0.5 h-3 w-3 flex-shrink-0" />
+              <AlertCircle className="mt-0.5 h-2.5 w-2.5 flex-shrink-0" />
               Owners and managers always keep access — those roles can&apos;t be
               excluded.
             </p>
