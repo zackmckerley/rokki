@@ -12,6 +12,7 @@ import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { currentTimeIn, shortZoneLabel } from "@/lib/timezone";
 import { setDragPayload } from "@/lib/drag-drop";
+import { HelpTip } from "./HelpTip";
 import type { ProjectRole } from "@rokki/db";
 
 interface MemberProfile {
@@ -177,7 +178,9 @@ export function TeamPane({ ticker, projectId, canInvite }: TeamPaneProps) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold text-text-0">Team</h2>
+          <HelpTip term="terminal-role">
+            <h2 className="text-sm font-semibold text-text-0">Team</h2>
+          </HelpTip>
           <span className="font-mono text-xs text-text-3">
             {members.length} member{members.length === 1 ? "" : "s"}
             {invites.length > 0 ? ` · ${invites.length} pending` : ""}
@@ -451,7 +454,9 @@ function InviteDialog({
           error={error || undefined}
         />
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-text-1">Role</label>
+          <HelpTip term="terminal-role">
+            <label className="text-xs font-medium text-text-1">Role</label>
+          </HelpTip>
           <select
             value={role}
             onChange={(e) => setRole(e.target.value as ProjectRole)}

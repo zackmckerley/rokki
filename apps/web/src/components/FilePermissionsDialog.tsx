@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Lock, Users, UserCheck, Check, AlertCircle } from "lucide-react";
 import { Dialog } from "./Dialog";
 import { Avatar } from "./primitives";
+import { HelpTip } from "./HelpTip";
 import { cn } from "@/lib/utils";
 import { FormError } from "./ui/FormError";
 
@@ -171,7 +172,9 @@ export function FilePermissionsDialog({
       <div className="flex flex-col gap-4">
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">
-            Who can see this file
+            <HelpTip term="file-visibility">
+              Who can see this file
+            </HelpTip>
           </legend>
           <VisibilityOption
             value="project"

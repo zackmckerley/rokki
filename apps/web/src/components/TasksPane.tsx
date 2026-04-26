@@ -9,6 +9,7 @@ import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { CommentThread } from "./CommentThread";
 import { MergeTaskDialog } from "./MergeTaskDialog";
+import { HelpTip } from "./HelpTip";
 import {
   PriorityDots,
   StatusPill,
@@ -407,7 +408,9 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       ) : null}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
+          <HelpTip term="task-attach-files">
+            <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
+          </HelpTip>
           <span className="font-mono text-xs text-text-3">{tasks.length}</span>
         </div>
         <button

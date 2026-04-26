@@ -27,6 +27,7 @@ import { breadcrumbOf, isValidFolderName } from "@/lib/folder-path";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { setDragPayload, DRAG_MIME_FILE } from "@/lib/drag-drop";
+import { HelpTip } from "./HelpTip";
 
 interface FileRow {
   id: string;
@@ -619,12 +620,15 @@ function LiveHeader({
       </nav>
       <div className="flex items-center gap-1">
         {trashCount > 0 ? (
-          <button
-            onClick={onOpenTrash}
-            className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
-          >
-            <Trash2 className="h-3 w-3" /> Trash ({trashCount})
-          </button>
+          <span className="flex items-center gap-1">
+            <button
+              onClick={onOpenTrash}
+              className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+            >
+              <Trash2 className="h-3 w-3" /> Trash ({trashCount})
+            </button>
+            <HelpTip term="file-trash" iconOnly />
+          </span>
         ) : null}
         <button
           onClick={onNewFolder}

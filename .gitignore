@@ -10,6 +10,10 @@ out
 .turbo
 *.tsbuildinfo
 
+# generated at build time by apps/web/scripts/build-help-index.mjs
+# (the prebuild hook regenerates it on every `pnpm -C apps/web build`)
+apps/web/public/help-index.json
+
 # env
 .env
 .env.local
