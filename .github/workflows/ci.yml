@@ -72,11 +72,24 @@ jobs:
         with:
           version: latest
 
+      - name: Migration harness (static)
+        # Runs first so structural problems (empty files, bad dollar
+        # quoting, malformed ROLLBACK blocks) fail before we burn 90s
+        # spinning up Postgres.
+        run: pnpm migrations:test
+
       - name: Start Supabase
         run: supabase start
 
       - name: Apply migrations
         run: supabase db reset
+
+      - name: Migration harness (round-trip)
+        # With the DB up, exercise each declared ROLLBACK by rolling
+        # back and re-applying. Catches broken rollback statements.
+        run: pnpm migrations:test -- --apply
+        env:
+          MIGRATIONS_TEST_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
 
       - name: Run RLS tests
         run: pnpm --filter @rokki/web test:rls
