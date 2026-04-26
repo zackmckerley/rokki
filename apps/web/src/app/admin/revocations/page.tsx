@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 
@@ -69,7 +70,12 @@ export default async function AdminRevocationsPage() {
                   {new Date(r.created_at).toLocaleString()}
                 </td>
                 <td className="px-3 py-2 font-mono text-xs text-text-2">
-                  {r.user_id.slice(0, 12)}
+                  <Link
+                    href={`/admin/users/${r.user_id}`}
+                    className="hover:text-accent"
+                  >
+                    {r.user_id.slice(0, 12)}
+                  </Link>
                 </td>
                 <td className="px-3 py-2 font-mono text-xs text-accent">
                   {r.reason}
