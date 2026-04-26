@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 import {
@@ -107,7 +108,18 @@ export default async function AdminStoragePage() {
             <tbody className="divide-y divide-border">
               {enrichedRollup.map((r) => (
                 <tr key={r.space_id}>
-                  <AdminTd>{r.name ?? r.space_id.slice(0, 8)}</AdminTd>
+                  <AdminTd>
+                    {r.slug ? (
+                      <Link
+                        href={`/admin/spaces/${r.slug}`}
+                        className="text-text-1 hover:text-accent"
+                      >
+                        {r.name ?? r.slug}
+                      </Link>
+                    ) : (
+                      r.space_id.slice(0, 8)
+                    )}
+                  </AdminTd>
                   <AdminTd align="right" mono>
                     {r.files.toLocaleString()}
                   </AdminTd>
@@ -141,7 +153,18 @@ export default async function AdminStoragePage() {
               {(largest as unknown as LargestFile[]).map((f) => (
                 <tr key={f.id}>
                   <AdminTd>{f.filename}</AdminTd>
-                  <AdminTd mono>{f.terminals?.ticker ?? "—"}</AdminTd>
+                  <AdminTd mono>
+                    {f.terminals ? (
+                      <Link
+                        href={`/admin/terminals/${f.terminals.ticker}`}
+                        className="text-accent hover:underline"
+                      >
+                        {f.terminals.ticker}
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
+                  </AdminTd>
                   <AdminTd align="right" mono>
                     {prettyBytes(f.size_bytes)}
                   </AdminTd>
