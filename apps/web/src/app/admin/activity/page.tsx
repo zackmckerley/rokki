@@ -1,44 +1,33 @@
 import Link from "next/link";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
-import { AdminActivityTable, type ActivityRow } from "./AdminActivityTable";
-import { ActivityFilterBar, type ActivityFilterState } from "./ActivityFilterBar";
-
-// Re-export so the virtualized ActivityRows component (added by feat/search-and-views)
-// can pull the ActivityRow shape from the canonical page module.
-export type { ActivityRow };
 
 export const metadata = { title: "Activity — Admin" };
 export const dynamic = "force-dynamic";
 
-interface ActivityPageSearchParams {
-  before?: string;
-  actor?: string;
-  /** Comma-separated list of action enum values. */
-  action?: string;
-  since?: string;
-  until?: string;
-  terminal?: string;
-  q?: string;
+interface Row {
+  id: string;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  actor_id: string | null;
+  terminal_id: string | null;
+  space_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
 }
 
-const PAGE = 50;
-
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
 /**
- * Admin activity log. Filters live in the URL (`?actor=&action=&since=...`)
- * and apply at the DB level — `WHERE`, `ILIKE`, `IN`, no in-memory scan of
- * tens-of-thousands of rows. Default window is the last 7 days; setting
- * `since=` overrides.
+ * Admin activity log. Reads from the `activity` table directly — every
+ * user-facing action writes one row. Paginated via ?before= timestamp.
  */
 export default async function AdminActivityPage({
   searchParams,
 }: {
-  searchParams: Promise<ActivityPageSearchParams>;
+  searchParams: Promise<{ before?: string }>;
 }) {
   const params = await searchParams;
-  const filter = parseFilter(params);
+  const PAGE = 50;
 
   const admin = createAdminClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -53,28 +42,10 @@ export default async function AdminActivityPage({
     )
     .order("created_at", { ascending: false })
     .limit(PAGE);
-
   if (params.before) query = query.lt("created_at", params.before);
-  if (filter.since) query = query.gte("created_at", filter.since);
-  if (filter.until) query = query.lt("created_at", filter.until);
-  if (filter.actor) query = query.eq("actor_id", filter.actor);
-  if (filter.terminal) query = query.eq("terminal_id", filter.terminal);
-  if (filter.actions.length > 0) {
-    // Cast through `unknown` because the generated type narrows to the enum.
-    query = query.in("action", filter.actions as unknown as never);
-  }
-  if (filter.q) {
-    // Free-text search against the action column and the JSON payload. Both
-    // are tested with ILIKE — Postgres casts jsonb to text for `::text`,
-    // and supabase-js `.or()` combines the two predicates.
-    const safe = filter.q.replace(/[%_]/g, "\\$&");
-    query = query.or(
-      `action.ilike.%${safe}%,metadata::text.ilike.%${safe}%`,
-    );
-  }
 
   const { data } = await query;
-  const rows = (data ?? []) as ActivityRow[];
+  const rows = (data ?? []) as Row[];
 
   const next =
     rows.length === PAGE ? rows[rows.length - 1]!.created_at : undefined;
@@ -84,19 +55,145 @@ export default async function AdminActivityPage({
       <header>
         <h1 className="text-xl font-semibold text-text-0">Activity</h1>
         <p className="mt-1 text-xs text-text-3">
-          Every state transition across the platform. Latest first. Default
-          window is 7 days; widen via the date inputs below.
+          Every state transition across the platform. Latest first.
         </p>
       </header>
 
-      <ActivityFilterBar initial={filter} />
+      <div className="hidden overflow-hidden rounded border border-border bg-bg-1 sm:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-bg-2 text-[10px] uppercase tracking-wide text-text-3">
+              <th className="px-3 py-2 text-left font-semibold">When</th>
+              <th className="px-3 py-2 text-left font-semibold">Action</th>
+              <th className="px-3 py-2 text-left font-semibold">Entity</th>
+              <th className="px-3 py-2 text-left font-semibold">Actor</th>
+              <th className="px-3 py-2 text-left font-semibold">Metadata</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <td className="px-3 py-1.5 font-mono text-[11px] text-text-3">
+                  {new Date(r.created_at).toLocaleString()}
+                </td>
+                <td className="px-3 py-1.5 font-mono text-xs text-accent">
+                  {r.action}
+                </td>
+                <td className="px-3 py-1.5 text-xs text-text-2">
+                  {r.entity_type ?? "—"}
+                  {r.entity_id ? (
+                    <span className="ml-1 font-mono text-[10px] text-text-3">
+                      {r.entity_id.slice(0, 8)}
+                    </span>
+                  ) : null}
+                </td>
+                <td className="px-3 py-1.5 font-mono text-[10px] text-text-3">
+                  {r.actor_id ? (
+                    <Link
+                      href={`/admin/users/${r.actor_id}`}
+                      className="hover:text-accent"
+                    >
+                      {r.actor_id.slice(0, 8)}
+                    </Link>
+                  ) : (
+                    "system"
+                  )}
+                </td>
+                <td className="px-3 py-1.5 font-mono text-[11px] text-text-3">
+                  <code className="truncate">
+                    {JSON.stringify(r.metadata).slice(0, 100)}
+                  </code>
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-3 py-6 text-center text-xs text-text-3"
+                >
+                  No activity.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
 
-      <AdminActivityTable rows={rows} />
+      {rows.length === 0 ? (
+        <p className="rounded border border-dashed border-border bg-bg-1 p-6 text-center text-xs text-text-3 sm:hidden">
+          No activity.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2 sm:hidden">
+          {rows.map((r) => (
+            <div
+              key={r.id}
+              className="flex flex-col gap-1 rounded border border-border bg-bg-1 px-3 py-2 text-sm"
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  When
+                </span>
+                <span className="font-mono text-[11px] text-text-3">
+                  {new Date(r.created_at).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Action
+                </span>
+                <span className="min-w-0 flex-1 break-all text-right font-mono text-xs text-accent">
+                  {r.action}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Entity
+                </span>
+                <span className="min-w-0 flex-1 text-right text-xs text-text-2">
+                  {r.entity_type ?? "—"}
+                  {r.entity_id ? (
+                    <span className="ml-1 font-mono text-[10px] text-text-3">
+                      {r.entity_id.slice(0, 8)}
+                    </span>
+                  ) : null}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Actor
+                </span>
+                <span className="font-mono text-[10px] text-text-3">
+                  {r.actor_id ? (
+                    <Link
+                      href={`/admin/users/${r.actor_id}`}
+                      className="hover:text-accent"
+                    >
+                      {r.actor_id.slice(0, 8)}
+                    </Link>
+                  ) : (
+                    "system"
+                  )}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Metadata
+                </span>
+                <code className="min-w-0 flex-1 break-all text-right font-mono text-[11px] text-text-3">
+                  {JSON.stringify(r.metadata).slice(0, 100)}
+                </code>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {next ? (
         <div>
           <Link
-            href={`/admin/activity?${appendBefore(params, next)}`}
+            href={`/admin/activity?before=${encodeURIComponent(next)}`}
             className="text-xs text-accent hover:underline"
           >
             Older →
@@ -105,41 +202,4 @@ export default async function AdminActivityPage({
       ) : null}
     </div>
   );
-}
-
-function parseFilter(p: ActivityPageSearchParams): ActivityFilterState {
-  const sinceDefault = new Date(Date.now() - SEVEN_DAYS_MS).toISOString();
-
-  const actions = (p.action ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
-
-  return {
-    actor: p.actor?.trim() || null,
-    actions,
-    since: isIso(p.since) ? p.since! : sinceDefault,
-    // `until` is optional — when omitted we go up to "now".
-    until: isIso(p.until) ? p.until! : null,
-    terminal: p.terminal?.trim() || null,
-    q: p.q?.trim() ?? "",
-  };
-}
-
-function isIso(v: string | undefined | null): boolean {
-  if (!v) return false;
-  const ms = Date.parse(v);
-  return !Number.isNaN(ms);
-}
-
-function appendBefore(
-  current: ActivityPageSearchParams,
-  next: string,
-): string {
-  const out = new URLSearchParams();
-  for (const [k, v] of Object.entries(current)) {
-    if (v && k !== "before") out.set(k, v);
-  }
-  out.set("before", next);
-  return out.toString();
 }

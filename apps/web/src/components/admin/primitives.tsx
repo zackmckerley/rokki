@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  ChevronDown,
-  ChevronUp,
-  Copy,
-  Check as CheckIcon,
-  Search,
-} from "lucide-react";
+import { Copy, Check as CheckIcon } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -26,7 +20,7 @@ export function AdminSectionHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <header className="mb-4 flex items-end justify-between gap-3">
+    <header className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
       <div>
         <h1 className="font-display text-2xl text-text-0">{title}</h1>
         {description ? (
@@ -141,23 +135,11 @@ export function AdminTh({
   children,
   className,
   align = "left",
-  sortKey,
-  sortDir = null,
-  onSort,
 }: {
   children: React.ReactNode;
   className?: string;
   align?: "left" | "right";
-  /**
-   * If provided, the cell becomes a button that calls `onSort(sortKey)`.
-   * `sortDir` controls the chevron — "asc"/"desc" when this column is the
-   * active sort; null otherwise.
-   */
-  sortKey?: string;
-  sortDir?: "asc" | "desc" | null;
-  onSort?: (key: string) => void;
 }) {
-  const sortable = sortKey != null && onSort != null;
   return (
     <th
       className={cn(
@@ -166,65 +148,8 @@ export function AdminTh({
         className,
       )}
     >
-      {sortable ? (
-        <button
-          type="button"
-          onClick={() => onSort!(sortKey!)}
-          className={cn(
-            "inline-flex items-center gap-1 select-none hover:text-text-1",
-            align === "right" && "flex-row-reverse",
-            sortDir != null && "text-text-1",
-          )}
-          aria-label={`Sort by ${typeof children === "string" ? children : sortKey}`}
-        >
-          <span>{children}</span>
-          {sortDir === "asc" ? (
-            <ChevronUp className="h-3 w-3" />
-          ) : sortDir === "desc" ? (
-            <ChevronDown className="h-3 w-3" />
-          ) : (
-            <span className="inline-block h-3 w-3" aria-hidden="true" />
-          )}
-        </button>
-      ) : (
-        children
-      )}
+      {children}
     </th>
-  );
-}
-
-/**
- * Compact text-input for in-table fuzzy filter. Lives next to the table
- * header (typically top-right of the toolbar).
- */
-export function AdminFilterInput({
-  value,
-  onChange,
-  placeholder = "Filter…",
-  className,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  placeholder?: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "flex items-center gap-1.5 rounded-sm border border-border bg-bg-0 px-2 py-1.5",
-        className,
-      )}
-    >
-      <Search className="h-3 w-3 text-text-3" aria-hidden="true" />
-      <input
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-40 bg-transparent font-mono text-xs text-text-0 placeholder:text-text-3 outline-none md:w-56"
-        aria-label="Filter rows"
-      />
-    </div>
   );
 }
 
@@ -253,28 +178,81 @@ export function AdminTd({
   );
 }
 
-export function AdminEmpty({
+/**
+ * Mobile fallback for an admin table row. Below `sm`, each row in a
+ * table renders as a stacked card of label/value pairs. The card keeps
+ * the same density and color tokens as the table — borders, mono ids,
+ * etc. — so the Bloomberg vibe doesn't break on phones.
+ *
+ * Intended pattern at the call site:
+ *
+ *   <div className="hidden sm:block"><AdminTable>…</AdminTable></div>
+ *   <div className="sm:hidden flex flex-col gap-2">
+ *     {rows.map(r => (
+ *       <AdminMobileCard key={r.id}>
+ *         <AdminMobileField label="Name">{r.name}</AdminMobileField>
+ *         …
+ *       </AdminMobileCard>
+ *     ))}
+ *   </div>
+ */
+export function AdminMobileCard({
   children,
-  body,
-  panel,
+  className,
 }: {
   children: React.ReactNode;
-  /** Optional additional copy under the title (children). */
-  body?: React.ReactNode;
-  /** When true, render with no border (assumes already inside an AdminPanel). */
-  panel?: boolean;
+  className?: string;
 }) {
   return (
     <div
-      className={
-        panel
-          ? "p-8 text-center text-xs text-text-3"
-          : "rounded border border-dashed border-border bg-bg-1 p-8 text-center text-xs text-text-3"
-      }
+      className={cn(
+        "flex flex-col gap-1 rounded border border-border bg-bg-1 px-3 py-2 text-sm",
+        className,
+      )}
     >
-      <p>{children}</p>
-      {body ? <p className="mt-1 text-text-3">{body}</p> : null}
+      {children}
     </div>
+  );
+}
+
+/**
+ * One label/value row inside an `AdminMobileCard`. The label sits in a
+ * narrow uppercase eyebrow column on the left, the value flows on the
+ * right and wraps as needed. `align="right"` is rare here — mobile
+ * cards almost always read top-down — but kept for parity with table
+ * cells.
+ */
+export function AdminMobileField({
+  label,
+  children,
+  mono = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+        {label}
+      </span>
+      <div
+        className={cn(
+          "min-w-0 flex-1 text-right",
+          mono ? "font-mono text-xs text-text-2" : "text-text-1",
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function AdminEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded border border-dashed border-border bg-bg-1 p-8 text-center text-xs text-text-3">
+      {children}
+    </p>
   );
 }
 

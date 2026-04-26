@@ -1,19 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import {
   AdminBadge,
   AdminEmpty,
-  AdminFilterInput,
+  AdminMobileCard,
+  AdminMobileField,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
-import { CopyableId } from "@/components/CopyableId";
-import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
   space_id: string;
@@ -34,7 +33,6 @@ export function AdminSpacesClient() {
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("active");
-  const [tableFilter, setTableFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -68,36 +66,6 @@ export function AdminSpacesClient() {
     return () => clearTimeout(t);
   }, [load]);
 
-  const fuzzy = useMemo(
-    () =>
-      makeFuzzyFilter<Row>(tableFilter, (r) => [
-        r.name,
-        r.slug,
-        r.description,
-        r.space_id,
-      ]),
-    [tableFilter],
-  );
-
-  const { sorted, onSortClick, arrow } = useTableSort<Row>({
-    rows,
-    filter: fuzzy,
-    defaultSort: { key: "created_at", dir: "desc" },
-    getValue: (r, key) => {
-      switch (key) {
-        case "name":
-          return r.name;
-        case "slug":
-          return r.slug;
-        case "status":
-          return r.archived_at ? "1-archived" : "0-active";
-        case "created_at":
-        default:
-          return r.created_at;
-      }
-    },
-  });
-
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-bg-1 p-2">
@@ -125,14 +93,8 @@ export function AdminSpacesClient() {
             </button>
           ))}
         </div>
-        <AdminFilterInput
-          value={tableFilter}
-          onChange={setTableFilter}
-          placeholder="Filter visible rows…"
-        />
         <span className="ml-auto text-xs text-text-3">
-          {tableFilter ? `${sorted.length} / ${rows.length}` : rows.length}{" "}
-          {rows.length === 1 ? "space" : "spaces"}
+          {rows.length} {rows.length === 1 ? "space" : "spaces"}
         </span>
       </div>
 
@@ -143,67 +105,101 @@ export function AdminSpacesClient() {
       ) : null}
 
       {loading && rows.length === 0 ? (
-        <AdminEmpty>Loading…</AdminEmpty>
-      ) : sorted.length === 0 ? (
-        <AdminEmpty>No spaces match.</AdminEmpty>
+        <AdminEmpty panel>Loading…</AdminEmpty>
+      ) : rows.length === 0 ? (
+        <AdminEmpty
+          panel
+          body={
+            q
+              ? "Try a different search term."
+              : "Spaces are tenants — companies, families, or households."
+          }
+          action={
+            !q
+              ? {
+                  label: "+ New space",
+                  href: "/admin/spaces/new",
+                  variant: "accent",
+                }
+              : undefined
+          }
+        >
+          {q ? "No spaces match." : "No spaces yet."}
+        </AdminEmpty>
       ) : (
-        <AdminPanel>
-          <AdminTable className="border-0">
-            <thead>
-              <tr className="border-b border-border bg-bg-2">
-                <AdminTh sortKey="name" sortDir={arrow("name")} onSort={onSortClick}>
-                  Name
-                </AdminTh>
-                <AdminTh sortKey="slug" sortDir={arrow("slug")} onSort={onSortClick}>
-                  Slug
-                </AdminTh>
-                <AdminTh
-                  sortKey="status"
-                  sortDir={arrow("status")}
-                  onSort={onSortClick}
-                >
-                  Status
-                </AdminTh>
-                <AdminTh
-                  sortKey="created_at"
-                  sortDir={arrow("created_at")}
-                  onSort={onSortClick}
-                >
-                  Created
-                </AdminTh>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {sorted.map((s) => (
-                <tr key={s.space_id} className="hover:bg-bg-2">
-                  <AdminTd>
-                    <Link
-                      href={`/admin/spaces/${s.slug}`}
-                      className="text-text-0 hover:text-accent"
-                    >
-                      {s.name}
-                    </Link>
-                  </AdminTd>
-                  <AdminTd mono>
-                    <CopyableId value={s.slug} label="slug" prefix="/" />
-                  </AdminTd>
-                  <AdminTd>
-                    {s.archived_at ? (
-                      <AdminBadge variant="warning">archived</AdminBadge>
-                    ) : (
-                      <AdminBadge variant="success">active</AdminBadge>
-                    )}
-                  </AdminTd>
-                  <AdminTd>
-                    <span className="text-xs text-text-3">
-                      {new Date(s.created_at).toLocaleDateString()}
-                    </span>
-                  </AdminTd>
-                </tr>
-              ))}
-            </tbody>
-          </AdminTable>
-        </AdminPanel>
+        <>
+          <div className="hidden sm:block">
+            <AdminPanel>
+              <AdminTable className="border-0">
+                <thead>
+                  <tr className="border-b border-border bg-bg-2">
+                    <AdminTh>Name</AdminTh>
+                    <AdminTh>Slug</AdminTh>
+                    <AdminTh>Status</AdminTh>
+                    <AdminTh>Created</AdminTh>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {rows.map((s) => (
+                    <tr key={s.space_id} className="hover:bg-bg-2">
+                      <AdminTd>
+                        <Link
+                          href={`/admin/spaces/${s.slug}`}
+                          className="text-text-0 hover:text-accent"
+                        >
+                          {s.name}
+                        </Link>
+                      </AdminTd>
+                      <AdminTd mono>/{s.slug}</AdminTd>
+                      <AdminTd>
+                        {s.archived_at ? (
+                          <AdminBadge variant="warning">archived</AdminBadge>
+                        ) : (
+                          <AdminBadge variant="success">active</AdminBadge>
+                        )}
+                      </AdminTd>
+                      <AdminTd>
+                        <span className="text-xs text-text-3">
+                          {new Date(s.created_at).toLocaleDateString()}
+                        </span>
+                      </AdminTd>
+                    </tr>
+                  ))}
+                </tbody>
+              </AdminTable>
+            </AdminPanel>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:hidden">
+            {rows.map((s) => (
+              <AdminMobileCard key={s.space_id}>
+                <AdminMobileField label="Name">
+                  <Link
+                    href={`/admin/spaces/${s.slug}`}
+                    className="text-text-0 hover:text-accent"
+                  >
+                    {s.name}
+                  </Link>
+                </AdminMobileField>
+                <AdminMobileField label="Slug" mono>
+                  /{s.slug}
+                </AdminMobileField>
+                <AdminMobileField label="Status">
+                  {s.archived_at ? (
+                    <AdminBadge variant="warning">archived</AdminBadge>
+                  ) : (
+                    <AdminBadge variant="success">active</AdminBadge>
+                  )}
+                </AdminMobileField>
+                <AdminMobileField label="Created">
+                  <span className="text-xs text-text-3">
+                    {new Date(s.created_at).toLocaleDateString()}
+                  </span>
+                </AdminMobileField>
+              </AdminMobileCard>
+            ))}
+          </div>
+        </>
       )}
     </>
   );

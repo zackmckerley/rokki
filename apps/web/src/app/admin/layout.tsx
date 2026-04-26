@@ -77,11 +77,7 @@ export default async function AdminLayout({
             })}
           </nav>
         </aside>
-        <main
-          id="main-content"
-          tabIndex={-1}
-          className="flex-1 overflow-x-auto p-6 focus:outline-none"
-        >
+        <main className="flex-1 overflow-x-auto p-3 sm:p-4 md:p-6">
           {children}
         </main>
       </div>

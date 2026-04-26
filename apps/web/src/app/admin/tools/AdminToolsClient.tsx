@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   ShieldCheck,
   ShieldOff,
@@ -13,13 +13,13 @@ import {
   AdminBadge,
   AdminButton,
   AdminEmpty,
-  AdminFilterInput,
+  AdminMobileCard,
+  AdminMobileField,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
-import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
   id: string;
@@ -45,7 +45,6 @@ const FILTERS: Array<{ id: string; label: string }> = [
 export function AdminToolsClient() {
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState("");
-  const [tableFilter, setTableFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -103,43 +102,6 @@ export function AdminToolsClient() {
     }
   }
 
-  const fuzzy = useMemo(
-    () =>
-      makeFuzzyFilter<Row>(tableFilter, (r) => [
-        r.name,
-        r.slug,
-        r.description,
-        r.visibility,
-        r.moderation_status,
-        r.current_version,
-        ...(r.tags ?? []),
-      ]),
-    [tableFilter],
-  );
-
-  const { sorted, onSortClick, arrow } = useTableSort<Row>({
-    rows,
-    filter: fuzzy,
-    defaultSort: { key: "updated_at", dir: "desc" },
-    getValue: (r, key) => {
-      switch (key) {
-        case "name":
-          return r.name;
-        case "visibility":
-          return r.visibility;
-        case "moderation_status":
-          return r.moderation_status;
-        case "current_version":
-          return r.current_version;
-        case "created_at":
-          return r.created_at;
-        case "updated_at":
-        default:
-          return r.updated_at;
-      }
-    },
-  });
-
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-bg-1 p-2">
@@ -158,14 +120,8 @@ export function AdminToolsClient() {
             </button>
           ))}
         </div>
-        <AdminFilterInput
-          value={tableFilter}
-          onChange={setTableFilter}
-          placeholder="Filter visible rows…"
-        />
         <span className="ml-auto text-xs text-text-3">
-          {tableFilter ? `${sorted.length} / ${rows.length}` : rows.length}{" "}
-          {rows.length === 1 ? "tool" : "tools"}
+          {rows.length} {rows.length === 1 ? "tool" : "tools"}
         </span>
       </div>
 
@@ -180,110 +136,162 @@ export function AdminToolsClient() {
         </p>
       ) : null}
 
-      {sorted.length === 0 ? (
-        <AdminEmpty>No tools match.</AdminEmpty>
+      {rows.length === 0 ? (
+        <AdminEmpty
+          panel
+          body={
+            filter
+              ? "Nothing matches this moderation filter — try clearing it."
+              : "Tools published to the marketplace appear here. None yet."
+          }
+        >
+          {filter ? "No tools match." : "No tools published yet."}
+        </AdminEmpty>
       ) : (
-        <AdminPanel>
-          <AdminTable className="border-0">
-            <thead>
-              <tr className="border-b border-border bg-bg-2">
-                <AdminTh sortKey="name" sortDir={arrow("name")} onSort={onSortClick}>
-                  Tool
-                </AdminTh>
-                <AdminTh
-                  sortKey="visibility"
-                  sortDir={arrow("visibility")}
-                  onSort={onSortClick}
-                >
-                  Visibility
-                </AdminTh>
-                <AdminTh
-                  sortKey="moderation_status"
-                  sortDir={arrow("moderation_status")}
-                  onSort={onSortClick}
-                >
-                  Status
-                </AdminTh>
-                <AdminTh
-                  sortKey="current_version"
-                  sortDir={arrow("current_version")}
-                  onSort={onSortClick}
-                >
-                  Version
-                </AdminTh>
-                <AdminTh align="right">Actions</AdminTh>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {sorted.map((t) => (
-                <tr key={t.id}>
-                  <AdminTd>
-                    <a
-                      href={`/tools/${t.slug}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-text-0 hover:text-accent"
-                      title="Open marketplace listing in a new tab"
-                    >
-                      {t.name}
-                    </a>
-                    <div className="font-mono text-[10px] text-text-3">
-                      {t.slug}
-                    </div>
-                  </AdminTd>
-                  <AdminTd>
-                    <AdminBadge>{t.visibility}</AdminBadge>
-                  </AdminTd>
-                  <AdminTd>
-                    <ModerationBadge status={t.moderation_status} />
-                  </AdminTd>
-                  <AdminTd mono>v{t.current_version}</AdminTd>
-                  <AdminTd align="right">
-                    <div className="flex justify-end gap-1">
-                      {t.moderation_status !== "approved" ? (
-                        <AdminButton
-                          onClick={() => void moderate(t.slug, "approved")}
-                          disabled={busy === t.slug}
-                          title="Approve"
+        <>
+          <div className="hidden sm:block">
+            <AdminPanel>
+              <AdminTable className="border-0">
+                <thead>
+                  <tr className="border-b border-border bg-bg-2">
+                    <AdminTh>Tool</AdminTh>
+                    <AdminTh>Visibility</AdminTh>
+                    <AdminTh>Status</AdminTh>
+                    <AdminTh>Version</AdminTh>
+                    <AdminTh align="right">Actions</AdminTh>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {rows.map((t) => (
+                    <tr key={t.id}>
+                      <AdminTd>
+                        <a
+                          href={`/tools/${t.slug}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-text-0 hover:text-accent"
+                          title="Open marketplace listing in a new tab"
                         >
-                          <ShieldCheck className="h-3 w-3" /> Approve
-                        </AdminButton>
-                      ) : null}
-                      {t.moderation_status !== "featured" ? (
-                        <AdminButton
-                          variant="accent"
-                          onClick={() => void moderate(t.slug, "featured")}
-                          disabled={busy === t.slug}
-                        >
-                          <Star className="h-3 w-3" /> Feature
-                        </AdminButton>
-                      ) : null}
-                      {t.moderation_status !== "pending" ? (
-                        <AdminButton
-                          onClick={() => void moderate(t.slug, "pending")}
-                          disabled={busy === t.slug}
-                        >
-                          <Clock className="h-3 w-3" /> Pending
-                        </AdminButton>
-                      ) : null}
-                      {t.moderation_status !== "disabled" ? (
-                        <AdminButton
-                          variant="danger"
-                          onClick={() => void moderate(t.slug, "disabled")}
-                          disabled={busy === t.slug}
-                        >
-                          <ShieldOff className="h-3 w-3" /> Disable
-                        </AdminButton>
-                      ) : null}
-                    </div>
-                  </AdminTd>
-                </tr>
-              ))}
-            </tbody>
-          </AdminTable>
-        </AdminPanel>
+                          {t.name}
+                        </a>
+                        <div className="font-mono text-[10px] text-text-3">
+                          {t.slug}
+                        </div>
+                      </AdminTd>
+                      <AdminTd>
+                        <AdminBadge>{t.visibility}</AdminBadge>
+                      </AdminTd>
+                      <AdminTd>
+                        <ModerationBadge status={t.moderation_status} />
+                      </AdminTd>
+                      <AdminTd mono>v{t.current_version}</AdminTd>
+                      <AdminTd align="right">
+                        <ModerationActions
+                          slug={t.slug}
+                          status={t.moderation_status}
+                          busy={busy === t.slug}
+                          moderate={moderate}
+                        />
+                      </AdminTd>
+                    </tr>
+                  ))}
+                </tbody>
+              </AdminTable>
+            </AdminPanel>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:hidden">
+            {rows.map((t) => (
+              <AdminMobileCard key={t.id}>
+                <AdminMobileField label="Tool">
+                  <a
+                    href={`/tools/${t.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-text-0 hover:text-accent"
+                    title="Open marketplace listing in a new tab"
+                  >
+                    {t.name}
+                  </a>
+                  <div className="font-mono text-[10px] text-text-3">
+                    {t.slug}
+                  </div>
+                </AdminMobileField>
+                <AdminMobileField label="Visibility">
+                  <AdminBadge>{t.visibility}</AdminBadge>
+                </AdminMobileField>
+                <AdminMobileField label="Status">
+                  <ModerationBadge status={t.moderation_status} />
+                </AdminMobileField>
+                <AdminMobileField label="Version" mono>
+                  v{t.current_version}
+                </AdminMobileField>
+                <div className="mt-1 flex flex-wrap justify-end gap-1">
+                  <ModerationActions
+                    slug={t.slug}
+                    status={t.moderation_status}
+                    busy={busy === t.slug}
+                    moderate={moderate}
+                  />
+                </div>
+              </AdminMobileCard>
+            ))}
+          </div>
+        </>
       )}
     </>
+  );
+}
+
+function ModerationActions({
+  slug,
+  status,
+  busy,
+  moderate,
+}: {
+  slug: string;
+  status: Row["moderation_status"];
+  busy: boolean;
+  moderate: (slug: string, status: Row["moderation_status"]) => Promise<void>;
+}) {
+  return (
+    <div className="flex flex-wrap justify-end gap-1">
+      {status !== "approved" ? (
+        <AdminButton
+          onClick={() => void moderate(slug, "approved")}
+          disabled={busy}
+          title="Approve"
+        >
+          <ShieldCheck className="h-3 w-3" /> Approve
+        </AdminButton>
+      ) : null}
+      {status !== "featured" ? (
+        <AdminButton
+          variant="accent"
+          onClick={() => void moderate(slug, "featured")}
+          disabled={busy}
+        >
+          <Star className="h-3 w-3" /> Feature
+        </AdminButton>
+      ) : null}
+      {status !== "pending" ? (
+        <AdminButton
+          onClick={() => void moderate(slug, "pending")}
+          disabled={busy}
+        >
+          <Clock className="h-3 w-3" /> Pending
+        </AdminButton>
+      ) : null}
+      {status !== "disabled" ? (
+        <AdminButton
+          variant="danger"
+          onClick={() => void moderate(slug, "disabled")}
+          disabled={busy}
+        >
+          <ShieldOff className="h-3 w-3" /> Disable
+        </AdminButton>
+      ) : null}
+    </div>
   );
 }
 
