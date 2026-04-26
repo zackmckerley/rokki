@@ -64,7 +64,8 @@ export default async function TerminalLayout({
       <div className="flex h-[100dvh] overflow-hidden bg-bg-0">
         <aside
           aria-label="Explorer"
-          className="hidden h-full w-[260px] flex-shrink-0 border-r border-border lg:flex lg:flex-col"
+          data-print-hide="true"
+          className="hidden h-full w-[260px] flex-shrink-0 border-r border-border lg:flex lg:flex-col print:hidden"
         >
           <ExplorerRail
             spaces={spaces}
