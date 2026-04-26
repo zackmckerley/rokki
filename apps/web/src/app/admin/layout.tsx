@@ -58,7 +58,7 @@ export default async function AdminLayout({
     | null;
 
   if (!typedProfile?.is_platform_admin) {
-    redirect("/?error=admin_only");
+    redirect("/forbidden?reason=admin_only&from=/admin");
   }
 
   const accountName = typedProfile.full_name?.trim() || user.email || "Admin";
