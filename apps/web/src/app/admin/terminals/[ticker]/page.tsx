@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 import { AdminSectionHeader } from "@/components/admin/primitives";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { AdminTerminalDetail, type AdminTerminalDetailData } from "./AdminTerminalDetail";
 
 export const metadata = { title: "Terminal — Admin" };
@@ -105,20 +105,19 @@ export default async function AdminTerminalPage({ params }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      <Breadcrumbs
+        items={[
+          { label: "Admin", href: "/admin" },
+          { label: "Terminals", href: "/admin/terminals" },
+          { label: `${t.ticker} · ${t.name}` },
+        ]}
+      />
       <AdminSectionHeader
         title={t.name}
         description={
           <span className="font-mono text-[11px]">
             {t.ticker} · {t.id} · {t.spaces?.name ?? "(no space)"}
           </span>
-        }
-        actions={
-          <Link
-            href="/admin/terminals"
-            className="text-xs text-text-3 hover:text-text-1"
-          >
-            ← back to terminals
-          </Link>
         }
       />
       <AdminTerminalDetail data={data} />

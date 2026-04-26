@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import {
   Gauge,
   Users,
@@ -27,14 +26,15 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 import { AccountBlock } from "@/components/AccountBlock";
 import { AdminBackLink } from "./AdminBackLink";
+import { AdminNavLink } from "./AdminNavLink";
 
 /**
  * Platform admin shell.
  *
  *   - Gates every /admin/* route on `is_platform_admin = true`
- *   - Sidebar lists every admin section, with the AccountBlock pinned
- *     to the bottom so admins can switch identities or sign out without
- *     leaving /admin
+ *   - Sidebar lists every admin section. Vercel-style: w-60, generous
+ *     padding, active-route highlighted, AccountBlock pinned to bottom
+ *     so admins can switch identities or sign out without leaving /admin
  */
 export default async function AdminLayout({
   children,
@@ -73,151 +73,155 @@ export default async function AdminLayout({
         </span>
       </TopBar>
       <div className="mx-auto flex w-full max-w-7xl flex-1">
-        <aside className="sticky top-0 hidden w-52 flex-shrink-0 flex-col border-r border-border bg-bg-1 md:flex">
+        <aside className="sticky top-0 hidden w-60 flex-shrink-0 flex-col border-r border-border bg-bg-1 md:flex">
           <nav
             aria-label="Admin sections"
-            className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2 text-sm"
+            className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-3 py-4"
           >
             <NavGroup label="Operations">
-              <NavLink href="/admin" icon={<Gauge className="h-3.5 w-3.5" />}>
+              <AdminNavLink
+                href="/admin"
+                exact
+                icon={<Gauge className="h-4 w-4" />}
+              >
                 Overview
-              </NavLink>
+              </AdminNavLink>
             </NavGroup>
             <NavGroup label="Tenancy">
-              <NavLink
+              <AdminNavLink
                 href="/admin/users"
-                icon={<Users className="h-3.5 w-3.5" />}
+                icon={<Users className="h-4 w-4" />}
               >
                 Users
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/spaces"
-                icon={<Building2 className="h-3.5 w-3.5" />}
+                icon={<Building2 className="h-4 w-4" />}
               >
                 Spaces
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/terminals"
-                icon={<Terminal className="h-3.5 w-3.5" />}
+                icon={<Terminal className="h-4 w-4" />}
               >
                 Terminals
-              </NavLink>
+              </AdminNavLink>
             </NavGroup>
             <NavGroup label="Marketplace">
-              <NavLink
+              <AdminNavLink
                 href="/admin/tools"
-                icon={<Wrench className="h-3.5 w-3.5" />}
+                icon={<Wrench className="h-4 w-4" />}
               >
                 Tools
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/quotas"
-                icon={<GaugeMeter className="h-3.5 w-3.5" />}
+                icon={<GaugeMeter className="h-4 w-4" />}
               >
                 Quotas
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/approvals"
-                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                icon={<ShieldCheck className="h-4 w-4" />}
               >
                 Approvals
-              </NavLink>
+              </AdminNavLink>
             </NavGroup>
             <NavGroup label="Security">
-              <NavLink
+              <AdminNavLink
                 href="/admin/tokens"
-                icon={<KeyRound className="h-3.5 w-3.5" />}
+                icon={<KeyRound className="h-4 w-4" />}
               >
                 Tokens
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/rate-limits"
-                icon={<AlertOctagon className="h-3.5 w-3.5" />}
+                icon={<AlertOctagon className="h-4 w-4" />}
               >
                 Rate limits
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/failed-logins"
-                icon={<XCircle className="h-3.5 w-3.5" />}
+                icon={<XCircle className="h-4 w-4" />}
               >
                 Failed logins
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/emergency"
-                icon={<ShieldAlert className="h-3.5 w-3.5" />}
+                icon={<ShieldAlert className="h-4 w-4" />}
               >
                 Emergency access
-              </NavLink>
+              </AdminNavLink>
             </NavGroup>
             <NavGroup label="Audit">
-              <NavLink
+              <AdminNavLink
                 href="/admin/activity"
-                icon={<Activity className="h-3.5 w-3.5" />}
+                icon={<Activity className="h-4 w-4" />}
               >
                 Activity
-              </NavLink>
-              <NavLink
-                href="/admin/trash"
-                icon={<Trash2 className="h-3.5 w-3.5" />}
-              >
-                Trash
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/revocations"
-                icon={<Ban className="h-3.5 w-3.5" />}
+                icon={<Ban className="h-4 w-4" />}
               >
                 Revocations
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/infected"
-                icon={<ShieldAlert className="h-3.5 w-3.5" />}
+                icon={<ShieldAlert className="h-4 w-4" />}
               >
                 Infected files
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
+                href="/admin/trash"
+                icon={<Trash2 className="h-4 w-4" />}
+              >
+                Trash
+              </AdminNavLink>
+              <AdminNavLink
                 href="/api/v1/admin/export/audit?since_days=30"
-                icon={<Download className="h-3.5 w-3.5" />}
+                icon={<Download className="h-4 w-4" />}
               >
                 Export audit
-              </NavLink>
+              </AdminNavLink>
             </NavGroup>
             <NavGroup label="Platform">
-              <NavLink
+              <AdminNavLink
                 href="/admin/announcements"
-                icon={<Megaphone className="h-3.5 w-3.5" />}
+                icon={<Megaphone className="h-4 w-4" />}
               >
                 Announcements
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/flags"
-                icon={<ToggleLeft className="h-3.5 w-3.5" />}
+                icon={<ToggleLeft className="h-4 w-4" />}
               >
                 Feature flags
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/storage"
-                icon={<HardDrive className="h-3.5 w-3.5" />}
+                icon={<HardDrive className="h-4 w-4" />}
               >
                 Storage
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/health"
-                icon={<HeartPulse className="h-3.5 w-3.5" />}
+                icon={<HeartPulse className="h-4 w-4" />}
               >
                 Health
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/webhooks"
-                icon={<Send className="h-3.5 w-3.5" />}
+                icon={<Send className="h-4 w-4" />}
               >
                 Webhooks
-              </NavLink>
-              <NavLink
+              </AdminNavLink>
+              <AdminNavLink
                 href="/admin/legal"
-                icon={<Palette className="h-3.5 w-3.5" />}
+                icon={<Palette className="h-4 w-4" />}
               >
                 Legal & branding
-              </NavLink>
+              </AdminNavLink>
             </NavGroup>
           </nav>
           <AccountBlock
@@ -240,31 +244,11 @@ function NavGroup({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mb-3">
-      <div className="px-2 pb-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+    <div className="mb-4">
+      <div className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-text-3">
         {label}
       </div>
       <div className="flex flex-col gap-0.5">{children}</div>
     </div>
-  );
-}
-
-function NavLink({
-  href,
-  icon,
-  children,
-}: {
-  href: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-text-2 hover:bg-bg-2 hover:text-text-0"
-    >
-      <span className="text-text-3">{icon}</span>
-      {children}
-    </Link>
   );
 }

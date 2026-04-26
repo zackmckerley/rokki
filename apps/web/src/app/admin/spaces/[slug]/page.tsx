@@ -1,8 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 import { AdminSectionHeader } from "@/components/admin/primitives";
+import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { AdminSpaceDetail, type AdminSpaceDetailData } from "./AdminSpaceDetail";
 
 export const metadata = { title: "Space — Admin" };
@@ -112,6 +112,13 @@ export default async function AdminSpacePage({ params }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      <Breadcrumbs
+        items={[
+          { label: "Admin", href: "/admin" },
+          { label: "Spaces", href: "/admin/spaces" },
+          { label: s.name },
+        ]}
+      />
       <AdminSectionHeader
         title={s.name}
         description={
@@ -119,14 +126,6 @@ export default async function AdminSpacePage({ params }: Props) {
             /{s.slug} · {s.id}
             {s.archived_at ? " · ARCHIVED" : ""}
           </span>
-        }
-        actions={
-          <Link
-            href="/admin/spaces"
-            className="text-xs text-text-3 hover:text-text-1"
-          >
-            ← back to spaces
-          </Link>
         }
       />
       <AdminSpaceDetail data={data} />
