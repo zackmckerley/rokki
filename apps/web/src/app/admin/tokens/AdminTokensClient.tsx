@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Trash2, AlertCircle, Check } from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
   AdminEmpty,
+  AdminFilterInput,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { CopyableId } from "@/components/CopyableId";
+import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
   id: string;
@@ -35,6 +38,7 @@ const FILTERS: Array<{ id: string; label: string }> = [
 export function AdminTokensClient() {
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState("0");
+  const [tableFilter, setTableFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -81,6 +85,47 @@ export function AdminTokensClient() {
     }
   }
 
+  const fuzzy = useMemo(
+    () =>
+      makeFuzzyFilter<Row>(tableFilter, (t) => [
+        t.name,
+        t.email,
+        t.user_id,
+        t.token_prefix,
+        ...(t.scopes ?? []),
+      ]),
+    [tableFilter],
+  );
+
+  const { sorted, onSortClick, arrow } = useTableSort<Row>({
+    rows,
+    filter: fuzzy,
+    defaultSort: { key: "created_at", dir: "desc" },
+    getValue: (t, key) => {
+      switch (key) {
+        case "name":
+          return t.name;
+        case "email":
+          return t.email;
+        case "token_prefix":
+          return t.token_prefix;
+        case "scopes":
+          return (t.scopes ?? []).join(", ");
+        case "last_used_at":
+          return t.last_used_at;
+        case "status":
+          return t.revoked_at
+            ? "1-revoked"
+            : t.expires_at && new Date(t.expires_at) < new Date()
+              ? "2-expired"
+              : "0-active";
+        case "created_at":
+        default:
+          return t.created_at;
+      }
+    },
+  });
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-bg-1 p-2">
@@ -99,8 +144,14 @@ export function AdminTokensClient() {
             </button>
           ))}
         </div>
+        <AdminFilterInput
+          value={tableFilter}
+          onChange={setTableFilter}
+          placeholder="Filter visible rows…"
+        />
         <span className="ml-auto text-xs text-text-3">
-          {rows.length} {rows.length === 1 ? "token" : "tokens"}
+          {tableFilter ? `${sorted.length} / ${rows.length}` : rows.length}{" "}
+          {rows.length === 1 ? "token" : "tokens"}
         </span>
       </div>
 
@@ -115,30 +166,59 @@ export function AdminTokensClient() {
         </p>
       ) : null}
 
-      {rows.length === 0 ? (
-        <AdminEmpty
-          panel
-          body="API tokens issued via /settings/tokens by any user appear here."
-        >
-          No tokens match.
-        </AdminEmpty>
+      {sorted.length === 0 ? (
+        <AdminEmpty>No tokens match.</AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">
             <thead>
               <tr className="border-b border-border bg-bg-2">
-                <AdminTh>Name</AdminTh>
-                <AdminTh>Owner</AdminTh>
-                <AdminTh>Prefix</AdminTh>
-                <AdminTh>Scopes</AdminTh>
-                <AdminTh>Created</AdminTh>
-                <AdminTh>Last used</AdminTh>
-                <AdminTh>Status</AdminTh>
+                <AdminTh sortKey="name" sortDir={arrow("name")} onSort={onSortClick}>
+                  Name
+                </AdminTh>
+                <AdminTh sortKey="email" sortDir={arrow("email")} onSort={onSortClick}>
+                  Owner
+                </AdminTh>
+                <AdminTh
+                  sortKey="token_prefix"
+                  sortDir={arrow("token_prefix")}
+                  onSort={onSortClick}
+                >
+                  Prefix
+                </AdminTh>
+                <AdminTh
+                  sortKey="scopes"
+                  sortDir={arrow("scopes")}
+                  onSort={onSortClick}
+                >
+                  Scopes
+                </AdminTh>
+                <AdminTh
+                  sortKey="created_at"
+                  sortDir={arrow("created_at")}
+                  onSort={onSortClick}
+                >
+                  Created
+                </AdminTh>
+                <AdminTh
+                  sortKey="last_used_at"
+                  sortDir={arrow("last_used_at")}
+                  onSort={onSortClick}
+                >
+                  Last used
+                </AdminTh>
+                <AdminTh
+                  sortKey="status"
+                  sortDir={arrow("status")}
+                  onSort={onSortClick}
+                >
+                  Status
+                </AdminTh>
                 <AdminTh align="right">Actions</AdminTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((t) => {
+              {sorted.map((t) => {
                 const stale =
                   !t.last_used_at ||
                   Date.now() - new Date(t.last_used_at).getTime() >
@@ -147,14 +227,28 @@ export function AdminTokensClient() {
                   <tr key={t.id}>
                     <AdminTd>{t.name}</AdminTd>
                     <AdminTd mono>
-                      <Link
-                        href={`/admin/users/${t.user_id}`}
-                        className="text-text-1 hover:text-accent"
-                      >
-                        {t.email || t.user_id.slice(0, 8)}
-                      </Link>
+                      <div className="flex items-center gap-1">
+                        <Link
+                          href={`/admin/users/${t.user_id}`}
+                          className="text-text-1 hover:text-accent"
+                        >
+                          {t.email || t.user_id.slice(0, 8)}
+                        </Link>
+                        <CopyableId
+                          value={t.email || t.user_id}
+                          label={t.email ? "email" : "user id"}
+                          display=""
+                          className="px-0.5"
+                        />
+                      </div>
                     </AdminTd>
-                    <AdminTd mono>{t.token_prefix}…</AdminTd>
+                    <AdminTd mono>
+                      <CopyableId
+                        value={t.id}
+                        label="token id"
+                        display={`${t.token_prefix}…`}
+                      />
+                    </AdminTd>
                     <AdminTd mono>{(t.scopes ?? []).join(", ")}</AdminTd>
                     <AdminTd>
                       <span className="text-xs text-text-3">

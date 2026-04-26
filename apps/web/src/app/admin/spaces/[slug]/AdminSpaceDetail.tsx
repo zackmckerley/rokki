@@ -22,6 +22,7 @@ import {
   AdminTh,
 } from "@/components/admin/primitives";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CopyableId } from "@/components/CopyableId";
 import { UserPicker, type PickedUser } from "@/components/admin/UserPicker";
 import { cn } from "@/lib/utils";
 
@@ -418,12 +419,20 @@ function MembersTab({
               {data.members.map((m) => (
                 <tr key={m.user_id}>
                   <AdminTd mono>
-                    <Link
-                      href={`/admin/users/${m.user_id}`}
-                      className="text-text-0 hover:text-accent"
-                    >
-                      {m.email}
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/admin/users/${m.user_id}`}
+                        className="text-text-0 hover:text-accent"
+                      >
+                        {m.email}
+                      </Link>
+                      <CopyableId
+                        value={m.email}
+                        label="email"
+                        display=""
+                        className="px-0.5"
+                      />
+                    </div>
                   </AdminTd>
                   <AdminTd>{m.full_name ?? "—"}</AdminTd>
                   <AdminTd>
@@ -494,12 +503,20 @@ function TerminalsTab({ data }: { data: AdminSpaceDetailData }) {
           {data.terminals.map((t) => (
             <tr key={t.id}>
               <AdminTd mono>
-                <Link
-                  href={`/admin/terminals/${t.ticker}`}
-                  className="text-accent hover:underline"
-                >
-                  {t.ticker}
-                </Link>
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={`/admin/terminals/${t.ticker}`}
+                    className="text-accent hover:underline"
+                  >
+                    {t.ticker}
+                  </Link>
+                  <CopyableId
+                    value={t.ticker}
+                    label="ticker"
+                    display=""
+                    className="px-0.5"
+                  />
+                </div>
               </AdminTd>
               <AdminTd>{t.name}</AdminTd>
               <AdminTd>

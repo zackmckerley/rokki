@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import {
   ShieldCheck,
   ShieldOff,
@@ -13,11 +13,13 @@ import {
   AdminBadge,
   AdminButton,
   AdminEmpty,
+  AdminFilterInput,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
   id: string;
@@ -43,6 +45,7 @@ const FILTERS: Array<{ id: string; label: string }> = [
 export function AdminToolsClient() {
   const [rows, setRows] = useState<Row[]>([]);
   const [filter, setFilter] = useState("");
+  const [tableFilter, setTableFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -100,6 +103,43 @@ export function AdminToolsClient() {
     }
   }
 
+  const fuzzy = useMemo(
+    () =>
+      makeFuzzyFilter<Row>(tableFilter, (r) => [
+        r.name,
+        r.slug,
+        r.description,
+        r.visibility,
+        r.moderation_status,
+        r.current_version,
+        ...(r.tags ?? []),
+      ]),
+    [tableFilter],
+  );
+
+  const { sorted, onSortClick, arrow } = useTableSort<Row>({
+    rows,
+    filter: fuzzy,
+    defaultSort: { key: "updated_at", dir: "desc" },
+    getValue: (r, key) => {
+      switch (key) {
+        case "name":
+          return r.name;
+        case "visibility":
+          return r.visibility;
+        case "moderation_status":
+          return r.moderation_status;
+        case "current_version":
+          return r.current_version;
+        case "created_at":
+          return r.created_at;
+        case "updated_at":
+        default:
+          return r.updated_at;
+      }
+    },
+  });
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-bg-1 p-2">
@@ -118,8 +158,14 @@ export function AdminToolsClient() {
             </button>
           ))}
         </div>
+        <AdminFilterInput
+          value={tableFilter}
+          onChange={setTableFilter}
+          placeholder="Filter visible rows…"
+        />
         <span className="ml-auto text-xs text-text-3">
-          {rows.length} {rows.length === 1 ? "tool" : "tools"}
+          {tableFilter ? `${sorted.length} / ${rows.length}` : rows.length}{" "}
+          {rows.length === 1 ? "tool" : "tools"}
         </span>
       </div>
 
@@ -134,31 +180,42 @@ export function AdminToolsClient() {
         </p>
       ) : null}
 
-      {rows.length === 0 ? (
-        <AdminEmpty
-          panel
-          body={
-            filter
-              ? "Nothing matches this moderation filter — try clearing it."
-              : "Tools published to the marketplace appear here. None yet."
-          }
-        >
-          {filter ? "No tools match." : "No tools published yet."}
-        </AdminEmpty>
+      {sorted.length === 0 ? (
+        <AdminEmpty>No tools match.</AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">
             <thead>
               <tr className="border-b border-border bg-bg-2">
-                <AdminTh>Tool</AdminTh>
-                <AdminTh>Visibility</AdminTh>
-                <AdminTh>Status</AdminTh>
-                <AdminTh>Version</AdminTh>
+                <AdminTh sortKey="name" sortDir={arrow("name")} onSort={onSortClick}>
+                  Tool
+                </AdminTh>
+                <AdminTh
+                  sortKey="visibility"
+                  sortDir={arrow("visibility")}
+                  onSort={onSortClick}
+                >
+                  Visibility
+                </AdminTh>
+                <AdminTh
+                  sortKey="moderation_status"
+                  sortDir={arrow("moderation_status")}
+                  onSort={onSortClick}
+                >
+                  Status
+                </AdminTh>
+                <AdminTh
+                  sortKey="current_version"
+                  sortDir={arrow("current_version")}
+                  onSort={onSortClick}
+                >
+                  Version
+                </AdminTh>
                 <AdminTh align="right">Actions</AdminTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((t) => (
+              {sorted.map((t) => (
                 <tr key={t.id}>
                   <AdminTd>
                     <a

@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import {
   AdminBadge,
-  AdminCopyButton,
   AdminEmpty,
+  AdminFilterInput,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { CopyableId } from "@/components/CopyableId";
+import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
   user_id: string;
@@ -37,6 +39,7 @@ export function AdminUsersClient() {
   const [total, setTotal] = useState(0);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("");
+  const [tableFilter, setTableFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -74,6 +77,46 @@ export function AdminUsersClient() {
     return () => clearTimeout(t);
   }, [load]);
 
+  const fuzzy = useMemo(
+    () =>
+      makeFuzzyFilter<Row>(tableFilter, (r) => [
+        r.email,
+        r.full_name,
+        r.timezone,
+        r.user_id,
+      ]),
+    [tableFilter],
+  );
+
+  const { sorted, onSortClick, arrow } = useTableSort<Row>({
+    rows,
+    filter: fuzzy,
+    defaultSort: { key: "created_at", dir: "desc" },
+    getValue: (r, key) => {
+      switch (key) {
+        case "email":
+          return r.email;
+        case "full_name":
+          return r.full_name;
+        case "timezone":
+          return r.timezone;
+        case "last_sign_in_at":
+          return r.last_sign_in_at;
+        case "status":
+          return r.is_platform_admin
+            ? "0-admin"
+            : r.banned_until && new Date(r.banned_until) > new Date()
+              ? "1-suspended"
+              : "2-active";
+        case "user_id":
+          return r.user_id;
+        case "created_at":
+        default:
+          return r.created_at;
+      }
+    },
+  });
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-bg-1 p-2">
@@ -101,8 +144,14 @@ export function AdminUsersClient() {
             </button>
           ))}
         </div>
+        <AdminFilterInput
+          value={tableFilter}
+          onChange={setTableFilter}
+          placeholder="Filter visible rows…"
+        />
         <span className="ml-auto text-xs text-text-3">
-          {total} {total === 1 ? "user" : "users"}
+          {tableFilter ? `${sorted.length} / ${total}` : total}{" "}
+          {total === 1 ? "user" : "users"}
         </span>
       </div>
 
@@ -113,50 +162,72 @@ export function AdminUsersClient() {
       ) : null}
 
       {loading && rows.length === 0 ? (
-        <AdminEmpty panel>Loading…</AdminEmpty>
-      ) : rows.length === 0 ? (
-        <AdminEmpty
-          panel
-          body={
-            q || filter
-              ? "Try clearing the filter or search."
-              : "Create the first user to get started."
-          }
-          action={
-            !q && !filter
-              ? {
-                  label: "+ New user",
-                  href: "/admin/users/new",
-                  variant: "accent",
-                }
-              : undefined
-          }
-        >
-          {q || filter ? "No users match." : "No users yet."}
-        </AdminEmpty>
+        <AdminEmpty>Loading…</AdminEmpty>
+      ) : sorted.length === 0 ? (
+        <AdminEmpty>No users match.</AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">
             <thead>
               <tr className="border-b border-border bg-bg-2">
-                <AdminTh>Email</AdminTh>
-                <AdminTh>Name</AdminTh>
-                <AdminTh>Timezone</AdminTh>
-                <AdminTh>Last seen</AdminTh>
-                <AdminTh>Status</AdminTh>
-                <AdminTh>ID</AdminTh>
+                <AdminTh sortKey="email" sortDir={arrow("email")} onSort={onSortClick}>
+                  Email
+                </AdminTh>
+                <AdminTh
+                  sortKey="full_name"
+                  sortDir={arrow("full_name")}
+                  onSort={onSortClick}
+                >
+                  Name
+                </AdminTh>
+                <AdminTh
+                  sortKey="timezone"
+                  sortDir={arrow("timezone")}
+                  onSort={onSortClick}
+                >
+                  Timezone
+                </AdminTh>
+                <AdminTh
+                  sortKey="last_sign_in_at"
+                  sortDir={arrow("last_sign_in_at")}
+                  onSort={onSortClick}
+                >
+                  Last seen
+                </AdminTh>
+                <AdminTh
+                  sortKey="status"
+                  sortDir={arrow("status")}
+                  onSort={onSortClick}
+                >
+                  Status
+                </AdminTh>
+                <AdminTh
+                  sortKey="user_id"
+                  sortDir={arrow("user_id")}
+                  onSort={onSortClick}
+                >
+                  ID
+                </AdminTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((u) => (
+              {sorted.map((u) => (
                 <tr key={u.user_id} className="hover:bg-bg-2">
                   <AdminTd mono>
-                    <Link
-                      href={`/admin/users/${u.user_id}`}
-                      className="text-text-0 hover:text-accent"
-                    >
-                      {u.email}
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/admin/users/${u.user_id}`}
+                        className="text-text-0 hover:text-accent"
+                      >
+                        {u.email}
+                      </Link>
+                      <CopyableId
+                        value={u.email}
+                        label="email"
+                        display=""
+                        className="px-0.5"
+                      />
+                    </div>
                   </AdminTd>
                   <AdminTd>{u.full_name ?? "—"}</AdminTd>
                   <AdminTd>{u.timezone ?? "—"}</AdminTd>
@@ -180,12 +251,7 @@ export function AdminUsersClient() {
                     </div>
                   </AdminTd>
                   <AdminTd>
-                    <div className="flex items-center gap-1 text-[10px] text-text-3">
-                      <span className="font-mono">
-                        {u.user_id.slice(0, 8)}
-                      </span>
-                      <AdminCopyButton value={u.user_id} />
-                    </div>
+                    <CopyableId value={u.user_id} label="user id" truncate={8} />
                   </AdminTd>
                 </tr>
               ))}

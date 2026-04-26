@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { Trash2, Search, AlertCircle, Check } from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
   AdminEmpty,
+  AdminFilterInput,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
   bucket: string;
@@ -33,6 +35,7 @@ export function AdminRateLimitsClient() {
   const [bucketFilter, setBucketFilter] = useState("");
   const [tokenFilter, setTokenFilter] = useState("");
   const [rangeMins, setRangeMins] = useState("60");
+  const [tableFilter, setTableFilter] = useState("");
 
   const load = useCallback(() => {
     const params = new URLSearchParams();
@@ -82,6 +85,31 @@ export function AdminRateLimitsClient() {
     }
   }
 
+  const fuzzy = useMemo(
+    () =>
+      makeFuzzyFilter<Row>(tableFilter, (r) => [r.bucket, r.token]),
+    [tableFilter],
+  );
+
+  const { sorted, onSortClick, arrow } = useTableSort<Row>({
+    rows,
+    filter: fuzzy,
+    defaultSort: { key: "count", dir: "desc" },
+    getValue: (r, key) => {
+      switch (key) {
+        case "bucket":
+          return r.bucket;
+        case "token":
+          return r.token;
+        case "count":
+          return r.count;
+        case "latest":
+        default:
+          return r.latest;
+      }
+    },
+  });
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-bg-1 p-2">
@@ -118,8 +146,13 @@ export function AdminRateLimitsClient() {
             </button>
           ))}
         </div>
+        <AdminFilterInput
+          value={tableFilter}
+          onChange={setTableFilter}
+          placeholder="Filter visible rows…"
+        />
         <span className="ml-auto text-xs text-text-3">
-          {rows.length} buckets
+          {tableFilter ? `${sorted.length} / ${rows.length}` : rows.length} buckets
         </span>
       </div>
 
@@ -134,27 +167,47 @@ export function AdminRateLimitsClient() {
         </p>
       ) : null}
 
-      {rows.length === 0 ? (
-        <AdminEmpty
-          panel
-          body="No 429 responses or near-cap warnings recorded in the selected window."
-        >
-          No rate-limit hits.
+      {sorted.length === 0 ? (
+        <AdminEmpty>
+          {tableFilter
+            ? "No rows match the filter."
+            : "No hits in the selected window."}
         </AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">
             <thead>
               <tr className="border-b border-border bg-bg-2">
-                <AdminTh>Bucket</AdminTh>
-                <AdminTh>Token</AdminTh>
-                <AdminTh align="right">Count</AdminTh>
-                <AdminTh>Latest</AdminTh>
+                <AdminTh
+                  sortKey="bucket"
+                  sortDir={arrow("bucket")}
+                  onSort={onSortClick}
+                >
+                  Bucket
+                </AdminTh>
+                <AdminTh sortKey="token" sortDir={arrow("token")} onSort={onSortClick}>
+                  Token
+                </AdminTh>
+                <AdminTh
+                  align="right"
+                  sortKey="count"
+                  sortDir={arrow("count")}
+                  onSort={onSortClick}
+                >
+                  Count
+                </AdminTh>
+                <AdminTh
+                  sortKey="latest"
+                  sortDir={arrow("latest")}
+                  onSort={onSortClick}
+                >
+                  Latest
+                </AdminTh>
                 <AdminTh align="right">Actions</AdminTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((r) => (
+              {sorted.map((r) => (
                 <tr key={`${r.bucket}|${r.token}`}>
                   <AdminTd>
                     <AdminBadge>{r.bucket}</AdminBadge>

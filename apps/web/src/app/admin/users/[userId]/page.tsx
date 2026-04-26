@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 import { AdminSectionHeader } from "@/components/admin/primitives";
-import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { CopyableId } from "@/components/CopyableId";
 import { AdminUserDetail, type AdminUserDetailData } from "./AdminUserDetail";
 
 export const metadata = { title: "User — Admin" };
@@ -72,23 +73,24 @@ export default async function AdminUserPage({ params }: Props) {
     tokens: (tokens as AdminUserDetailData["tokens"]) ?? [],
   };
 
-  const crumbLabel = detail.profile?.full_name ?? detail.user.email;
-
   return (
     <div className="flex flex-col gap-4">
-      <Breadcrumbs
-        items={[
-          { label: "Admin", href: "/admin" },
-          { label: "Users", href: "/admin/users" },
-          { label: crumbLabel },
-        ]}
-      />
       <AdminSectionHeader
-        title={crumbLabel}
+        title={detail.profile?.full_name ?? detail.user.email}
         description={
-          <span className="font-mono text-[11px]">
-            {detail.user.email} · {detail.user.id}
+          <span className="flex flex-wrap items-center gap-1">
+            <CopyableId value={detail.user.email} label="email" />
+            <span className="text-text-3">·</span>
+            <CopyableId value={detail.user.id} label="user id" />
           </span>
+        }
+        actions={
+          <Link
+            href="/admin/users"
+            className="text-xs text-text-3 hover:text-text-1"
+          >
+            ← back to users
+          </Link>
         }
       />
       <AdminUserDetail data={detail} />
