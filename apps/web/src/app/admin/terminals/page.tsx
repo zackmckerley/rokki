@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database, ProjectStatus } from "@rokki/db";
+import {
+  AdminTerminalsClient,
+  type TerminalRow,
+} from "./AdminTerminalsClient";
 
 export const metadata = { title: "Terminals — Admin" };
 export const dynamic = "force-dynamic";
 
-interface TerminalRow {
+interface DbRow {
   id: string;
   ticker: string;
   name: string;
@@ -18,6 +22,8 @@ interface TerminalRow {
 
 /**
  * Admin list of every terminal — archived included, filterable by status.
+ * Status filter lives in URL params (`?status=`); rendered table sort/filter
+ * lives in `AdminTerminalsClient` and uses `?sort=&dir=`.
  */
 export default async function AdminTerminalsPage({
   searchParams,
@@ -47,7 +53,18 @@ export default async function AdminTerminalsPage({
   else query = query.is("archived_at", null);
 
   const { data } = await query;
-  const rows = (data ?? []) as unknown as TerminalRow[];
+  const dbRows = (data ?? []) as unknown as DbRow[];
+
+  const rows: TerminalRow[] = dbRows.map((t) => ({
+    id: t.id,
+    ticker: t.ticker,
+    name: t.name,
+    status: t.status,
+    archived_at: t.archived_at,
+    created_at: t.created_at,
+    space_slug: t.spaces?.slug ?? null,
+    space_name: t.spaces?.name ?? null,
+  }));
 
   return (
     <div className="flex flex-col gap-4">
@@ -74,69 +91,7 @@ export default async function AdminTerminalsPage({
         </nav>
       </header>
 
-      <div className="overflow-hidden rounded border border-border bg-bg-1">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-bg-2 text-[10px] uppercase tracking-wide text-text-3">
-              <th className="px-3 py-2 text-left font-semibold">Ticker</th>
-              <th className="px-3 py-2 text-left font-semibold">Name</th>
-              <th className="px-3 py-2 text-left font-semibold">Space</th>
-              <th className="px-3 py-2 text-left font-semibold">Status</th>
-              <th className="px-3 py-2 text-left font-semibold">Created</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {rows.map((t) => (
-              <tr key={t.id} className="hover:bg-bg-2">
-                <td className="px-3 py-2 font-mono text-xs text-accent">
-                  <Link
-                    href={`/admin/terminals/${t.ticker}`}
-                    className="hover:underline"
-                  >
-                    {t.ticker}
-                  </Link>
-                </td>
-                <td className="px-3 py-2 text-text-0">
-                  <Link
-                    href={`/admin/terminals/${t.ticker}`}
-                    className="text-text-0 hover:text-accent"
-                  >
-                    {t.name}
-                  </Link>
-                </td>
-                <td className="px-3 py-2 text-xs text-text-2">
-                  {t.spaces ? (
-                    <Link
-                      href={`/admin/spaces/${t.spaces.slug}`}
-                      className="text-text-2 hover:text-accent"
-                    >
-                      {t.spaces.name}
-                    </Link>
-                  ) : (
-                    "—"
-                  )}
-                </td>
-                <td className="px-3 py-2 font-mono text-[10px] uppercase text-text-3">
-                  {t.archived_at ? "archived" : t.status}
-                </td>
-                <td className="px-3 py-2 text-xs text-text-3">
-                  {new Date(t.created_at).toLocaleDateString()}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-xs text-text-3"
-                >
-                  No terminals match this filter.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+      <AdminTerminalsClient rows={rows} />
     </div>
   );
 }

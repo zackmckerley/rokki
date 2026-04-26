@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import {
   AdminBadge,
   AdminEmpty,
+  AdminFilterInput,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
   space_id: string;
@@ -31,6 +33,7 @@ export function AdminSpacesClient() {
   const [rows, setRows] = useState<Row[]>([]);
   const [q, setQ] = useState("");
   const [filter, setFilter] = useState("active");
+  const [tableFilter, setTableFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -64,6 +67,36 @@ export function AdminSpacesClient() {
     return () => clearTimeout(t);
   }, [load]);
 
+  const fuzzy = useMemo(
+    () =>
+      makeFuzzyFilter<Row>(tableFilter, (r) => [
+        r.name,
+        r.slug,
+        r.description,
+        r.space_id,
+      ]),
+    [tableFilter],
+  );
+
+  const { sorted, onSortClick, arrow } = useTableSort<Row>({
+    rows,
+    filter: fuzzy,
+    defaultSort: { key: "created_at", dir: "desc" },
+    getValue: (r, key) => {
+      switch (key) {
+        case "name":
+          return r.name;
+        case "slug":
+          return r.slug;
+        case "status":
+          return r.archived_at ? "1-archived" : "0-active";
+        case "created_at":
+        default:
+          return r.created_at;
+      }
+    },
+  });
+
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-bg-1 p-2">
@@ -91,8 +124,14 @@ export function AdminSpacesClient() {
             </button>
           ))}
         </div>
+        <AdminFilterInput
+          value={tableFilter}
+          onChange={setTableFilter}
+          placeholder="Filter visible rows…"
+        />
         <span className="ml-auto text-xs text-text-3">
-          {rows.length} {rows.length === 1 ? "space" : "spaces"}
+          {tableFilter ? `${sorted.length} / ${rows.length}` : rows.length}{" "}
+          {rows.length === 1 ? "space" : "spaces"}
         </span>
       </div>
 
@@ -103,40 +142,38 @@ export function AdminSpacesClient() {
       ) : null}
 
       {loading && rows.length === 0 ? (
-        <AdminEmpty panel>Loading…</AdminEmpty>
-      ) : rows.length === 0 ? (
-        <AdminEmpty
-          panel
-          body={
-            q
-              ? "Try a different search term."
-              : "Spaces are tenants — companies, families, or households."
-          }
-          action={
-            !q
-              ? {
-                  label: "+ New space",
-                  href: "/admin/spaces/new",
-                  variant: "accent",
-                }
-              : undefined
-          }
-        >
-          {q ? "No spaces match." : "No spaces yet."}
-        </AdminEmpty>
+        <AdminEmpty>Loading…</AdminEmpty>
+      ) : sorted.length === 0 ? (
+        <AdminEmpty>No spaces match.</AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">
             <thead>
               <tr className="border-b border-border bg-bg-2">
-                <AdminTh>Name</AdminTh>
-                <AdminTh>Slug</AdminTh>
-                <AdminTh>Status</AdminTh>
-                <AdminTh>Created</AdminTh>
+                <AdminTh sortKey="name" sortDir={arrow("name")} onSort={onSortClick}>
+                  Name
+                </AdminTh>
+                <AdminTh sortKey="slug" sortDir={arrow("slug")} onSort={onSortClick}>
+                  Slug
+                </AdminTh>
+                <AdminTh
+                  sortKey="status"
+                  sortDir={arrow("status")}
+                  onSort={onSortClick}
+                >
+                  Status
+                </AdminTh>
+                <AdminTh
+                  sortKey="created_at"
+                  sortDir={arrow("created_at")}
+                  onSort={onSortClick}
+                >
+                  Created
+                </AdminTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map((s) => (
+              {sorted.map((s) => (
                 <tr key={s.space_id} className="hover:bg-bg-2">
                   <AdminTd>
                     <Link

@@ -1,18 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Trash2, Check, AlertCircle } from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
   AdminEmpty,
+  AdminFilterInput,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
 import { UserPicker, type PickedUser } from "@/components/admin/UserPicker";
+import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Quota {
   id: string;
@@ -35,6 +37,7 @@ interface ToolOption {
 export function AdminQuotasClient() {
   const [quotas, setQuotas] = useState<Quota[]>([]);
   const [tools, setTools] = useState<ToolOption[]>([]);
+  const [tableFilter, setTableFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -85,6 +88,41 @@ export function AdminQuotasClient() {
     }
   }
 
+  const fuzzy = useMemo(
+    () =>
+      makeFuzzyFilter<Quota>(tableFilter, (q) => [
+        q.tool?.name,
+        q.tool?.slug,
+        q.subject_type,
+        q.subject_id,
+        q.period,
+      ]),
+    [tableFilter],
+  );
+
+  const { sorted: sortedQuotas, onSortClick, arrow } = useTableSort<Quota>({
+    rows: quotas,
+    filter: fuzzy,
+    defaultSort: { key: "reset_at", dir: "asc" },
+    getValue: (q, key) => {
+      switch (key) {
+        case "tool":
+          return q.tool?.name ?? q.tool?.slug ?? "";
+        case "subject":
+          return `${q.subject_type}:${q.subject_id}`;
+        case "period":
+          return q.period;
+        case "used":
+          return q.used_credits;
+        case "limit":
+          return q.limit_credits;
+        case "reset_at":
+        default:
+          return q.reset_at;
+      }
+    },
+  });
+
   return (
     <div className="flex flex-col gap-4">
       <NearCapPanel />
@@ -106,24 +144,69 @@ export function AdminQuotasClient() {
           <Check className="h-3 w-3" /> {success}
         </p>
       ) : null}
-      <AdminPanel title={`Active quotas (${quotas.length})`}>
-        {quotas.length === 0 ? (
-          <AdminEmpty>No quotas configured.</AdminEmpty>
+      <AdminPanel
+        title={`Active quotas (${tableFilter ? `${sortedQuotas.length} / ${quotas.length}` : quotas.length})`}
+      >
+        <div className="flex items-center justify-end border-b border-border bg-bg-2 px-3 py-1.5">
+          <AdminFilterInput
+            value={tableFilter}
+            onChange={setTableFilter}
+            placeholder="Filter visible rows…"
+          />
+        </div>
+        {sortedQuotas.length === 0 ? (
+          <AdminEmpty>
+            {tableFilter ? "No rows match the filter." : "No quotas configured."}
+          </AdminEmpty>
         ) : (
           <AdminTable className="border-0">
             <thead>
               <tr className="border-b border-border bg-bg-2">
-                <AdminTh>Tool</AdminTh>
-                <AdminTh>Subject</AdminTh>
-                <AdminTh>Period</AdminTh>
-                <AdminTh align="right">Used</AdminTh>
-                <AdminTh align="right">Limit</AdminTh>
-                <AdminTh>Resets</AdminTh>
+                <AdminTh sortKey="tool" sortDir={arrow("tool")} onSort={onSortClick}>
+                  Tool
+                </AdminTh>
+                <AdminTh
+                  sortKey="subject"
+                  sortDir={arrow("subject")}
+                  onSort={onSortClick}
+                >
+                  Subject
+                </AdminTh>
+                <AdminTh
+                  sortKey="period"
+                  sortDir={arrow("period")}
+                  onSort={onSortClick}
+                >
+                  Period
+                </AdminTh>
+                <AdminTh
+                  align="right"
+                  sortKey="used"
+                  sortDir={arrow("used")}
+                  onSort={onSortClick}
+                >
+                  Used
+                </AdminTh>
+                <AdminTh
+                  align="right"
+                  sortKey="limit"
+                  sortDir={arrow("limit")}
+                  onSort={onSortClick}
+                >
+                  Limit
+                </AdminTh>
+                <AdminTh
+                  sortKey="reset_at"
+                  sortDir={arrow("reset_at")}
+                  onSort={onSortClick}
+                >
+                  Resets
+                </AdminTh>
                 <AdminTh align="right">Actions</AdminTh>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {quotas.map((q) => {
+              {sortedQuotas.map((q) => {
                 const usagePct =
                   q.limit_credits > 0
                     ? (q.used_credits / q.limit_credits) * 100

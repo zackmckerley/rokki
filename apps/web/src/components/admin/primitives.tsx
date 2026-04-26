@@ -1,9 +1,14 @@
 "use client";
 
-import { Copy, Check as CheckIcon, Inbox } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Check as CheckIcon,
+  Search,
+} from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { EmptyState } from "@/components/EmptyState";
 
 /**
  * Shared primitives for `/admin/*` pages. Goal: functional, dense, no
@@ -136,11 +141,23 @@ export function AdminTh({
   children,
   className,
   align = "left",
+  sortKey,
+  sortDir = null,
+  onSort,
 }: {
   children: React.ReactNode;
   className?: string;
   align?: "left" | "right";
+  /**
+   * If provided, the cell becomes a button that calls `onSort(sortKey)`.
+   * `sortDir` controls the chevron — "asc"/"desc" when this column is the
+   * active sort; null otherwise.
+   */
+  sortKey?: string;
+  sortDir?: "asc" | "desc" | null;
+  onSort?: (key: string) => void;
 }) {
+  const sortable = sortKey != null && onSort != null;
   return (
     <th
       className={cn(
@@ -149,8 +166,65 @@ export function AdminTh({
         className,
       )}
     >
-      {children}
+      {sortable ? (
+        <button
+          type="button"
+          onClick={() => onSort!(sortKey!)}
+          className={cn(
+            "inline-flex items-center gap-1 select-none hover:text-text-1",
+            align === "right" && "flex-row-reverse",
+            sortDir != null && "text-text-1",
+          )}
+          aria-label={`Sort by ${typeof children === "string" ? children : sortKey}`}
+        >
+          <span>{children}</span>
+          {sortDir === "asc" ? (
+            <ChevronUp className="h-3 w-3" />
+          ) : sortDir === "desc" ? (
+            <ChevronDown className="h-3 w-3" />
+          ) : (
+            <span className="inline-block h-3 w-3" aria-hidden="true" />
+          )}
+        </button>
+      ) : (
+        children
+      )}
     </th>
+  );
+}
+
+/**
+ * Compact text-input for in-table fuzzy filter. Lives next to the table
+ * header (typically top-right of the toolbar).
+ */
+export function AdminFilterInput({
+  value,
+  onChange,
+  placeholder = "Filter…",
+  className,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 rounded-sm border border-border bg-bg-0 px-2 py-1.5",
+        className,
+      )}
+    >
+      <Search className="h-3 w-3 text-text-3" aria-hidden="true" />
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-40 bg-transparent font-mono text-xs text-text-0 placeholder:text-text-3 outline-none md:w-56"
+        aria-label="Filter rows"
+      />
+    </div>
   );
 }
 
@@ -179,46 +253,12 @@ export function AdminTd({
   );
 }
 
-export function AdminEmpty({
-  children,
-  body,
-  action,
-  panel = false,
-}: {
-  /** Title — short, sentence form. */
-  children: React.ReactNode;
-  /** Optional helper line. */
-  body?: React.ReactNode;
-  /** Optional CTA — pass `{ label, href }` or `{ label, onClick }`. */
-  action?: {
-    label: string;
-    href?: string;
-    onClick?: () => void;
-    variant?: "accent" | "default";
-  };
-  /**
-   * Wrap in a dashed-border panel. Set when used at top level (between
-   * AdminSectionHeader and the main content). Leave false when nested
-   * inside an `AdminPanel` so we don't double up borders.
-   */
-  panel?: boolean;
-}) {
-  const inner = (
-    <EmptyState
-      icon={Inbox}
-      title={typeof children === "string" ? children : String(children)}
-      body={body}
-      action={action}
-    />
+export function AdminEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="rounded border border-dashed border-border bg-bg-1 p-8 text-center text-xs text-text-3">
+      {children}
+    </p>
   );
-  if (panel) {
-    return (
-      <div className="rounded border border-dashed border-border bg-bg-1">
-        {inner}
-      </div>
-    );
-  }
-  return inner;
 }
 
 export function AdminButton({

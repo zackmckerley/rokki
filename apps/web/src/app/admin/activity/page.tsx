@@ -1,26 +1,15 @@
 import Link from "next/link";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
-import { ActivityRows } from "./ActivityRows";
+import { AdminActivityTable, type ActivityRow } from "./AdminActivityTable";
 
 export const metadata = { title: "Activity — Admin" };
 export const dynamic = "force-dynamic";
 
-export interface ActivityRow {
-  id: string;
-  action: string;
-  entity_type: string | null;
-  entity_id: string | null;
-  actor_id: string | null;
-  terminal_id: string | null;
-  space_id: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
 /**
  * Admin activity log. Reads from the `activity` table directly — every
  * user-facing action writes one row. Paginated via ?before= timestamp.
+ * Sort + visible-row filter live in `AdminActivityTable` (URL `?sort=&dir=`).
  */
 export default async function AdminActivityPage({
   searchParams,
@@ -60,7 +49,7 @@ export default async function AdminActivityPage({
         </p>
       </header>
 
-      <ActivityRows rows={rows} />
+      <AdminActivityTable rows={rows} />
 
       {next ? (
         <div>
