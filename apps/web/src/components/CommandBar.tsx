@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronRight, AlertCircle, Check } from "lucide-react";
 import { parseCommand, type Parsed } from "@/lib/command-parser";
@@ -26,6 +26,14 @@ export function CommandBar({ label, onSubmit }: CommandBarProps) {
     { kind: "ok" | "err"; text: string } | null
   >(null);
   const [busy, setBusy] = useState(false);
+  // Tick every second so the clock in the bottom-right shows seconds live.
+  // Without the tick, the displayed time only updates on re-render — which
+  // could be many seconds late on an idle screen.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -149,5 +157,9 @@ function useCommandsSafe() {
 
 function nowLabel(): string {
   const d = new Date();
-  return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`;
+  return [
+    d.getHours().toString().padStart(2, "0"),
+    d.getMinutes().toString().padStart(2, "0"),
+    d.getSeconds().toString().padStart(2, "0"),
+  ].join(":");
 }
