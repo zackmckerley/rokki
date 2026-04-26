@@ -2345,9 +2345,14 @@ export type Database = {
         Row: {
           attempt: number
           attempted_at: string
+          created_at: string
+          dead_lettered_at: string | null
+          delivered_at: string | null
           destination_id: string
           event_name: string
           id: string
+          last_error: string | null
+          next_attempt_at: string | null
           payload: Json
           response_body: string | null
           response_code: number | null
@@ -2356,9 +2361,14 @@ export type Database = {
         Insert: {
           attempt?: number
           attempted_at?: string
+          created_at?: string
+          dead_lettered_at?: string | null
+          delivered_at?: string | null
           destination_id: string
           event_name: string
           id?: string
+          last_error?: string | null
+          next_attempt_at?: string | null
           payload: Json
           response_body?: string | null
           response_code?: number | null
@@ -2367,9 +2377,14 @@ export type Database = {
         Update: {
           attempt?: number
           attempted_at?: string
+          created_at?: string
+          dead_lettered_at?: string | null
+          delivered_at?: string | null
           destination_id?: string
           event_name?: string
           id?: string
+          last_error?: string | null
+          next_attempt_at?: string | null
           payload?: Json
           response_body?: string | null
           response_code?: number | null
