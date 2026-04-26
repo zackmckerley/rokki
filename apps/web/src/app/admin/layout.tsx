@@ -8,7 +8,6 @@ import {
   Activity,
   ShieldAlert,
   Ban,
-  Mail,
   ShieldCheck,
   Wrench,
   Gauge as GaugeMeter,
@@ -21,21 +20,20 @@ import {
   HardDrive,
   HeartPulse,
   Send,
-  ScrollText,
   Palette,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
+import { AccountBlock } from "@/components/AccountBlock";
 import { AdminBackLink } from "./AdminBackLink";
 
 /**
  * Platform admin shell.
  *
  *   - Gates every /admin/* route on `is_platform_admin = true`
- *   - Adds a thin "PLATFORM ADMIN" ribbon under the TopBar so the operator
- *     never forgets they're in the ops console
- *   - Sidebar lists every admin section (Wave 1 + later waves added as
- *     they ship)
+ *   - Sidebar lists every admin section, with the AccountBlock pinned
+ *     to the bottom so admins can switch identities or sign out without
+ *     leaving /admin
  */
 export default async function AdminLayout({
   children,
@@ -50,13 +48,20 @@ export default async function AdminLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_platform_admin")
+    .select("full_name, is_platform_admin")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!(profile as { is_platform_admin?: boolean } | null)?.is_platform_admin) {
+  const typedProfile = profile as
+    | { full_name?: string | null; is_platform_admin?: boolean }
+    | null;
+
+  if (!typedProfile?.is_platform_admin) {
     redirect("/?error=admin_only");
   }
+
+  const accountName = typedProfile.full_name?.trim() || user.email || "Admin";
+  const accountEmail = user.email ?? "";
 
   return (
     <div className="flex min-h-screen flex-col bg-bg-0">
@@ -67,10 +72,10 @@ export default async function AdminLayout({
         </span>
       </TopBar>
       <div className="mx-auto flex w-full max-w-7xl flex-1">
-        <aside className="sticky top-0 hidden w-52 flex-shrink-0 border-r border-border bg-bg-1 md:block">
+        <aside className="sticky top-0 hidden w-52 flex-shrink-0 flex-col border-r border-border bg-bg-1 md:flex">
           <nav
             aria-label="Admin sections"
-            className="flex flex-col gap-0.5 p-2 text-sm"
+            className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2 text-sm"
           >
             <NavGroup label="Operations">
               <NavLink href="/admin" icon={<Gauge className="h-3.5 w-3.5" />}>
@@ -95,12 +100,6 @@ export default async function AdminLayout({
                 icon={<Terminal className="h-3.5 w-3.5" />}
               >
                 Terminals
-              </NavLink>
-              <NavLink
-                href="/admin/invitations"
-                icon={<Mail className="h-3.5 w-3.5" />}
-              >
-                Invitations
               </NavLink>
             </NavGroup>
             <NavGroup label="Marketplace">
@@ -214,6 +213,11 @@ export default async function AdminLayout({
               </NavLink>
             </NavGroup>
           </nav>
+          <AccountBlock
+            name={accountName}
+            email={accountEmail}
+            isPlatformAdmin
+          />
         </aside>
         <main className="flex-1 overflow-x-auto p-6">{children}</main>
       </div>
