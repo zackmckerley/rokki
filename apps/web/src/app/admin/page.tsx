@@ -85,10 +85,14 @@ export default async function AdminOverviewPage() {
       .select("id", { count: "exact", head: true })
       .eq("virus_scan_status", "infected")
       .is("deleted_at", null),
+    // Count from `activity` (the table the /admin/activity page reads
+    // from), NOT `domain_events`. Counting domain_events here while the
+    // page reads activity meant the stat could say "4 events" while the
+    // page below it sat empty.
     admin
-      .from("domain_events")
+      .from("activity")
       .select("id", { count: "exact", head: true })
-      .gte("occurred_at", oneHourAgo),
+      .gte("created_at", oneHourAgo),
   ]);
 
   const [
@@ -266,7 +270,7 @@ export default async function AdminOverviewPage() {
             <Stat
               href="/admin/activity"
               icon={<Zap />}
-              label="Events / hour"
+              label="Activity / hour"
               value={lastHourEvents ?? 0}
             />
           </div>

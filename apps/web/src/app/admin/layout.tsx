@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
+import { AdminBackLink } from "./AdminBackLink";
 
 /**
  * Platform admin shell.
@@ -60,10 +61,7 @@ export default async function AdminLayout({
   return (
     <div className="flex min-h-screen flex-col bg-bg-0">
       <TopBar>
-        <Link href="/" className="text-text-3 hover:text-text-1">
-          ← Dashboard
-        </Link>
-        <span className="text-text-3">·</span>
+        <AdminBackLink />
         <span className="font-mono text-xs uppercase tracking-wider text-accent">
           Platform admin
         </span>
