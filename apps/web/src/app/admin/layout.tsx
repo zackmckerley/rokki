@@ -22,6 +22,7 @@ import {
   Send,
   Palette,
   ListChecks,
+  Plug,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
@@ -87,6 +88,12 @@ export default async function AdminLayout({
                 icon={<ListChecks className="h-3.5 w-3.5" />}
               >
                 Jobs
+              </NavLink>
+              <NavLink
+                href="/admin/mcp"
+                icon={<Plug className="h-3.5 w-3.5" />}
+              >
+                MCP parity
               </NavLink>
             </NavGroup>
             <NavGroup label="Tenancy">
