@@ -86,7 +86,11 @@ export function DashboardClient({
   }, [searchParams]);
 
   const tickerById: Record<string, string> = {};
-  for (const t of terminals) tickerById[t.id] = t.ticker;
+  const terminalNameById: Record<string, string> = {};
+  for (const t of terminals) {
+    tickerById[t.id] = t.ticker;
+    terminalNameById[t.id] = t.name;
+  }
 
   return (
     <DensityProvider initial={initialDensity}>
@@ -120,6 +124,7 @@ export function DashboardClient({
               assigned={assigned}
               delegated={delegated}
               tickerById={tickerById}
+              terminalNameById={terminalNameById}
             />
           </div>
         }

@@ -22,6 +22,9 @@ export default async function MyTasksPage() {
     loadDashTerminals(supabase),
   ]);
   const tickerById = Object.fromEntries(terminals.map((t) => [t.id, t.ticker]));
+  const terminalNameById = Object.fromEntries(
+    terminals.map((t) => [t.id, t.name]),
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-bg-0">
@@ -38,6 +41,7 @@ export default async function MyTasksPage() {
             assigned={assigned}
             delegated={delegated}
             tickerById={tickerById}
+            terminalNameById={terminalNameById}
           />
         </div>
       </main>
