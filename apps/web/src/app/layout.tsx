@@ -23,6 +23,7 @@ import { ShortcutsOverlay } from "@/components/ShortcutsOverlay";
 import { SessionGuard } from "@/components/SessionGuard";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { MaintenanceBanner } from "@/components/MaintenanceBanner";
+import { EscapeProbe } from "@/components/EscapeProbe";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -106,6 +107,7 @@ export default function RootLayout({
         <CommandPalette>{children}</CommandPalette>
         <ShortcutsOverlay />
         <SessionGuard />
+        <EscapeProbe />
         <ServiceWorkerRegister />
       </body>
     </html>

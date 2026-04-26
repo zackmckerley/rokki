@@ -307,7 +307,12 @@ export function CommandPalette({ children }: { children: ReactNode }) {
     [register, all, open, notifyOpen],
   );
 
-  // Global hotkey.
+  // Global hotkey. ⌘K toggles the palette from anywhere; Escape closes
+  // the palette ONLY when it's open. Guarding on `open` matters because
+  // multiple components in the tree (Dialog, ShortcutsOverlay, inline
+  // editors) also listen for Escape — if the palette unconditionally
+  // calls setOpen(false) on every Escape it churns render state and can
+  // mask which handler is "the one" closing the active surface.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -317,13 +322,14 @@ export function CommandPalette({ children }: { children: ReactNode }) {
           notifyOpen(next);
           return next;
         });
-      } else if (e.key === "Escape") {
+      } else if (e.key === "Escape" && open) {
         setOpen(false);
+        notifyOpen(false);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [notifyOpen]);
+  }, [notifyOpen, open]);
 
   return (
     <CommandContext.Provider value={api}>
