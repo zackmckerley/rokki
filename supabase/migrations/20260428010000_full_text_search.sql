@@ -32,18 +32,25 @@ BEGIN;
 -- ----------------------------------------------------------------------------
 -- IMMUTABLE wrapper around to_tsvector. Postgres rejects to_tsvector(regconfig,
 -- text) inside a GENERATED ALWAYS expression because the regconfig argument is
--- treated as STABLE (the language can be rebound at runtime). Pinning the
--- 'english' config at function-definition time and marking the wrapper
--- IMMUTABLE satisfies the generated-column constraint while keeping the same
--- stemming/stopword behaviour.
+-- treated as STABLE.
+--
+-- A SQL-language wrapper would NOT solve this because Postgres inlines SQL
+-- functions and re-derives volatility from the inlined body, ignoring the
+-- declared IMMUTABLE marker. plpgsql functions are never inlined, so the
+-- declared volatility is honoured verbatim. The stemming/stopword behaviour
+-- is identical to a literal to_tsvector('english', ...) call.
 -- ----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION rokki_to_tsvector(text)
 RETURNS tsvector
-LANGUAGE sql
+LANGUAGE plpgsql
 IMMUTABLE
 PARALLEL SAFE
-RETURNS NULL ON NULL INPUT
-AS $$ SELECT to_tsvector('pg_catalog.english'::regconfig, $1) $$;
+STRICT
+AS $$
+BEGIN
+  RETURN to_tsvector('pg_catalog.english'::regconfig, $1);
+END;
+$$;
 
 -- ============================================================================
 -- 1. tasks ------------------------------------------------------------------
