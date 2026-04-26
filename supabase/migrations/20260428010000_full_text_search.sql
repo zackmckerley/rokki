@@ -29,28 +29,14 @@
 
 BEGIN;
 
--- ----------------------------------------------------------------------------
--- IMMUTABLE wrapper around to_tsvector. Postgres rejects to_tsvector(regconfig,
--- text) inside a GENERATED ALWAYS expression because the regconfig argument is
--- treated as STABLE.
---
--- A SQL-language wrapper would NOT solve this because Postgres inlines SQL
--- functions and re-derives volatility from the inlined body, ignoring the
--- declared IMMUTABLE marker. plpgsql functions are never inlined, so the
--- declared volatility is honoured verbatim. The stemming/stopword behaviour
--- is identical to a literal to_tsvector('english', ...) call.
--- ----------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION rokki_to_tsvector(text)
-RETURNS tsvector
-LANGUAGE plpgsql
-IMMUTABLE
-PARALLEL SAFE
-STRICT
-AS $$
-BEGIN
-  RETURN to_tsvector('pg_catalog.english'::regconfig, $1);
-END;
-$$;
+-- Note: passing a string literal as the first arg of to_tsvector() lets
+-- Postgres resolve the regconfig at parse time, which is treated as
+-- IMMUTABLE inside a GENERATED ALWAYS expression. A wrapper function
+-- doesn't help here — even plpgsql IMMUTABLE wrappers get rejected
+-- because Postgres examines whether the wrapper's body could observe
+-- a runtime regconfig change. The migration `20260421010000_files_index_metadata`
+-- already uses the same string-literal pattern successfully, so we
+-- mirror that here.
 
 -- ============================================================================
 -- 1. tasks ------------------------------------------------------------------
@@ -58,10 +44,10 @@ $$;
 ALTER TABLE tasks
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(rokki_to_tsvector(coalesce(title, '')), 'A')
-      || setweight(rokki_to_tsvector(coalesce(description, '')), 'B')
+      setweight(to_tsvector('english', coalesce(title, '')), 'A')
+      || setweight(to_tsvector('english', coalesce(description, '')), 'B')
       || setweight(
-           rokki_to_tsvector(array_to_string(coalesce(labels, '{}'), ' ')),
+           to_tsvector('english', array_to_string(coalesce(labels, '{}'), ' ')),
            'C')
     ) STORED;
 
@@ -76,8 +62,8 @@ CREATE INDEX IF NOT EXISTS idx_tasks_search_vector
 ALTER TABLE files
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(rokki_to_tsvector(coalesce(filename, '')), 'A')
-      || setweight(rokki_to_tsvector(coalesce(folder, '')), 'C')
+      setweight(to_tsvector('english', coalesce(filename, '')), 'A')
+      || setweight(to_tsvector('english', coalesce(folder, '')), 'C')
     ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_files_search_vector
@@ -90,7 +76,7 @@ CREATE INDEX IF NOT EXISTS idx_files_search_vector
 ALTER TABLE comments
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(rokki_to_tsvector(coalesce(body, '')), 'A')
+      setweight(to_tsvector('english', coalesce(body, '')), 'A')
     ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_comments_search_vector
@@ -103,9 +89,9 @@ CREATE INDEX IF NOT EXISTS idx_comments_search_vector
 ALTER TABLE terminals
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(rokki_to_tsvector(coalesce(name, '')), 'A')
-      || setweight(rokki_to_tsvector(coalesce(ticker, '')), 'A')
-      || setweight(rokki_to_tsvector(coalesce(description, '')), 'B')
+      setweight(to_tsvector('english', coalesce(name, '')), 'A')
+      || setweight(to_tsvector('english', coalesce(ticker, '')), 'A')
+      || setweight(to_tsvector('english', coalesce(description, '')), 'B')
     ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_terminals_search_vector
@@ -118,9 +104,9 @@ CREATE INDEX IF NOT EXISTS idx_terminals_search_vector
 ALTER TABLE spaces
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(rokki_to_tsvector(coalesce(name, '')), 'A')
-      || setweight(rokki_to_tsvector(coalesce(slug, '')), 'A')
-      || setweight(rokki_to_tsvector(coalesce(description, '')), 'B')
+      setweight(to_tsvector('english', coalesce(name, '')), 'A')
+      || setweight(to_tsvector('english', coalesce(slug, '')), 'A')
+      || setweight(to_tsvector('english', coalesce(description, '')), 'B')
     ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_spaces_search_vector
