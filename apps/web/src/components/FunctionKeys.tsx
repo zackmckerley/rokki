@@ -49,7 +49,7 @@ export function FunctionKeys({ keys, active, onSelect }: FunctionKeysProps) {
           onClick={() => onSelect?.(k.key)}
           className={cn(
             "flex h-full items-center gap-1.5 px-2 text-xs transition-colors",
-            "focus-visible:outline-none focus-visible:bg-bg-3",
+            "focus-visible:bg-bg-3 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-border-focus",
             active === k.key
               ? "text-accent"
               : "text-text-2 hover:text-text-0 hover:bg-bg-2",

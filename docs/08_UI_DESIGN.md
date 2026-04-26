@@ -655,11 +655,37 @@ All sounds short (< 300ms), mid-frequency, rounded (no clicks/pops). Test: playi
 - Focus ring visible on all focusable elements (`border-focus` 2px offset)
 - Color-coding never the only signal — status pills include text labels, priority uses dots + numeric
 - Tab order follows visual order
-- Skip-to-content link at top of every page
+- Skip-to-content link at top of every page (`<a href="#main-content">`, in the root layout)
 - Semantic HTML (`<nav>`, `<main>`, `<button>`, `<table>`) — not divs-as-buttons
 - ARIA live regions for toasts and ticker updates
-- Minimum contrast: WCAG AA (4.5:1 for body text, 3:1 for large)
+- Minimum contrast: WCAG AA (4.5:1 for body text, 3:1 for large / non-text)
 - Dark theme verified against contrast tools; accent on dark bg passes AA for non-body text
+
+### 8.10.1 Open contrast issues (TODO)
+
+Audited 2026-04-26 with the WCAG-AA formula. The token palette has two
+fail cases that we are intentionally **not** retuning in the a11y branch
+because they cascade through hundreds of usages — picking the right
+darker/lighter shade is a design call, not a mechanical bump.
+
+| Token pair | Computed | Required | Notes |
+|---|---|---|---|
+| `text-3` on `bg-0` (dark) | 2.90:1 | 4.5:1 normal / 3.0:1 large | Used for timestamps, secondary captions, kbd hints — large enough text would still fail |
+| `text-3` on `bg-1` (dark) | 2.74:1 | 4.5:1 / 3.0:1 | Same — appears in panel chrome under headings |
+| `text-3` on `bg-0` (light) | 3.28:1 | 4.5:1 / 3.0:1 | Passes "large text" 3.0 but fails normal |
+| `text-3` on `bg-1` (light) | 3.43:1 | 4.5:1 / 3.0:1 | Same |
+| `accent` on `bg-0` (light) | 3.51:1 | 4.5:1 / 3.0:1 | Passes large only — used on small label kbds and ticker |
+
+Recommended fix range (do NOT apply blindly — needs a design pass):
+
+- Dark `--text-3`: `#5A5A62` → ~`#82828A` brings it to ~4.6:1 on `bg-0`
+- Light `--text-3`: `#8A8A92` → ~`#6E6E76` brings it to ~4.7:1 on `bg-0`
+- Light `--accent`: `#C86F00` → ~`#A55A00` brings it to ~4.7:1
+
+Tracked separately so this branch can land without touching tokens.
+
+All `text-2` / `text-1` / `text-0` / status / accent-on-dark combos
+already meet AA; `text-2` on every bg level is ≥5.07:1.
 
 ## 8.11 Mobile adaptations
 

@@ -90,8 +90,14 @@ export function CreateProjectDialog({
         <FormError message={error} />
         {orgs.length > 1 ? (
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-text-1">Space</label>
+            <label
+              htmlFor="create-terminal-space"
+              className="text-xs font-medium text-text-1"
+            >
+              Space
+            </label>
             <select
+              id="create-terminal-space"
               value={orgId}
               onChange={(e) => setOrgId(e.target.value)}
               className="h-9 rounded border border-border bg-bg-2 px-3 text-sm text-text-0 focus:border-border-focus focus:outline-none"
@@ -117,10 +123,14 @@ export function CreateProjectDialog({
         />
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium text-text-1">
+          <label
+            htmlFor="create-terminal-description"
+            className="text-xs font-medium text-text-1"
+          >
             Description <span className="text-text-3">(optional)</span>
           </label>
           <textarea
+            id="create-terminal-description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}

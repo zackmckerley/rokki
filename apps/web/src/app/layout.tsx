@@ -122,6 +122,16 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-bg-0 font-sans text-base text-text-0 antialiased">
+        {/* Skip-to-main — visually hidden until focused, then anchors past
+            the top bar / sidebars. Pages that have a #main-content target
+            (the dashboard, admin shell, settings, help) get a real jump;
+            pages without one fall through harmlessly. */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-[2000] focus:rounded focus:bg-accent focus:px-3 focus:py-1.5 focus:text-xs focus:font-semibold focus:text-bg-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+        >
+          Skip to main content
+        </a>
         <MaintenanceBanner />
         <AnnouncementBanner />
         <CommandPalette>

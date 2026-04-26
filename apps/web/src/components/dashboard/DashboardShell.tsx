@@ -49,13 +49,8 @@ export function DashboardShell({
 }) {
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg-0">
-      {/* Skip link — only focusable, always tabbable to the main region */}
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-accent focus:px-3 focus:py-1 focus:text-xs focus:text-bg-0"
-      >
-        Skip to main content
-      </a>
+      {/* Skip link is now in the root layout (app/layout.tsx) so every page
+          gets it. The shell still owns #main-content as the jump target. */}
       {topBar}
       {ticker}
       <div className="flex flex-1 min-h-0 flex-col overflow-hidden lg:flex-row">
@@ -67,8 +62,9 @@ export function DashboardShell({
         </aside>
         <main
           id="main-content"
+          tabIndex={-1}
           aria-label="Dashboard"
-          className="flex min-h-0 flex-1 flex-col overflow-y-auto"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto focus:outline-none"
         >
           {center}
           <div className="lg:hidden" aria-label="Messages">
