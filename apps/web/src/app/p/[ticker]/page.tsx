@@ -4,6 +4,7 @@ import { CheckSquare, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 import { ProjectTerminal } from "@/components/ProjectTerminal";
+import { RecentTerminalTracker } from "@/components/dashboard/RecentTerminalTracker";
 import { CORE_MODULE_CARDS, SPACE_TAGLINE } from "@/lib/project-templates";
 import type { ProjectStatus } from "@rokki/db";
 
@@ -110,7 +111,9 @@ export default async function ProjectTerminalPage({ params }: Props) {
   }));
 
   return (
-    <ProjectTerminal
+    <>
+      <RecentTerminalTracker ticker={p.ticker} name={p.name} />
+      <ProjectTerminal
       topBar={
         <TopBar>
           <span className="text-text-3">/</span>
@@ -145,6 +148,7 @@ export default async function ProjectTerminalPage({ params }: Props) {
       overviewMain={<OverviewMain project={p} />}
       rightPane={<AIChatStub project={p} />}
     />
+    </>
   );
 }
 
