@@ -7,6 +7,7 @@ import { Plus, Check, Circle, MessageSquare, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
+import { useVirtualList } from "@/lib/use-virtual-list";
 import { createClient } from "@/lib/supabase/client";
 import { CommentThread } from "./CommentThread";
 import { ViewsMenu, type UserView } from "./ViewsMenu";
@@ -44,6 +45,13 @@ interface TasksSort {
 }
 const DEFAULT_SORT: TasksSort = { by: "status", dir: "asc" };
 const DEFAULT_FILTER: TasksFilter = {};
+/**
+ * Fixed row height used by the virtualized renderer. Matches the
+ * `py-2.5` + line-height of the non-virtualized TaskRow plus its 1px
+ * border. Bump in lockstep with row styling, otherwise rows will overlap
+ * or leave gaps.
+ */
+const TASK_ROW_HEIGHT = 38;
 
 interface TasksPaneProps {
   ticker: string;
@@ -372,6 +380,25 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
 
   const commentTask = tasks.find((t) => t.id === commentTaskId) ?? null;
 
+  // Virtualization kicks in only on long lists — the absolute-position
+  // layout adds a small per-row cost so for short lists the plain <ul> is
+  // simpler, more keyboard-correct, and lets divide-y do the borders.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualize = displayTasks.length > 200;
+  const virtual = useVirtualList({
+    count: virtualize ? displayTasks.length : 0,
+    rowHeight: TASK_ROW_HEIGHT,
+    scrollRef,
+    overscan: 8,
+  });
+
+  // When j/k moves the selection in virtualized mode, the new row may be
+  // off-screen. Auto-scroll so the user always sees their cursor.
+  useEffect(() => {
+    if (!virtualize) return;
+    virtual.scrollToIndex(selectedIdx);
+  }, [selectedIdx, virtualize, virtual]);
+
   return (
     <div className="flex h-full">
       <div className="flex h-full flex-1 flex-col">
@@ -410,13 +437,54 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
         </div>
       ) : null}
 
-      <div className="flex-1 overflow-y-auto">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto">
         {loading ? (
           <SkeletonList />
         ) : tasks.length === 0 && !creating ? (
           <Empty onCreate={() => setCreating(true)} />
         ) : displayTasks.length === 0 ? (
           <FilteredEmpty onClear={clearView} hasView={Boolean(activeViewId)} />
+        ) : virtualize ? (
+          // Virtualized path: only render the rows in the viewport (+overscan).
+          // Rows are absolutely positioned inside a height-padded wrapper so
+          // the scrollbar reflects the full list, but the DOM stays small.
+          // Roles (`role="list"` + `role="listitem"`) preserve the semantics
+          // a screen reader would otherwise pick up from <ul>/<li>.
+          <div
+            role="list"
+            className="relative"
+            style={{ height: virtual.totalHeight }}
+          >
+            {virtual.items.map((vi) => {
+              const t = displayTasks[vi.index];
+              if (!t) return null;
+              return (
+                <div
+                  key={t.id}
+                  role="listitem"
+                  style={{
+                    position: "absolute",
+                    top: vi.offset,
+                    left: 0,
+                    right: 0,
+                    height: TASK_ROW_HEIGHT,
+                  }}
+                  className="border-b border-border"
+                >
+                  <TaskRowContent
+                    task={t}
+                    ticker={ticker}
+                    selected={vi.index === selectedIdx}
+                    onClick={() => setSelectedIdx(vi.index)}
+                    onToggle={() => toggleComplete(t)}
+                    onOpenComments={() =>
+                      setCommentTaskId((prev) => (prev === t.id ? null : t.id))
+                    }
+                  />
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <ul className="divide-y divide-border">
             {displayTasks.map((t, i) => (
@@ -479,23 +547,17 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   );
 }
 
-function TaskRow({
-  task,
-  ticker,
-  selected,
-  onClick,
-  onToggle,
-  onOpenComments,
-}: {
+interface TaskRowProps {
   task: Task;
   ticker: string;
   selected: boolean;
   onClick: () => void;
   onToggle: () => void;
   onOpenComments: () => void;
-}) {
-  const done = task.status === "done";
+}
 
+function TaskRow(props: TaskRowProps) {
+  const { selected, onClick } = props;
   return (
     <li
       onClick={onClick}
@@ -505,6 +567,41 @@ function TaskRow({
         selected && "border-l-2 border-l-border-focus pl-[14px]",
       )}
     >
+      <TaskRowInner {...props} />
+    </li>
+  );
+}
+
+/**
+ * Same row visuals as TaskRow but rendered inside a div, used by the
+ * virtualized layout (which can't put a <li> inside an absolutely
+ * positioned <div>).
+ */
+function TaskRowContent(props: TaskRowProps) {
+  const { selected, onClick } = props;
+  return (
+    <div
+      onClick={onClick}
+      className={cn(
+        "group flex h-full cursor-pointer items-center gap-3 px-4 transition-colors",
+        selected ? "bg-bg-2" : "hover:bg-bg-2",
+        selected && "border-l-2 border-l-border-focus pl-[14px]",
+      )}
+    >
+      <TaskRowInner {...props} />
+    </div>
+  );
+}
+
+function TaskRowInner({
+  task,
+  ticker,
+  onToggle,
+  onOpenComments,
+}: TaskRowProps) {
+  const done = task.status === "done";
+  return (
+    <>
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -549,7 +646,7 @@ function TaskRow({
       {task.due_date ? <DueChip date={task.due_date} /> : null}
       <PriorityDots priority={task.priority} />
       <StatusPill status={task.status} />
-    </li>
+    </>
   );
 }
 

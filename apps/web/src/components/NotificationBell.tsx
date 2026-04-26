@@ -1,12 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, BellOff, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import { useVirtualList } from "@/lib/use-virtual-list";
 import { createClient } from "@/lib/supabase/client";
-import { EmptyState } from "./EmptyState";
+
+const NOTIFICATION_ROW_HEIGHT = 64;
+const NOTIFICATION_VIRTUALIZE_THRESHOLD = 50;
 
 interface Notification {
   id: string;
@@ -128,77 +131,152 @@ export function NotificationBell() {
         ) : null}
       </button>
       {open ? (
-        <div className="absolute right-0 z-50 mt-1 w-80 overflow-hidden rounded-sm border border-border bg-bg-1 shadow-xl">
-          <div className="flex items-center justify-between border-b border-border bg-bg-0 px-3 py-2">
-            <span className="text-xs font-semibold text-text-1">
-              Notifications
-            </span>
-            {unread > 0 ? (
-              <button
-                onClick={markAll}
-                className="flex items-center gap-1 text-[11px] text-text-3 hover:text-text-0"
-              >
-                <CheckCheck className="h-2.5 w-2.5" /> Mark all read
-              </button>
-            ) : null}
-          </div>
-          <div className="max-h-[60vh] overflow-y-auto">
-            {loading && items.length === 0 ? (
-              <p className="p-4 text-center text-xs text-text-3">Loading…</p>
-            ) : items.length === 0 ? (
-              <EmptyState
-                icon={BellOff}
-                title="No notifications."
-                body="Mentions, assignments, and approvals show up here."
-                className="p-6"
-              />
-            ) : (
-              <ul className="divide-y divide-border">
-                {items.map((n) => {
-                  const unread_ = !n.read_at;
-                  return (
-                    <li key={n.id}>
-                      <Link
-                        href={n.url ?? "#"}
-                        onClick={() => {
-                          if (unread_) void markOne(n.id);
-                          setOpen(false);
-                        }}
-                        className={cn(
-                          "block px-3 py-2 text-xs hover:bg-bg-2",
-                          unread_ && "bg-bg-2/50",
-                        )}
-                      >
-                        <div className="flex items-start gap-2">
-                          {unread_ ? (
-                            <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent" />
-                          ) : (
-                            <span className="mt-1 h-1.5 w-1.5 flex-shrink-0" />
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <div className="truncate font-semibold text-text-0">
-                              {n.title}
-                            </div>
-                            {n.body ? (
-                              <div className="mt-0.5 line-clamp-2 text-text-2">
-                                {n.body}
-                              </div>
-                            ) : null}
-                            <div className="mt-0.5 font-mono text-[10px] text-text-3">
-                              {formatWhen(n.created_at)}
-                            </div>
-                          </div>
-                        </div>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        </div>
+        <NotificationDropdown
+          items={items}
+          loading={loading}
+          unread={unread}
+          onMarkAll={markAll}
+          onMarkOne={markOne}
+          onClose={() => setOpen(false)}
+        />
       ) : null}
     </div>
+  );
+}
+
+function NotificationDropdown({
+  items,
+  loading,
+  unread,
+  onMarkAll,
+  onMarkOne,
+  onClose,
+}: {
+  items: Notification[];
+  loading: boolean;
+  unread: number;
+  onMarkAll: () => void;
+  onMarkOne: (id: string) => void;
+  onClose: () => void;
+}) {
+  // Virtualize once we'd have enough rows for blank-out scrolling to be
+  // noticeable (>50). Below that, the plain list is friendlier — focus
+  // order and a11y are simpler with real <ul>/<li>.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualize = items.length > NOTIFICATION_VIRTUALIZE_THRESHOLD;
+  const virtual = useVirtualList({
+    count: virtualize ? items.length : 0,
+    rowHeight: NOTIFICATION_ROW_HEIGHT,
+    scrollRef,
+    overscan: 6,
+  });
+
+  return (
+    <div className="absolute right-0 z-50 mt-1 w-80 overflow-hidden rounded-sm border border-border bg-bg-1 shadow-xl">
+      <div className="flex items-center justify-between border-b border-border bg-bg-0 px-3 py-2">
+        <span className="text-xs font-semibold text-text-1">
+          Notifications
+        </span>
+        {unread > 0 ? (
+          <button
+            onClick={onMarkAll}
+            className="flex items-center gap-1 text-[11px] text-text-3 hover:text-text-0"
+          >
+            <CheckCheck className="h-3 w-3" /> Mark all read
+          </button>
+        ) : null}
+      </div>
+      <div ref={scrollRef} className="max-h-[60vh] overflow-y-auto">
+        {loading && items.length === 0 ? (
+          <p className="p-4 text-center text-xs text-text-3">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="p-6 text-center text-xs text-text-3">Nothing new.</p>
+        ) : virtualize ? (
+          <ul
+            className="relative m-0 list-none p-0"
+            style={{ height: virtual.totalHeight }}
+          >
+            {virtual.items.map((vi) => {
+              const n = items[vi.index];
+              if (!n) return null;
+              return (
+                <li
+                  key={n.id}
+                  style={{
+                    position: "absolute",
+                    top: vi.offset,
+                    left: 0,
+                    right: 0,
+                    height: NOTIFICATION_ROW_HEIGHT,
+                  }}
+                  className="border-b border-border"
+                >
+                  <NotificationLink
+                    n={n}
+                    onMarkOne={onMarkOne}
+                    onClose={onClose}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <ul className="divide-y divide-border">
+            {items.map((n) => (
+              <li key={n.id}>
+                <NotificationLink
+                  n={n}
+                  onMarkOne={onMarkOne}
+                  onClose={onClose}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function NotificationLink({
+  n,
+  onMarkOne,
+  onClose,
+}: {
+  n: Notification;
+  onMarkOne: (id: string) => void;
+  onClose: () => void;
+}) {
+  const unread_ = !n.read_at;
+  return (
+    <Link
+      href={n.url ?? "#"}
+      onClick={() => {
+        if (unread_) onMarkOne(n.id);
+        onClose();
+      }}
+      className={cn(
+        "block px-3 py-2 text-xs hover:bg-bg-2",
+        unread_ && "bg-bg-2/50",
+      )}
+    >
+      <div className="flex items-start gap-2">
+        {unread_ ? (
+          <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent" />
+        ) : (
+          <span className="mt-1 h-1.5 w-1.5 flex-shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <div className="truncate font-semibold text-text-0">{n.title}</div>
+          {n.body ? (
+            <div className="mt-0.5 line-clamp-2 text-text-2">{n.body}</div>
+          ) : null}
+          <div className="mt-0.5 font-mono text-[10px] text-text-3">
+            {formatWhen(n.created_at)}
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
 

@@ -1,16 +1,26 @@
 import Link from "next/link";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
-import { ActivityRowsTable, type AdminActivityRow } from "./ActivityRowsTable";
+import { ActivityRows } from "./ActivityRows";
 
 export const metadata = { title: "Activity — Admin" };
 export const dynamic = "force-dynamic";
 
+export interface ActivityRow {
+  id: string;
+  action: string;
+  entity_type: string | null;
+  entity_id: string | null;
+  actor_id: string | null;
+  terminal_id: string | null;
+  space_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
 /**
  * Admin activity log. Reads from the `activity` table directly — every
- * user-facing action writes one row; trigger-emitted UPDATE diffs surface
- * with their `before_json` / `after_json` payload visible inline. Click a
- * row to expand the per-field diff. Paginated via ?before= timestamp.
+ * user-facing action writes one row. Paginated via ?before= timestamp.
  */
 export default async function AdminActivityPage({
   searchParams,
@@ -26,21 +36,17 @@ export default async function AdminActivityPage({
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
-  // The `before_json` / `after_json` columns exist in the DB (migration
-  // 20260427050000_activity_diffs.sql) but the generated types are not
-  // regenerated until `supabase gen types` runs against the local DB.
-  // Cast through `unknown` so the build doesn't depend on regen.
   let query = admin
     .from("activity")
     .select(
-      "id, action, entity_type, entity_id, actor_id, terminal_id, space_id, metadata, before_json, after_json, created_at",
+      "id, action, entity_type, entity_id, actor_id, terminal_id, space_id, metadata, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(PAGE);
   if (params.before) query = query.lt("created_at", params.before);
 
   const { data } = await query;
-  const rows = ((data ?? []) as unknown) as AdminActivityRow[];
+  const rows = (data ?? []) as ActivityRow[];
 
   const next =
     rows.length === PAGE ? rows[rows.length - 1]!.created_at : undefined;
@@ -50,12 +56,11 @@ export default async function AdminActivityPage({
       <header>
         <h1 className="text-xl font-semibold text-text-0">Activity</h1>
         <p className="mt-1 text-xs text-text-3">
-          Every state transition across the platform. Latest first. Rows with
-          a diff icon expand to a field-by-field before/after view.
+          Every state transition across the platform. Latest first.
         </p>
       </header>
 
-      <ActivityRowsTable rows={rows} />
+      <ActivityRows rows={rows} />
 
       {next ? (
         <div>
