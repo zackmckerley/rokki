@@ -325,7 +325,7 @@ function MembersCard({
                 aria-label={m.is_you ? "Leave terminal" : "Remove member"}
                 className="rounded p-1 text-text-3 hover:bg-bg-3 hover:text-danger"
               >
-                <UserMinus className="h-4 w-4" />
+                <UserMinus className="h-3.5 w-3.5" />
               </button>
             ) : null}
           </li>
@@ -385,7 +385,7 @@ function DangerCard({
   return (
     <Card title="Danger zone">
       <div className="flex items-start gap-3 px-4 py-3">
-        <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-danger" />
+        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-danger" />
         <div className="flex-1 text-sm">
           <p className="text-text-0">Archive terminal</p>
           <p className="mt-0.5 text-xs text-text-3">
