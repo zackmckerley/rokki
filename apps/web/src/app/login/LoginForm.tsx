@@ -6,20 +6,18 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
 /**
- * Login form. Handles two flows side-by-side:
+ * Login form. Closed system — accounts are created by platform admins
+ * only. There is no self-signup, no magic-link path, no "request access"
+ * affordance. The only way in is with credentials an admin already
+ * provisioned for you.
  *
- *   1. Email magic link — the primary flow for everyday users. Types a
- *      valid email, we POST /api/v1/auth/send-link, they click the
- *      link in Mailpit / their inbox.
+ * Identifier is either:
+ *   - An email (admin@rokki.local, you@example.com, …)
+ *   - A short allow-listed username (e.g. `admin`) the password-login
+ *     endpoint maps to a pseudo-email.
  *
- *   2. Username + password — a narrow backdoor for operators (today:
- *      `admin`). Typed as a bare word (no `@`), we reveal a password
- *      field and POST /api/v1/auth/password-login. Rate-limited
- *      tighter than the magic-link path.
- *
- * We detect which flow by whether the identifier contains `@`. That's
- * crude but it matches user intuition — nobody types their admin
- * username with an @ in it.
+ * Both paths POST to /api/v1/auth/password-login. The endpoint
+ * disambiguates by which field is present (email vs username).
  */
 export function LoginForm() {
   const router = useRouter();
@@ -29,71 +27,42 @@ export function LoginForm() {
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [state, setState] = useState<
-    "idle" | "sending" | "sent" | "error"
-  >(callbackError ? "error" : "idle");
+  const [state, setState] = useState<"idle" | "sending" | "error">(
+    callbackError ? "error" : "idle",
+  );
   const [errorMessage, setErrorMessage] = useState(
     callbackError ? humanizeAuthError(callbackError) : "",
   );
 
-  const isEmail = identifier.includes("@");
-  const showPassword = identifier.trim().length > 0 && !isEmail;
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     const id = identifier.trim();
-    if (!id) return;
+    if (!id || !password) return;
 
     setState("sending");
     setErrorMessage("");
 
-    if (showPassword) {
-      // Username + password path.
-      const r = await fetch("/api/v1/auth/password-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: id, password }),
-      });
-      if (!r.ok) {
-        setState("error");
-        setErrorMessage(await messageOf(r));
-        return;
-      }
-      // Session cookie is set on the response. Push to the intended
-      // destination and let the server components pick up the session.
-      router.replace(redirectTo);
-      router.refresh();
-      return;
-    }
+    // If the identifier looks like an email, send it as `email`; otherwise
+    // pass it as `username` and let the server map it via its allow-list.
+    const isEmail = id.includes("@");
+    const body = isEmail
+      ? { email: id, password }
+      : { username: id, password };
 
-    // Magic link path.
-    const r = await fetch("/api/v1/auth/send-link", {
+    const r = await fetch("/api/v1/auth/password-login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: id, redirect_to: redirectTo }),
+      body: JSON.stringify(body),
     });
-
     if (!r.ok) {
       setState("error");
       setErrorMessage(await messageOf(r));
       return;
     }
-    setState("sent");
-  }
-
-  if (state === "sent") {
-    return (
-      <div className="rounded border border-border bg-bg-1 p-4 text-center">
-        <p className="text-sm text-text-0">Check your email.</p>
-        <p className="mt-1 text-xs text-text-2">
-          We sent a sign-in link to{" "}
-          <span className="font-mono text-text-1">{identifier}</span>.
-        </p>
-        <p className="mt-3 text-xs text-text-3">
-          The link expires in 15 minutes and can only be used once.
-        </p>
-      </div>
-    );
+    // Session cookie is set on the response. Push to the intended
+    // destination and let the server components pick up the session.
+    router.replace(redirectTo);
+    router.refresh();
   }
 
   return (
@@ -107,21 +76,18 @@ export function LoginForm() {
         label="Email or username"
         value={identifier}
         onChange={(e) => setIdentifier(e.target.value)}
-        error={!showPassword && state === "error" ? errorMessage : undefined}
       />
-      {showPassword ? (
-        <Input
-          name="password"
-          type="password"
-          autoComplete="current-password"
-          required
-          placeholder="••••••••"
-          label="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          error={state === "error" ? errorMessage : undefined}
-        />
-      ) : null}
+      <Input
+        name="password"
+        type="password"
+        autoComplete="current-password"
+        required
+        placeholder="••••••••"
+        label="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        error={state === "error" ? errorMessage : undefined}
+      />
       <Button
         type="submit"
         variant="accent"
@@ -129,8 +95,11 @@ export function LoginForm() {
         className="w-full"
         loading={state === "sending"}
       >
-        {showPassword ? "Sign in" : "Send sign-in link"}
+        Sign in
       </Button>
+      <p className="pt-1 text-center text-[11px] text-text-3">
+        Accounts are provisioned by your administrator. No self-signup.
+      </p>
     </form>
   );
 }
@@ -147,7 +116,7 @@ async function messageOf(r: Response): Promise<string> {
 function humanizeAuthError(raw: string): string {
   const lower = raw.toLowerCase();
   if (lower.includes("expired") || lower.includes("invalid")) {
-    return "That sign-in link is expired or has already been used. Request a fresh one.";
+    return "That sign-in link is expired or has already been used. Ask your administrator to issue a new one.";
   }
   if (lower.includes("rate") || lower.includes("too many")) {
     return "Too many attempts. Wait a minute and try again.";
