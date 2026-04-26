@@ -9,6 +9,8 @@ import {
   MessageSquare,
   Maximize2,
   ListChecks,
+  ArrowDownUp,
+  ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
@@ -20,6 +22,14 @@ import {
   DueChip,
   Avatar,
 } from "./primitives";
+import {
+  TASK_SORT_KEYS,
+  TASK_SORT_LABELS,
+  applyTaskSort,
+  loadTaskSort,
+  saveTaskSort,
+  type TaskSortKey,
+} from "@/lib/tasks-sort";
 import type { TaskStatus } from "@rokki/db";
 
 interface Assignee {
@@ -36,7 +46,10 @@ interface Task {
   priority: number;
   due_date: string | null;
   labels: string[];
+  /** Sparse INT — populated by the manual-reorder migration; null otherwise. */
+  position: number | null;
   created_at: string;
+  updated_at: string;
   completed_at: string | null;
   /** New: server-aggregated subtask completion. */
   subtask_total: number;
@@ -77,7 +90,15 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   const [submitting, setSubmitting] = useState(false);
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
+  // Sort key persists to localStorage. Default = priority then due_date.
+  const [sortKey, setSortKey] = useState<TaskSortKey>("default");
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const createRef = useRef<HTMLInputElement>(null);
+
+  // Restore the user's saved sort on mount.
+  useEffect(() => {
+    setSortKey(loadTaskSort());
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,11 +144,18 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     };
   }, [ticker]);
 
+  // Apply the active sort once per render so every consumer (rows, keyboard
+  // nav, command palette) sees the same order.
+  const sortedTasks = useMemo(
+    () => applyTaskSort(tasks, sortKey),
+    [tasks, sortKey],
+  );
+
   // Realtime: mirror DB changes (inserts, updates, deletes) into local state
   // without refetching the whole list. RLS scopes the events to this user.
   const paletteCommands = useMemo(
     () => {
-      const selected = tasks[selectedIdx];
+      const selected = sortedTasks[selectedIdx];
       const base = [
         {
           id: `tasks/new:${projectId}`,
@@ -167,7 +195,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       return base;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, selectedIdx, projectId],
+    [sortedTasks, selectedIdx, projectId],
   );
   useRegisterCommands(`tasks:${projectId}`, paletteCommands);
 
@@ -186,7 +214,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       onInsert: () => void load(),
       onUpdate: (row) =>
         setTasks((prev) =>
-          sortTasks(prev.map((t) => (t.id === row.id ? { ...t, ...row } : t))),
+          prev.map((t) => (t.id === row.id ? { ...t, ...row } : t)),
         ),
       onDelete: (row) =>
         setTasks((prev) => prev.filter((t) => t.id !== row.id)),
@@ -205,7 +233,9 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
 
       if (e.key === "j") {
         e.preventDefault();
-        setSelectedIdx((i) => Math.min(i + 1, Math.max(tasks.length - 1, 0)));
+        setSelectedIdx((i) =>
+          Math.min(i + 1, Math.max(sortedTasks.length - 1, 0)),
+        );
       } else if (e.key === "k") {
         e.preventDefault();
         setSelectedIdx((i) => Math.max(i - 1, 0));
@@ -214,17 +244,17 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
         setCreating(true);
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        const t = tasks[selectedIdx];
+        const t = sortedTasks[selectedIdx];
         if (t && t.status !== "done") void toggleComplete(t);
       } else if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
-        const t = tasks[selectedIdx];
+        const t = sortedTasks[selectedIdx];
         if (t) {
           e.preventDefault();
           void toggleComplete(t);
         }
       } else if (e.key === ";") {
         // Open the comment thread on the selected task.
-        const t = tasks[selectedIdx];
+        const t = sortedTasks[selectedIdx];
         if (t) {
           e.preventDefault();
           setCommentTaskId((prev) => (prev === t.id ? null : t.id));
@@ -234,7 +264,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, selectedIdx]);
+  }, [sortedTasks, selectedIdx]);
 
   async function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "done" ? "todo" : "done";
@@ -291,7 +321,13 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     setDraftTitle("");
   }
 
-  const commentTask = tasks.find((t) => t.id === commentTaskId) ?? null;
+  const commentTask = sortedTasks.find((t) => t.id === commentTaskId) ?? null;
+
+  function pickSort(next: TaskSortKey) {
+    setSortKey(next);
+    saveTaskSort(next);
+    setSortMenuOpen(false);
+  }
 
   return (
     <div className="flex h-full">
@@ -301,12 +337,21 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
           <span className="font-mono text-xs text-text-3">{tasks.length}</span>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
-        >
-          <Plus className="h-3 w-3" /> New task <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
-        </button>
+        <div className="flex items-center gap-2">
+          <SortMenu
+            open={sortMenuOpen}
+            onOpenChange={setSortMenuOpen}
+            value={sortKey}
+            onChange={pickSort}
+          />
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+          >
+            <Plus className="h-3 w-3" /> New task{" "}
+            <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -318,11 +363,11 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <SkeletonList />
-        ) : tasks.length === 0 && !creating ? (
+        ) : sortedTasks.length === 0 && !creating ? (
           <Empty onCreate={() => setCreating(true)} />
         ) : (
           <ul className="divide-y divide-border">
-            {tasks.map((t, i) => (
+            {sortedTasks.map((t, i) => (
               <TaskRow
                 key={t.id}
                 task={t}
@@ -512,28 +557,65 @@ function Empty({ onCreate }: { onCreate: () => void }) {
   );
 }
 
-/**
- * Stable sort mirroring the server's ORDER BY (status → priority → due →
- * created). Realtime inserts can arrive in any order; sorting client-side
- * keeps the visible list stable.
- */
-function sortTasks(tasks: Task[]): Task[] {
-  const rank: Record<TaskStatus, number> = {
-    todo: 0,
-    in_progress: 1,
-    review: 2,
-    blocked: 3,
-    done: 4,
-  };
-  return [...tasks].sort((a, b) => {
-    const s = rank[a.status] - rank[b.status];
-    if (s !== 0) return s;
-    const p = a.priority - b.priority;
-    if (p !== 0) return p;
-    const da = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
-    const db = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY;
-    if (da !== db) return da - db;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
-}
+function SortMenu({
+  open,
+  onOpenChange,
+  value,
+  onChange,
+}: {
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+  value: TaskSortKey;
+  onChange: (next: TaskSortKey) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        onOpenChange(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open, onOpenChange]);
 
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => onOpenChange(!open)}
+        className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <ArrowDownUp className="h-3 w-3" />
+        <span className="hidden sm:inline">Sort:</span>
+        <span>{TASK_SORT_LABELS[value]}</span>
+        <ChevronDown className="h-3 w-3" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 z-20 mt-1 w-48 rounded border border-border bg-bg-1 py-1 shadow-lg"
+        >
+          {TASK_SORT_KEYS.map((k) => (
+            <button
+              key={k}
+              role="menuitemradio"
+              aria-checked={value === k}
+              onClick={() => onChange(k)}
+              className={cn(
+                "flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-bg-2",
+                value === k ? "text-text-0" : "text-text-2",
+              )}
+            >
+              <span>{TASK_SORT_LABELS[k]}</span>
+              {value === k ? (
+                <Check className="h-3 w-3 text-accent" aria-hidden="true" />
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}

@@ -33,7 +33,7 @@ async function handleGet(request: NextRequest, { params }: Props) {
   let query = supabase
     .from("tasks")
     .select(
-      "id, ticker_seq, title, description, status, priority, due_date, labels, created_at, updated_at, completed_at",
+      "id, ticker_seq, title, description, status, priority, due_date, labels, position, created_at, updated_at, completed_at",
     )
     .eq("terminal_id", project.id);
 
@@ -56,6 +56,7 @@ async function handleGet(request: NextRequest, { params }: Props) {
     priority: number;
     due_date: string | null;
     labels: string[] | null;
+    position: number | null;
     created_at: string;
     updated_at: string;
     completed_at: string | null;
