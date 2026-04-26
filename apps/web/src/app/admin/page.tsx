@@ -155,47 +155,11 @@ export default async function AdminOverviewPage() {
   const scannedAt = (lastScanned as { uploaded_at: string }[] | null)?.[0]
     ?.uploaded_at;
 
-  const health = [
-    { label: "Database", ok: true, detail: "responding" },
-    { label: "Realtime", ok: true, detail: "subscribed" },
-    {
-      label: "Indexer",
-      ok: indexedAt ? Date.now() - new Date(indexedAt).getTime() < 24 * 3600_000 : true,
-      detail: indexedAt
-        ? `last ${relativeTime(indexedAt)}`
-        : "never (no files indexed yet)",
-    },
-    {
-      label: "Scanner",
-      ok: scannedAt ? Date.now() - new Date(scannedAt).getTime() < 24 * 3600_000 : true,
-      detail: scannedAt
-        ? `last ${relativeTime(scannedAt)}`
-        : "never (no files scanned yet)",
-    },
-  ];
-
   return (
     <div className="flex flex-col gap-5">
-      {/* Health */}
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-        {health.map((h) => (
-          <div
-            key={h.label}
-            className="flex items-center gap-2 rounded border border-border bg-bg-1 px-3 py-2"
-          >
-            <span
-              className={`h-2 w-2 flex-shrink-0 rounded-full ${
-                h.ok ? "bg-success" : "bg-warning"
-              }`}
-              aria-hidden="true"
-            />
-            <span className="text-xs text-text-1">{h.label}</span>
-            <span className="ml-auto truncate text-[10px] text-text-3">
-              {h.detail}
-            </span>
-          </div>
-        ))}
-      </div>
+      {/* Health strip removed — user feedback "no need for this information".
+          Same data still surfaces on the dedicated /admin/health page and in
+          the System panel on the right column below. */}
 
       <header>
         <h1 className="font-display text-3xl text-text-0">Operator console</h1>

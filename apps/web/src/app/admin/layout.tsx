@@ -66,13 +66,6 @@ export default async function AdminLayout({
           Platform admin
         </span>
       </TopBar>
-      <div
-        role="banner"
-        aria-label="You are in the platform admin console"
-        className="border-b border-accent/30 bg-accent-subtle/40 px-4 py-1 text-center text-[10px] font-semibold uppercase tracking-[0.2em] text-accent"
-      >
-        Platform admin · all actions audited
-      </div>
       <div className="mx-auto flex w-full max-w-7xl flex-1">
         <aside className="sticky top-0 hidden w-52 flex-shrink-0 border-r border-border bg-bg-1 md:block">
           <nav
