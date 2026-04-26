@@ -71,6 +71,14 @@ export function AdminToolsClient() {
   }
 
   async function moderate(slug: string, status: Row["moderation_status"]) {
+    if (status === "disabled") {
+      if (
+        !confirm(
+          `Disable "${slug}"? Existing invocations are blocked immediately and the tool stops appearing in the marketplace. You can re-approve it later.`,
+        )
+      )
+        return;
+    }
     setBusy(slug);
     try {
       const r = await fetch(
