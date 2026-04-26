@@ -47,7 +47,14 @@ ALTER TABLE tasks
       setweight(to_tsvector('english', coalesce(title, '')), 'A')
       || setweight(to_tsvector('english', coalesce(description, '')), 'B')
       || setweight(
-           to_tsvector('english', array_to_string(coalesce(labels, '{}'), ' ')),
+           -- ARRAY[]::text[] is the explicit-cast form. coalesce(labels, '{}')
+           -- works at runtime but Postgres treats the implicit text→text[]
+           -- cast as STABLE, which kills the generated-column IMMUTABILITY
+           -- check. Casting at parse time keeps the whole expression IMMUTABLE.
+           to_tsvector(
+             'english',
+             array_to_string(coalesce(labels, ARRAY[]::text[]), ' ')
+           ),
            'C')
     ) STORED;
 
