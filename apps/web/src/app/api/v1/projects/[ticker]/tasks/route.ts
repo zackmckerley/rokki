@@ -32,18 +32,94 @@ async function handleGet(request: NextRequest, { params }: Props) {
 
   let query = supabase
     .from("tasks")
-    .select("id, ticker_seq, title, description, status, priority, due_date, labels, created_at, completed_at")
+    .select(
+      "id, ticker_seq, title, description, status, priority, due_date, labels, created_at, updated_at, completed_at",
+    )
     .eq("terminal_id", project.id);
 
   if (status) query = query.eq("status", status);
 
-  const { data, error } = await query
+  const { data: taskRows, error } = await query
     .order("completed_at", { ascending: true, nullsFirst: true })
     .order("priority", { ascending: true })
     .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   if (error) return internal(error.message);
+
+  type TaskRow = {
+    id: string;
+    ticker_seq: number;
+    title: string;
+    description: string | null;
+    status: string;
+    priority: number;
+    due_date: string | null;
+    labels: string[] | null;
+    created_at: string;
+    updated_at: string;
+    completed_at: string | null;
+  };
+  const tasks = (taskRows ?? []) as TaskRow[];
+  const taskIds = tasks.map((t) => t.id);
+
+  // Aggregate subtask completion + assignees in a single follow-up pass each.
+  // Two extra round-trips beat N+1 from joins; volumes here are O(few hundred).
+  let subtaskTotals = new Map<string, { total: number; done: number }>();
+  let assigneesByTask = new Map<
+    string,
+    { user_id: string; full_name: string | null }[]
+  >();
+
+  if (taskIds.length > 0) {
+    const { data: subtaskRows } = await supabase
+      .from("subtasks")
+      .select("task_id, done")
+      .in("task_id", taskIds);
+    type SubRow = { task_id: string; done: boolean };
+    for (const r of (subtaskRows ?? []) as SubRow[]) {
+      const acc = subtaskTotals.get(r.task_id) ?? { total: 0, done: 0 };
+      acc.total += 1;
+      if (r.done) acc.done += 1;
+      subtaskTotals.set(r.task_id, acc);
+    }
+
+    const { data: assigneeRows } = await supabase
+      .from("task_assignees")
+      .select("task_id, user_id")
+      .in("task_id", taskIds);
+    type ARow = { task_id: string; user_id: string };
+    const assigneeUserIds = Array.from(
+      new Set(((assigneeRows ?? []) as ARow[]).map((r) => r.user_id)),
+    );
+    let nameById = new Map<string, string | null>();
+    if (assigneeUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", assigneeUserIds);
+      type PRow = { user_id: string; full_name: string | null };
+      for (const p of (profiles ?? []) as PRow[]) {
+        nameById.set(p.user_id, p.full_name);
+      }
+    }
+    for (const r of (assigneeRows ?? []) as ARow[]) {
+      const list = assigneesByTask.get(r.task_id) ?? [];
+      list.push({
+        user_id: r.user_id,
+        full_name: nameById.get(r.user_id) ?? null,
+      });
+      assigneesByTask.set(r.task_id, list);
+    }
+  }
+
+  const data = tasks.map((t) => ({
+    ...t,
+    subtask_total: subtaskTotals.get(t.id)?.total ?? 0,
+    subtask_done: subtaskTotals.get(t.id)?.done ?? 0,
+    assignees: assigneesByTask.get(t.id) ?? [],
+  }));
+
   return NextResponse.json({ data });
 }
 

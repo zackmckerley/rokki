@@ -2,27 +2,30 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, Circle, MessageSquare, Maximize2, ListTodo } from "lucide-react";
+import {
+  Plus,
+  Check,
+  Circle,
+  MessageSquare,
+  Maximize2,
+  ListChecks,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EmptyState } from "./EmptyState";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { CommentThread } from "./CommentThread";
-import { MergeTaskDialog } from "./MergeTaskDialog";
-import { HelpTip } from "./HelpTip";
 import {
   PriorityDots,
   StatusPill,
   DueChip,
+  Avatar,
 } from "./primitives";
-import {
-  getDragPayload,
-  hasDragKind,
-  setDragPayload,
-  subscribeActiveDragKind,
-  type RokkiDragKind,
-} from "@/lib/drag-drop";
 import type { TaskStatus } from "@rokki/db";
+
+interface Assignee {
+  user_id: string;
+  full_name: string | null;
+}
 
 interface Task {
   id: string;
@@ -35,6 +38,11 @@ interface Task {
   labels: string[];
   created_at: string;
   completed_at: string | null;
+  /** New: server-aggregated subtask completion. */
+  subtask_total: number;
+  subtask_done: number;
+  /** New: assignees with display names for the row preview. */
+  assignees: Assignee[];
 }
 
 interface TasksPaneProps {
@@ -69,17 +77,6 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   const [submitting, setSubmitting] = useState(false);
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
-  /** ID of the task being dragged within this pane (for merge). */
-  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
-  /** ID of the task currently underneath a drag (any kind). */
-  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
-  /** Pair queued for the merge dialog. Source is being dropped onto target. */
-  const [mergePair, setMergePair] = useState<{
-    source: { id: string; title: string };
-    target: { id: string; title: string };
-  } | null>(null);
-  /** Toast text shown briefly after a drop succeeds. */
-  const [dropToast, setDropToast] = useState<string | null>(null);
   const createRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -174,17 +171,19 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   );
   useRegisterCommands(`tasks:${projectId}`, paletteCommands);
 
-  useRealtimeTable<Task>(
+  // Realtime payloads carry the raw tasks row, not the enriched view (no
+  // subtask aggregates / assignees). Inserts trigger a refetch so the new
+  // row gets the same shape; updates patch in place because the visible
+  // fields here are all on the row itself.
+  type TaskRowRT = Partial<Task> & { id: string };
+  useRealtimeTable<TaskRowRT>(
     {
       table: "tasks",
       filter: `terminal_id=eq.${projectId}`,
       channelKey: `tasks:${projectId}`,
     },
     {
-      onInsert: (row) =>
-        setTasks((prev) =>
-          prev.some((t) => t.id === row.id) ? prev : sortTasks([row, ...prev]),
-        ),
+      onInsert: () => void load(),
       onUpdate: (row) =>
         setTasks((prev) =>
           sortTasks(prev.map((t) => (t.id === row.id ? { ...t, ...row } : t))),
@@ -264,106 +263,6 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     }
   }
 
-  /** Show a transient toast above the task list. */
-  const flashToast = useCallback((msg: string) => {
-    setDropToast(msg);
-    window.setTimeout(() => setDropToast(null), 2200);
-  }, []);
-
-  /**
-   * Attach a file (already uploaded into this terminal) to a task. Posts
-   * to /api/v1/tasks/:id/files; does NOT optimistically mutate task state
-   * — the visible task row doesn't display attachments yet, so the toast
-   * is the only feedback path.
-   */
-  const attachFileToTask = useCallback(
-    async (taskId: string, fileId: string, taskTitle: string) => {
-      try {
-        const r = await fetch(`/api/v1/tasks/${taskId}/files`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_id: fileId }),
-          credentials: "include",
-        });
-        if (!r.ok && r.status !== 204) {
-          const body = (await r.json().catch(() => ({}))) as {
-            errors?: { message: string }[];
-          };
-          setError(body.errors?.[0]?.message ?? "Could not attach file");
-          return;
-        }
-        flashToast(`Attached file to ${taskTitle}`);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Network error");
-      }
-    },
-    [flashToast],
-  );
-
-  /**
-   * Assign a member (dragged from TeamPane) to a task. POST is idempotent
-   * — the API returns 204 even if the user is already an assignee.
-   */
-  const assignUserToTask = useCallback(
-    async (taskId: string, userId: string, taskTitle: string) => {
-      try {
-        const r = await fetch(`/api/v1/tasks/${taskId}/assignees`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-          credentials: "include",
-        });
-        if (!r.ok && r.status !== 204) {
-          const body = (await r.json().catch(() => ({}))) as {
-            errors?: { message: string }[];
-          };
-          setError(body.errors?.[0]?.message ?? "Could not assign");
-          return;
-        }
-        const assignee =
-          mentionables.find((m) => m.user_id === userId)?.full_name ?? "user";
-        flashToast(`Assigned ${assignee} to ${taskTitle}`);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Network error");
-      }
-    },
-    [flashToast, mentionables],
-  );
-
-  /**
-   * Resolve a drop on a task row. Sniffs the dataTransfer for our MIME
-   * types in priority order: file > user > task. The task case opens
-   * the merge dialog; file and user POST directly.
-   */
-  const handleTaskRowDrop = useCallback(
-    (target: Task, dt: DataTransfer) => {
-      // 1. file → attach
-      const fileId = getDragPayload(dt, "file");
-      if (fileId) {
-        void attachFileToTask(target.id, fileId, target.title);
-        return;
-      }
-      // 2. user → assign
-      const userId = getDragPayload(dt, "user");
-      if (userId) {
-        void assignUserToTask(target.id, userId, target.title);
-        return;
-      }
-      // 3. task → merge dialog (skip self-drops)
-      const sourceId = getDragPayload(dt, "task");
-      if (sourceId && sourceId !== target.id) {
-        const source = tasks.find((t) => t.id === sourceId);
-        if (source) {
-          setMergePair({
-            source: { id: source.id, title: source.title },
-            target: { id: target.id, title: target.title },
-          });
-        }
-      }
-    },
-    [attachFileToTask, assignUserToTask, tasks],
-  );
-
   async function createTask(e?: React.FormEvent) {
     e?.preventDefault();
     if (!draftTitle.trim() || submitting) return;
@@ -396,21 +295,10 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
 
   return (
     <div className="flex h-full">
-      <div className="relative flex h-full flex-1 flex-col">
-      {dropToast ? (
-        <div
-          className="pointer-events-none absolute inset-x-0 top-2 z-20 mx-auto w-fit rounded-sm border border-accent/40 bg-accent-subtle px-3 py-1 text-xs font-medium text-accent shadow-sm"
-          role="status"
-          aria-live="polite"
-        >
-          {dropToast}
-        </div>
-      ) : null}
+      <div className="flex h-full flex-1 flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <HelpTip term="task-attach-files">
-            <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
-          </HelpTip>
+          <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
           <span className="font-mono text-xs text-text-3">{tasks.length}</span>
         </div>
         <button
@@ -440,26 +328,11 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
                 task={t}
                 ticker={ticker}
                 selected={i === selectedIdx}
-                isDragging={draggingTaskId === t.id}
-                isDropTarget={hoveredTaskId === t.id && draggingTaskId !== t.id}
                 onClick={() => setSelectedIdx(i)}
                 onToggle={() => toggleComplete(t)}
                 onOpenComments={() =>
                   setCommentTaskId((prev) => (prev === t.id ? null : t.id))
                 }
-                onDragStartTask={() => setDraggingTaskId(t.id)}
-                onDragEndTask={() => {
-                  setDraggingTaskId(null);
-                  setHoveredTaskId(null);
-                }}
-                onDragEnterRow={() => setHoveredTaskId(t.id)}
-                onDragLeaveRow={() => {
-                  setHoveredTaskId((prev) => (prev === t.id ? null : prev));
-                }}
-                onDropOnRow={(dt) => {
-                  setHoveredTaskId(null);
-                  handleTaskRowDrop(t, dt);
-                }}
               />
             ))}
           </ul>
@@ -506,21 +379,6 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           />
         </div>
       ) : null}
-      {mergePair ? (
-        <MergeTaskDialog
-          open={Boolean(mergePair)}
-          onClose={() => setMergePair(null)}
-          source={mergePair.source}
-          target={mergePair.target}
-          onMerged={(targetId) => {
-            const targetTitle =
-              tasks.find((t) => t.id === targetId)?.title ?? "task";
-            flashToast(`Merged into ${targetTitle}`);
-            setMergePair(null);
-            void load();
-          }}
-        />
-      ) : null}
     </div>
   );
 }
@@ -529,94 +387,28 @@ function TaskRow({
   task,
   ticker,
   selected,
-  isDragging,
-  isDropTarget,
   onClick,
   onToggle,
   onOpenComments,
-  onDragStartTask,
-  onDragEndTask,
-  onDragEnterRow,
-  onDragLeaveRow,
-  onDropOnRow,
 }: {
   task: Task;
   ticker: string;
   selected: boolean;
-  isDragging: boolean;
-  isDropTarget: boolean;
   onClick: () => void;
   onToggle: () => void;
   onOpenComments: () => void;
-  onDragStartTask: () => void;
-  onDragEndTask: () => void;
-  onDragEnterRow: () => void;
-  onDragLeaveRow: () => void;
-  onDropOnRow: (dt: DataTransfer) => void;
 }) {
   const done = task.status === "done";
 
-  // Caption shown above the drop ring while a drag is over this row,
-  // chosen by sniffing which kind we're carrying. dragenter doesn't expose
-  // payload values (browser security model), but `types` is available.
-  const dropCaption = useDropCaption(isDropTarget);
-
   return (
     <li
-      draggable
-      onDragStart={(e) => {
-        setDragPayload(e.dataTransfer, "task", task.id, task.title);
-        onDragStartTask();
-      }}
-      onDragEnd={onDragEndTask}
-      onDragEnter={(e) => {
-        if (
-          hasDragKind(e.dataTransfer, "file") ||
-          hasDragKind(e.dataTransfer, "user") ||
-          hasDragKind(e.dataTransfer, "task")
-        ) {
-          e.preventDefault();
-          onDragEnterRow();
-        }
-      }}
-      onDragOver={(e) => {
-        if (
-          hasDragKind(e.dataTransfer, "file") ||
-          hasDragKind(e.dataTransfer, "user") ||
-          hasDragKind(e.dataTransfer, "task")
-        ) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = hasDragKind(e.dataTransfer, "user")
-            ? "link"
-            : "move";
-        }
-      }}
-      onDragLeave={(e) => {
-        if (e.currentTarget === e.target) onDragLeaveRow();
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onDropOnRow(e.dataTransfer);
-      }}
       onClick={onClick}
       className={cn(
-        "group relative flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors",
+        "group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors",
         selected ? "bg-bg-2" : "hover:bg-bg-2",
         selected && "border-l-2 border-l-border-focus pl-[14px]",
-        isDragging && "opacity-50",
-        isDropTarget &&
-          "ring-1 ring-inset ring-warning/70 bg-warning-subtle/40",
       )}
     >
-      {dropCaption ? (
-        <span
-          className="pointer-events-none absolute -top-2 left-3 z-10 rounded-sm border border-warning/40 bg-bg-1 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-warning"
-          aria-hidden="true"
-        >
-          {dropCaption}
-        </span>
-      ) : null}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -640,6 +432,32 @@ function TaskRow({
       >
         {task.title}
       </span>
+      {task.subtask_total > 0 ? (
+        <span
+          className="flex flex-shrink-0 items-center gap-1 font-mono text-[10px] text-text-3"
+          title={`${task.subtask_done} of ${task.subtask_total} subtasks done`}
+        >
+          <ListChecks className="h-3 w-3" aria-hidden="true" />
+          {task.subtask_done}/{task.subtask_total}
+        </span>
+      ) : null}
+      {task.assignees[0] ? (
+        <span
+          className="flex flex-shrink-0 items-center gap-1 text-[10px] text-text-3"
+          title={
+            task.assignees.length === 1
+              ? (task.assignees[0]!.full_name ?? "someone")
+              : `${task.assignees[0]!.full_name ?? "someone"} +${
+                  task.assignees.length - 1
+                }`
+          }
+        >
+          <Avatar name={task.assignees[0]!.full_name} size="xs" />
+          {task.assignees.length > 1 ? (
+            <span className="font-mono">+{task.assignees.length - 1}</span>
+          ) : null}
+        </span>
+      ) : null}
       <Link
         href={`/p/${ticker}/task/${task.ticker_seq}`}
         onClick={(e) => e.stopPropagation()}
@@ -681,38 +499,17 @@ function SkeletonList() {
 
 function Empty({ onCreate }: { onCreate: () => void }) {
   return (
-    <EmptyState
-      icon={ListTodo}
-      title="No tasks yet."
-      body="Tasks track work in this terminal — assignees, due dates, status."
-      action={{
-        label: "+ New task",
-        onClick: onCreate,
-        variant: "accent",
-        shortcut: "C",
-      }}
-      className="p-10"
-    />
+    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+      <p className="text-sm text-text-2">No tasks yet.</p>
+      <button
+        onClick={onCreate}
+        className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
+      >
+        Create first task
+      </button>
+      <p className="font-mono text-xs text-text-3">or press C</p>
+    </div>
   );
-}
-
-/**
- * Pull the active drag kind from the global tracker and translate it to
- * a tiny caption shown above a hovered task row. Returns null when no
- * drag is in flight or when the row isn't actually a drop target.
- */
-function useDropCaption(active: boolean): string | null {
-  const [kind, setKind] = useState<RokkiDragKind | null>(null);
-  useEffect(() => subscribeActiveDragKind(setKind), []);
-  if (!active || !kind) return null;
-  switch (kind) {
-    case "file":
-      return "Attach file to task";
-    case "user":
-      return "Assign member";
-    case "task":
-      return "Merge into this task";
-  }
 }
 
 /**
