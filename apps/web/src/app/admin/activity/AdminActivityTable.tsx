@@ -8,6 +8,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { CopyableId } from "@/components/CopyableId";
 import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 export interface ActivityRow {
@@ -110,21 +111,34 @@ export function AdminActivityTable({ rows }: { rows: ActivityRow[] }) {
                 {r.action}
               </AdminTd>
               <AdminTd className="text-xs text-text-2 py-1.5">
-                {r.entity_type ?? "—"}
-                {r.entity_id ? (
-                  <span className="ml-1 font-mono text-[10px] text-text-3">
-                    {r.entity_id.slice(0, 8)}
-                  </span>
-                ) : null}
+                <span className="inline-flex items-center gap-1">
+                  <span>{r.entity_type ?? "—"}</span>
+                  {r.entity_id ? (
+                    <CopyableId
+                      value={r.entity_id}
+                      label="entity id"
+                      truncate={8}
+                      className="text-[10px]"
+                    />
+                  ) : null}
+                </span>
               </AdminTd>
               <AdminTd className="font-mono text-[10px] text-text-3 py-1.5">
                 {r.actor_id ? (
-                  <Link
-                    href={`/admin/users/${r.actor_id}`}
-                    className="hover:text-accent"
-                  >
-                    {r.actor_id.slice(0, 8)}
-                  </Link>
+                  <span className="inline-flex items-center gap-1">
+                    <Link
+                      href={`/admin/users/${r.actor_id}`}
+                      className="hover:text-accent"
+                    >
+                      {r.actor_id.slice(0, 8)}
+                    </Link>
+                    <CopyableId
+                      value={r.actor_id}
+                      label="actor id"
+                      display=""
+                      className="px-0.5 text-[10px]"
+                    />
+                  </span>
                 ) : (
                   "system"
                 )}

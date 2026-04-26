@@ -14,6 +14,7 @@ import {
   AdminTh,
 } from "@/components/admin/primitives";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CopyableId } from "@/components/CopyableId";
 
 type TerminalStatus = "planning" | "active" | "blocked" | "done" | "archived";
 
@@ -196,12 +197,20 @@ export function AdminTerminalDetail({
               {data.members.map((m) => (
                 <tr key={m.user_id}>
                   <AdminTd mono>
-                    <Link
-                      href={`/admin/users/${m.user_id}`}
-                      className="text-text-0 hover:text-accent"
-                    >
-                      {m.email}
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/admin/users/${m.user_id}`}
+                        className="text-text-0 hover:text-accent"
+                      >
+                        {m.email}
+                      </Link>
+                      <CopyableId
+                        value={m.email}
+                        label="email"
+                        display=""
+                        className="px-0.5"
+                      />
+                    </div>
                   </AdminTd>
                   <AdminTd>{m.full_name ?? "—"}</AdminTd>
                   <AdminTd>

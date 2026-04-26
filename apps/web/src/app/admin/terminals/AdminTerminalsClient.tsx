@@ -9,6 +9,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { CopyableId } from "@/components/CopyableId";
 import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 export interface TerminalRow {
@@ -96,12 +97,20 @@ export function AdminTerminalsClient({ rows }: { rows: TerminalRow[] }) {
           {sorted.map((t) => (
             <tr key={t.id} className="hover:bg-bg-2">
               <AdminTd mono className="text-accent">
-                <Link
-                  href={`/admin/terminals/${t.ticker}`}
-                  className="hover:underline"
-                >
-                  {t.ticker}
-                </Link>
+                <div className="flex items-center gap-1">
+                  <Link
+                    href={`/admin/terminals/${t.ticker}`}
+                    className="hover:underline"
+                  >
+                    {t.ticker}
+                  </Link>
+                  <CopyableId
+                    value={t.ticker}
+                    label="ticker"
+                    display=""
+                    className="px-0.5"
+                  />
+                </div>
               </AdminTd>
               <AdminTd>
                 <Link

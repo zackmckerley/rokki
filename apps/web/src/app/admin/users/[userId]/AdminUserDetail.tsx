@@ -28,6 +28,7 @@ import {
   AdminEmpty,
 } from "@/components/admin/primitives";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { CopyableId } from "@/components/CopyableId";
 import { SpacePicker, type PickedSpace } from "@/components/admin/SpacePicker";
 import { cn } from "@/lib/utils";
 
@@ -755,7 +756,21 @@ function MembershipsTab({
               {data.space_memberships.map((m) => (
                 <tr key={m.space_id}>
                   <AdminTd>{m.spaces?.name ?? m.space_id.slice(0, 8)}</AdminTd>
-                  <AdminTd mono>{m.spaces?.slug ?? "—"}</AdminTd>
+                  <AdminTd mono>
+                    {m.spaces?.slug ? (
+                      <CopyableId
+                        value={m.spaces.slug}
+                        label="slug"
+                        prefix="/"
+                      />
+                    ) : (
+                      <CopyableId
+                        value={m.space_id}
+                        label="space id"
+                        truncate={8}
+                      />
+                    )}
+                  </AdminTd>
                   <AdminTd>
                     <AdminBadge>{m.role}</AdminBadge>
                   </AdminTd>
@@ -802,7 +817,16 @@ function MembershipsTab({
             <tbody className="divide-y divide-border">
               {data.terminal_memberships.map((tm) => (
                 <tr key={tm.terminal_id}>
-                  <AdminTd mono>{tm.terminals?.ticker ?? "—"}</AdminTd>
+                  <AdminTd mono>
+                    {tm.terminals?.ticker ? (
+                      <CopyableId
+                        value={tm.terminals.ticker}
+                        label="ticker"
+                      />
+                    ) : (
+                      "—"
+                    )}
+                  </AdminTd>
                   <AdminTd>{tm.terminals?.name ?? "—"}</AdminTd>
                   <AdminTd>
                     <AdminBadge>{tm.role}</AdminBadge>
@@ -846,7 +870,13 @@ function TokensTab({ data }: { data: AdminUserDetailData }) {
           {data.tokens.map((t) => (
             <tr key={t.id}>
               <AdminTd>{t.name}</AdminTd>
-              <AdminTd mono>{t.token_prefix}…</AdminTd>
+              <AdminTd mono>
+                <CopyableId
+                  value={t.id}
+                  label="token id"
+                  display={`${t.token_prefix}…`}
+                />
+              </AdminTd>
               <AdminTd mono>{(t.scopes ?? []).join(", ")}</AdminTd>
               <AdminTd>
                 <span className="text-xs text-text-3">

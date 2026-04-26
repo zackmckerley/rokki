@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Search } from "lucide-react";
 import {
   AdminBadge,
-  AdminCopyButton,
   AdminEmpty,
   AdminFilterInput,
   AdminPanel,
@@ -13,6 +12,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { CopyableId } from "@/components/CopyableId";
 import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
@@ -214,12 +214,20 @@ export function AdminUsersClient() {
               {sorted.map((u) => (
                 <tr key={u.user_id} className="hover:bg-bg-2">
                   <AdminTd mono>
-                    <Link
-                      href={`/admin/users/${u.user_id}`}
-                      className="text-text-0 hover:text-accent"
-                    >
-                      {u.email}
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link
+                        href={`/admin/users/${u.user_id}`}
+                        className="text-text-0 hover:text-accent"
+                      >
+                        {u.email}
+                      </Link>
+                      <CopyableId
+                        value={u.email}
+                        label="email"
+                        display=""
+                        className="px-0.5"
+                      />
+                    </div>
                   </AdminTd>
                   <AdminTd>{u.full_name ?? "—"}</AdminTd>
                   <AdminTd>{u.timezone ?? "—"}</AdminTd>
@@ -243,12 +251,7 @@ export function AdminUsersClient() {
                     </div>
                   </AdminTd>
                   <AdminTd>
-                    <div className="flex items-center gap-1 text-[10px] text-text-3">
-                      <span className="font-mono">
-                        {u.user_id.slice(0, 8)}
-                      </span>
-                      <AdminCopyButton value={u.user_id} />
-                    </div>
+                    <CopyableId value={u.user_id} label="user id" truncate={8} />
                   </AdminTd>
                 </tr>
               ))}

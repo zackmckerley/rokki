@@ -12,6 +12,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { CopyableId } from "@/components/CopyableId";
 import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
@@ -183,7 +184,9 @@ export function AdminSpacesClient() {
                       {s.name}
                     </Link>
                   </AdminTd>
-                  <AdminTd mono>/{s.slug}</AdminTd>
+                  <AdminTd mono>
+                    <CopyableId value={s.slug} label="slug" prefix="/" />
+                  </AdminTd>
                   <AdminTd>
                     {s.archived_at ? (
                       <AdminBadge variant="warning">archived</AdminBadge>

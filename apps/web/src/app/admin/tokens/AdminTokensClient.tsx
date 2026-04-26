@@ -13,6 +13,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { CopyableId } from "@/components/CopyableId";
 import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
@@ -226,14 +227,28 @@ export function AdminTokensClient() {
                   <tr key={t.id}>
                     <AdminTd>{t.name}</AdminTd>
                     <AdminTd mono>
-                      <Link
-                        href={`/admin/users/${t.user_id}`}
-                        className="text-text-1 hover:text-accent"
-                      >
-                        {t.email || t.user_id.slice(0, 8)}
-                      </Link>
+                      <div className="flex items-center gap-1">
+                        <Link
+                          href={`/admin/users/${t.user_id}`}
+                          className="text-text-1 hover:text-accent"
+                        >
+                          {t.email || t.user_id.slice(0, 8)}
+                        </Link>
+                        <CopyableId
+                          value={t.email || t.user_id}
+                          label={t.email ? "email" : "user id"}
+                          display=""
+                          className="px-0.5"
+                        />
+                      </div>
                     </AdminTd>
-                    <AdminTd mono>{t.token_prefix}…</AdminTd>
+                    <AdminTd mono>
+                      <CopyableId
+                        value={t.id}
+                        label="token id"
+                        display={`${t.token_prefix}…`}
+                      />
+                    </AdminTd>
                     <AdminTd mono>{(t.scopes ?? []).join(", ")}</AdminTd>
                     <AdminTd>
                       <span className="text-xs text-text-3">

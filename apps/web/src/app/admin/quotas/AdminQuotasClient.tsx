@@ -14,6 +14,7 @@ import {
   AdminTh,
 } from "@/components/admin/primitives";
 import { UserPicker, type PickedUser } from "@/components/admin/UserPicker";
+import { CopyableId } from "@/components/CopyableId";
 import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Quota {
@@ -224,22 +225,33 @@ export function AdminQuotasClient() {
                         <span className="text-text-3">unknown</span>
                       )}
                       {q.tool?.slug ? (
-                        <span className="ml-1 font-mono text-[10px] text-text-3">
-                          {q.tool.slug}
-                        </span>
+                        <CopyableId
+                          value={q.tool.slug}
+                          label="slug"
+                          className="ml-1 text-[10px]"
+                        />
                       ) : null}
                     </AdminTd>
                     <AdminTd mono>
-                      {q.subject_type === "user" ? (
-                        <Link
-                          href={`/admin/users/${q.subject_id}`}
-                          className="text-text-1 hover:text-accent"
-                        >
-                          {q.subject_type}: {q.subject_id.slice(0, 8)}
-                        </Link>
-                      ) : (
-                        `${q.subject_type}: ${q.subject_id.slice(0, 8)}`
-                      )}
+                      <span className="inline-flex items-center gap-1">
+                        <span className="text-text-3">{q.subject_type}:</span>
+                        {q.subject_type === "user" ? (
+                          <Link
+                            href={`/admin/users/${q.subject_id}`}
+                            className="text-text-1 hover:text-accent"
+                          >
+                            {q.subject_id.slice(0, 8)}
+                          </Link>
+                        ) : (
+                          <span>{q.subject_id.slice(0, 8)}</span>
+                        )}
+                        <CopyableId
+                          value={q.subject_id}
+                          label={`${q.subject_type} id`}
+                          display=""
+                          className="px-0.5"
+                        />
+                      </span>
                     </AdminTd>
                     <AdminTd>
                       <AdminBadge>{q.period}</AdminBadge>
@@ -333,17 +345,27 @@ function NearCapPanel() {
           {rows.map((r) => (
             <tr key={r.id}>
               <AdminTd mono>
-                {r.subject_type === "user" ? (
-                  <Link
-                    href={`/admin/users/${r.subject_id}`}
-                    className="text-text-1 hover:text-accent"
-                  >
-                    {r.subject_email ?? `user:${r.subject_id.slice(0, 8)}`}
-                  </Link>
-                ) : (
-                  (r.subject_email ??
-                    `${r.subject_type}:${r.subject_id.slice(0, 8)}`)
-                )}
+                <span className="inline-flex items-center gap-1">
+                  {r.subject_type === "user" ? (
+                    <Link
+                      href={`/admin/users/${r.subject_id}`}
+                      className="text-text-1 hover:text-accent"
+                    >
+                      {r.subject_email ?? `user:${r.subject_id.slice(0, 8)}`}
+                    </Link>
+                  ) : (
+                    <span>
+                      {r.subject_email ??
+                        `${r.subject_type}:${r.subject_id.slice(0, 8)}`}
+                    </span>
+                  )}
+                  <CopyableId
+                    value={r.subject_email || r.subject_id}
+                    label={r.subject_email ? "email" : `${r.subject_type} id`}
+                    display=""
+                    className="px-0.5"
+                  />
+                </span>
               </AdminTd>
               <AdminTd>
                 {r.tool?.name ?? <span className="text-text-3">unknown</span>}
