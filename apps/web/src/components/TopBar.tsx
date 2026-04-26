@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wordmark } from "./Wordmark";
+import { TopBarSearch } from "./TopBarSearch";
 
 interface TopBarProps {
   children?: React.ReactNode;
@@ -10,7 +11,8 @@ interface TopBarProps {
 
 /**
  * Top bar — §6.3 BUILD_SPEC and §08.5.4 UI design.
- * 44px tall, Rokki wordmark at left, slot for breadcrumb, ⌘K hint at right.
+ * 44px tall, Rokki wordmark at left, slot for breadcrumb, persistent
+ * search bar at right (clicks open the command palette).
  *
  * Account-related actions (multi-account ring, sign out, settings, density,
  * admin console toggle) live in the bottom-left ExplorerRail's AccountBlock
@@ -41,9 +43,7 @@ export function TopBar({ children }: TopBarProps) {
         {children}
       </div>
       <div className="flex items-center gap-2">
-        <kbd className="rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 font-mono text-xs text-text-2">
-          ⌘K
-        </kbd>
+        <TopBarSearch />
       </div>
     </header>
   );
