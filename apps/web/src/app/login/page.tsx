@@ -36,9 +36,15 @@ export default function LoginPage() {
         </Suspense>
 
         <p className="mt-5 border-t border-border pt-3 text-center text-[11px] leading-snug text-text-3">
-          Email: we send you a magic link.
-          <br />
-          Admins: use your username and password.
+          Sign in with the email or username your administrator
+          provisioned. Lost access?{" "}
+          <a
+            href="mailto:support@rokki.ai?subject=Lost%20access%20to%20Rokki"
+            className="text-text-2 underline-offset-2 hover:text-text-1 hover:underline"
+          >
+            Contact support
+          </a>
+          .
         </p>
       </div>
     </div>

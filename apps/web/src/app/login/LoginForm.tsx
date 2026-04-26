@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { cn } from "@/lib/utils";
+
+const LAST_IDENTIFIER_KEY = "rokki:last-login-identifier";
+const REMEMBER_KEY = "rokki:remember-me";
 
 /**
  * Login form. Closed system — accounts are created by platform admins
@@ -17,7 +22,8 @@ import { Input } from "@/components/ui/Input";
  *     endpoint maps to a pseudo-email.
  *
  * Both paths POST to /api/v1/auth/password-login. The endpoint
- * disambiguates by which field is present (email vs username).
+ * disambiguates by which field is present (email vs username) and
+ * honours the `remember` flag by clamping session-cookie lifetime.
  */
 export function LoginForm() {
   const router = useRouter();
@@ -27,12 +33,30 @@ export function LoginForm() {
 
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [state, setState] = useState<"idle" | "sending" | "error">(
     callbackError ? "error" : "idle",
   );
   const [errorMessage, setErrorMessage] = useState(
     callbackError ? humanizeAuthError(callbackError) : "",
   );
+
+  // Hydrate the saved identifier + remember preference on mount. We
+  // intentionally only ever save the identifier (email or username) —
+  // the password is the browser's own password-manager job and we don't
+  // want it living in localStorage.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(LAST_IDENTIFIER_KEY);
+      if (saved) setIdentifier(saved);
+      const rememberPref = window.localStorage.getItem(REMEMBER_KEY);
+      if (rememberPref === "0") setRemember(false);
+    } catch {
+      // localStorage can throw in private mode / strict CSP — fall through
+      // with default state.
+    }
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,8 +70,8 @@ export function LoginForm() {
     // pass it as `username` and let the server map it via its allow-list.
     const isEmail = id.includes("@");
     const body = isEmail
-      ? { email: id, password }
-      : { username: id, password };
+      ? { email: id, password, remember }
+      : { username: id, password, remember };
 
     const r = await fetch("/api/v1/auth/password-login", {
       method: "POST",
@@ -59,8 +83,20 @@ export function LoginForm() {
       setErrorMessage(await messageOf(r));
       return;
     }
-    // Session cookie is set on the response. Push to the intended
-    // destination and let the server components pick up the session.
+
+    // Persist the identifier + preference for next visit.
+    try {
+      if (remember) {
+        window.localStorage.setItem(LAST_IDENTIFIER_KEY, id);
+        window.localStorage.setItem(REMEMBER_KEY, "1");
+      } else {
+        window.localStorage.removeItem(LAST_IDENTIFIER_KEY);
+        window.localStorage.setItem(REMEMBER_KEY, "0");
+      }
+    } catch {
+      // ignore — non-fatal
+    }
+
     router.replace(redirectTo);
     router.refresh();
   }
@@ -77,17 +113,25 @@ export function LoginForm() {
         value={identifier}
         onChange={(e) => setIdentifier(e.target.value)}
       />
-      <Input
-        name="password"
-        type="password"
-        autoComplete="current-password"
-        required
-        placeholder="••••••••"
-        label="Password"
+
+      <PasswordField
         value={password}
-        onChange={(e) => setPassword(e.target.value)}
+        onChange={setPassword}
+        show={showPassword}
+        onToggleShow={() => setShowPassword((s) => !s)}
         error={state === "error" ? errorMessage : undefined}
       />
+
+      <label className="flex select-none items-center gap-2 pt-0.5 text-xs text-text-2">
+        <input
+          type="checkbox"
+          checked={remember}
+          onChange={(e) => setRemember(e.target.checked)}
+          className="h-3.5 w-3.5 cursor-pointer accent-accent"
+        />
+        <span>Keep me signed in on this device</span>
+      </label>
+
       <Button
         type="submit"
         variant="accent"
@@ -101,6 +145,64 @@ export function LoginForm() {
         Accounts are provisioned by your administrator. No self-signup.
       </p>
     </form>
+  );
+}
+
+/**
+ * Password input + show/hide eye toggle. Inline rather than added to the
+ * shared <Input> so we don't carry an end-adornment slot on every other
+ * input across the app for one screen's sake.
+ */
+function PasswordField({
+  value,
+  onChange,
+  show,
+  onToggleShow,
+  error,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  show: boolean;
+  onToggleShow: () => void;
+  error?: string;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label htmlFor="password" className="text-xs font-medium text-text-1">
+        Password
+      </label>
+      <div className="relative">
+        <input
+          id="password"
+          name="password"
+          type={show ? "text" : "password"}
+          autoComplete="current-password"
+          required
+          placeholder="••••••••"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={cn(
+            "h-9 w-full rounded border bg-bg-2 pl-3 pr-9 text-sm text-text-0 placeholder:text-text-3",
+            "focus:border-border-focus focus:outline-none",
+            error ? "border-danger" : "border-border",
+          )}
+        />
+        <button
+          type="button"
+          onClick={onToggleShow}
+          aria-label={show ? "Hide password" : "Show password"}
+          aria-pressed={show}
+          className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-text-3 hover:bg-bg-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-focus"
+        >
+          {show ? (
+            <EyeOff className="h-3.5 w-3.5" />
+          ) : (
+            <Eye className="h-3.5 w-3.5" />
+          )}
+        </button>
+      </div>
+      {error ? <span className="text-xs text-danger">{error}</span> : null}
+    </div>
   );
 }
 
