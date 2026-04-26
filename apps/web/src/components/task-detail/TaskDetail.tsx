@@ -13,7 +13,12 @@ import {
   Tag as TagIcon,
   Edit3,
   MessageSquare,
+  Eye,
+  ListChecks,
+  Repeat,
+  GripVertical,
 } from "lucide-react";
+import type { TaskRecurrenceRule } from "@rokki/db";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { CommentThread } from "@/components/CommentThread";
@@ -37,10 +42,28 @@ interface Task {
   priority: number;
   due_date: string | null;
   labels: string[] | null;
+  recurrence_rule?: TaskRecurrenceRule | null;
+  recurrence_parent_id?: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
   created_by: string;
+}
+
+interface Subtask {
+  id: string;
+  label: string;
+  done: boolean;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Watcher {
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  added_at: string;
 }
 
 interface Member {
@@ -82,6 +105,8 @@ interface Activity {
 interface Bundle {
   task: Task;
   assignees: Assignee[];
+  watchers: Watcher[];
+  subtasks: Subtask[];
   depends_on: RelatedTask[];
   blocks: RelatedTask[];
   activity: Activity[];
@@ -179,6 +204,26 @@ export function TaskDetail({
     },
     { onInsert: () => void loadBundle(), onDelete: () => void loadBundle() },
   );
+  useRealtimeTable<{ task_id: string }>(
+    {
+      table: "subtasks",
+      filter: `task_id=eq.${task.id}`,
+      channelKey: `task-subtasks:${task.id}`,
+    },
+    {
+      onInsert: () => void loadBundle(),
+      onUpdate: () => void loadBundle(),
+      onDelete: () => void loadBundle(),
+    },
+  );
+  useRealtimeTable<{ task_id: string }>(
+    {
+      table: "task_watchers",
+      filter: `task_id=eq.${task.id}`,
+      channelKey: `task-watchers:${task.id}`,
+    },
+    { onInsert: () => void loadBundle(), onDelete: () => void loadBundle() },
+  );
 
   async function patchTask(patch: Partial<Task>) {
     setTask((t) => ({ ...t, ...patch }));
@@ -250,6 +295,60 @@ export function TaskDetail({
 
   async function setLabels(next: string[]) {
     await patchTask({ labels: next });
+  }
+
+  async function addSubtask(label: string) {
+    if (!label.trim()) return;
+    await fetch(`/api/v1/tasks/${task.id}/subtasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ label }),
+    });
+    await loadBundle();
+  }
+
+  async function patchSubtask(
+    subtaskId: string,
+    patch: Partial<Pick<Subtask, "label" | "done" | "position">>,
+  ) {
+    await fetch(`/api/v1/tasks/${task.id}/subtasks/${subtaskId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(patch),
+    });
+    await loadBundle();
+  }
+
+  async function deleteSubtask(subtaskId: string) {
+    await fetch(`/api/v1/tasks/${task.id}/subtasks/${subtaskId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    await loadBundle();
+  }
+
+  async function addWatcher(userId: string) {
+    await fetch(`/api/v1/tasks/${task.id}/watchers`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ user_id: userId }),
+    });
+    await loadBundle();
+  }
+
+  async function removeWatcher(userId: string) {
+    await fetch(
+      `/api/v1/tasks/${task.id}/watchers/${encodeURIComponent(userId)}`,
+      { method: "DELETE", credentials: "include" },
+    );
+    await loadBundle();
+  }
+
+  async function setRecurrence(rule: TaskRecurrenceRule | null) {
+    await patchTask({ recurrence_rule: rule });
   }
 
   const membersMentionables = useMemo(
@@ -399,6 +498,18 @@ export function TaskDetail({
           </SectionCard>
 
           <SectionCard
+            title="Subtasks"
+            icon={<ListChecks className="h-3 w-3" />}
+          >
+            <SubtaskBlock
+              subtasks={bundle?.subtasks ?? []}
+              onAdd={addSubtask}
+              onPatch={patchSubtask}
+              onDelete={deleteSubtask}
+            />
+          </SectionCard>
+
+          <SectionCard
             title="Dependencies"
             icon={<GitBranch className="h-3 w-3" />}
           >
@@ -412,10 +523,7 @@ export function TaskDetail({
             />
           </SectionCard>
 
-          <SectionCard
-            title="Labels"
-            icon={<TagIcon className="h-3 w-3" />}
-          >
+          <SectionCard title="Tags" icon={<TagIcon className="h-3 w-3" />}>
             <LabelBlock labels={task.labels ?? []} onChange={setLabels} />
           </SectionCard>
 
@@ -480,14 +588,14 @@ export function TaskDetail({
                 }
                 className="rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 text-[11px] text-text-0 outline-none focus:border-border-focus"
               >
-                <option value={1}>Urgent (1)</option>
-                <option value={2}>High (2)</option>
-                <option value={3}>Normal (3)</option>
-                <option value={4}>Low (4)</option>
+                <option value={1}>Urgent</option>
+                <option value={2}>High</option>
+                <option value={3}>Medium</option>
+                <option value={4}>Low</option>
               </select>
             }
           >
-            <PriorityDots priority={task.priority} />
+            <PriorityChip priority={task.priority} />
           </SidebarRow>
 
           <SidebarRow
@@ -512,6 +620,35 @@ export function TaskDetail({
               members={members}
               onAdd={addAssignee}
               onRemove={removeAssignee}
+            />
+          </SidebarBlock>
+
+          <SidebarBlock
+            label={
+              <span className="flex items-center gap-1">
+                <Eye className="h-3 w-3" /> Watchers
+              </span>
+            }
+          >
+            <WatcherBlock
+              watchers={bundle?.watchers ?? []}
+              members={members}
+              currentUserId={currentUserId}
+              onAdd={addWatcher}
+              onRemove={removeWatcher}
+            />
+          </SidebarBlock>
+
+          <SidebarBlock
+            label={
+              <span className="flex items-center gap-1">
+                <Repeat className="h-3 w-3" /> Repeats
+              </span>
+            }
+          >
+            <RecurrenceBlock
+              rule={task.recurrence_rule ?? null}
+              onChange={setRecurrence}
             />
           </SidebarBlock>
 
@@ -598,7 +735,7 @@ function SidebarBlock({
   label,
   children,
 }: {
-  label: string;
+  label: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -898,6 +1035,467 @@ function LabelBlock({
       />
     </div>
   );
+}
+
+/* ------------------------------------------------------------------- */
+/* PriorityChip — color-coded chip per spec (gray/blue/orange/red)      */
+/* ------------------------------------------------------------------- */
+
+const PRIORITY_TONE: Record<number, { tone: string; label: string }> = {
+  1: { tone: "bg-danger-subtle text-danger", label: "Urgent" },
+  2: { tone: "bg-warning-subtle text-warning", label: "High" },
+  3: { tone: "bg-info-subtle text-info", label: "Medium" },
+  4: { tone: "bg-bg-3 text-text-2", label: "Low" },
+};
+
+function PriorityChip({ priority }: { priority: number }) {
+  const meta = PRIORITY_TONE[priority] ?? PRIORITY_TONE[3];
+  return (
+    <span
+      className={cn(
+        "rounded-sm px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+        meta.tone,
+      )}
+    >
+      {meta.label}
+    </span>
+  );
+}
+
+/* ------------------------------------------------------------------- */
+/* SubtaskBlock — checklist with add / check / delete / reorder         */
+/* ------------------------------------------------------------------- */
+
+function SubtaskBlock({
+  subtasks,
+  onAdd,
+  onPatch,
+  onDelete,
+}: {
+  subtasks: Subtask[];
+  onAdd: (label: string) => void;
+  onPatch: (
+    id: string,
+    patch: Partial<Pick<Subtask, "label" | "done" | "position">>,
+  ) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState("");
+
+  const sorted = useMemo(
+    () => [...subtasks].sort((a, b) => a.position - b.position),
+    [subtasks],
+  );
+  const completed = sorted.filter((s) => s.done).length;
+
+  /**
+   * Reorder by swapping positions with the neighbor in the requested direction.
+   * Sparse positions mean we don't need to rewrite every row — but for
+   * simple up/down moves swap is plenty.
+   */
+  function move(id: string, dir: "up" | "down") {
+    const idx = sorted.findIndex((s) => s.id === id);
+    if (idx < 0) return;
+    const swapWith = dir === "up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= sorted.length) return;
+    const a = sorted[idx]!;
+    const b = sorted[swapWith]!;
+    onPatch(a.id, { position: b.position });
+    onPatch(b.id, { position: a.position });
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 text-xs">
+      {sorted.length > 0 ? (
+        <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-text-3">
+          <span>
+            {completed} / {sorted.length} done
+          </span>
+        </div>
+      ) : null}
+      <ul className="flex flex-col">
+        {sorted.map((s, i) => (
+          <li key={s.id} className="group flex items-center gap-2 py-1">
+            <button
+              onClick={() => move(s.id, "up")}
+              disabled={i === 0}
+              className="text-text-3 opacity-0 transition-opacity hover:text-text-0 disabled:cursor-not-allowed disabled:opacity-0 group-hover:opacity-100"
+              aria-label="Move up"
+            >
+              <GripVertical className="h-3 w-3" />
+            </button>
+            <button
+              onClick={() => onPatch(s.id, { done: !s.done })}
+              aria-label={s.done ? "Mark incomplete" : "Mark complete"}
+              className={cn(
+                "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm border",
+                s.done
+                  ? "border-success bg-success-subtle text-success"
+                  : "border-border hover:border-accent",
+              )}
+            >
+              {s.done ? <Check className="h-3 w-3" /> : null}
+            </button>
+            {editingId === s.id ? (
+              <input
+                autoFocus
+                value={editLabel}
+                onChange={(e) => setEditLabel(e.target.value)}
+                onBlur={() => {
+                  const next = editLabel.trim();
+                  setEditingId(null);
+                  if (next && next !== s.label) onPatch(s.id, { label: next });
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    (e.target as HTMLInputElement).blur();
+                  }
+                  if (e.key === "Escape") {
+                    setEditingId(null);
+                  }
+                }}
+                className="flex-1 rounded-sm border border-border-focus bg-bg-1 px-1 py-0.5 text-xs text-text-0 outline-none"
+              />
+            ) : (
+              <button
+                onClick={() => {
+                  setEditingId(s.id);
+                  setEditLabel(s.label);
+                }}
+                className={cn(
+                  "flex-1 cursor-text truncate text-left",
+                  s.done ? "text-text-3 line-through" : "text-text-1",
+                )}
+                title="Click to edit"
+              >
+                {s.label}
+              </button>
+            )}
+            <button
+              onClick={() => onDelete(s.id)}
+              aria-label="Delete subtask"
+              className="rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:bg-bg-3 hover:text-danger group-hover:opacity-100"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </li>
+        ))}
+      </ul>
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && draft.trim()) {
+            e.preventDefault();
+            onAdd(draft);
+            setDraft("");
+          }
+        }}
+        placeholder={
+          sorted.length === 0
+            ? "Add a checklist item and hit Enter"
+            : "+ Add another"
+        }
+        className="rounded-sm border border-border bg-bg-0 px-2 py-1 text-xs text-text-0 outline-none placeholder:text-text-3 focus:border-border-focus"
+      />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- */
+/* WatcherBlock — list + autocomplete add + remove                      */
+/* ------------------------------------------------------------------- */
+
+function WatcherBlock({
+  watchers,
+  members,
+  currentUserId,
+  onAdd,
+  onRemove,
+}: {
+  watchers: Watcher[];
+  members: Member[];
+  currentUserId: string;
+  onAdd: (userId: string) => void;
+  onRemove: (userId: string) => void;
+}) {
+  const [picking, setPicking] = useState(false);
+  const [query, setQuery] = useState("");
+  const watchingIds = new Set(watchers.map((w) => w.user_id));
+  const candidates = members.filter((m) => !watchingIds.has(m.user_id));
+  const filtered = query.trim()
+    ? candidates.filter((m) =>
+        (m.full_name ?? "").toLowerCase().includes(query.toLowerCase()),
+      )
+    : candidates;
+  const meWatching = watchingIds.has(currentUserId);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {watchers.length === 0 ? (
+        <span className="text-[11px] text-text-3">No watchers.</span>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {watchers.map((w) => (
+            <li key={w.user_id} className="group flex items-center gap-2">
+              <Avatar name={w.full_name} size="xs" />
+              <span className="flex-1 truncate text-text-1">
+                {w.full_name ?? "someone"}
+                {w.user_id === currentUserId ? (
+                  <span className="text-text-3"> (you)</span>
+                ) : null}
+              </span>
+              <button
+                onClick={() => onRemove(w.user_id)}
+                aria-label="Remove watcher"
+                className="rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:bg-bg-3 hover:text-danger group-hover:opacity-100"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!meWatching ? (
+        <button
+          onClick={() => onAdd(currentUserId)}
+          className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
+        >
+          <Eye className="h-3 w-3" /> Watch
+        </button>
+      ) : (
+        <button
+          onClick={() => onRemove(currentUserId)}
+          className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
+        >
+          <X className="h-3 w-3" /> Stop watching
+        </button>
+      )}
+      {picking ? (
+        <div className="flex flex-col gap-1 rounded-sm border border-border bg-bg-0 p-1">
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search members…"
+            className="w-full rounded-sm border border-border bg-bg-1 px-2 py-0.5 text-[11px] text-text-0 outline-none focus:border-border-focus"
+          />
+          {filtered.length === 0 ? (
+            <span className="px-1 py-0.5 text-[11px] text-text-3">
+              No matches.
+            </span>
+          ) : (
+            <ul className="flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+              {filtered.map((m) => (
+                <li key={m.user_id}>
+                  <button
+                    onClick={() => {
+                      onAdd(m.user_id);
+                      setPicking(false);
+                      setQuery("");
+                    }}
+                    className="flex w-full items-center gap-2 rounded-sm px-1 py-0.5 text-left hover:bg-bg-2"
+                  >
+                    <Avatar name={m.full_name} size="xs" />
+                    <span className="flex-1 truncate text-text-1">
+                      {m.full_name ?? "someone"}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            onClick={() => {
+              setPicking(false);
+              setQuery("");
+            }}
+            className="self-end text-[11px] text-text-3 hover:text-text-1"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setPicking(true)}
+          className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
+        >
+          <Plus className="h-3 w-3" /> Add watcher
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- */
+/* RecurrenceBlock — "Repeat every N days/weeks/months"                  */
+/* ------------------------------------------------------------------- */
+
+const WEEKDAY_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+
+function RecurrenceBlock({
+  rule,
+  onChange,
+}: {
+  rule: TaskRecurrenceRule | null;
+  onChange: (next: TaskRecurrenceRule | null) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<TaskRecurrenceRule>(
+    rule ?? { pattern: "weekly", interval: 1, weekdays: [] },
+  );
+
+  if (!rule && !editing) {
+    return (
+      <button
+        onClick={() => {
+          setDraft({ pattern: "weekly", interval: 1, weekdays: [] });
+          setEditing(true);
+        }}
+        className="flex items-center gap-1 self-start rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:bg-bg-2 hover:text-text-0"
+      >
+        <Plus className="h-3 w-3" /> Set repeat
+      </button>
+    );
+  }
+
+  if (!editing && rule) {
+    return (
+      <div className="flex flex-col gap-1 text-[11px]">
+        <span className="text-text-1">{summarize(rule)}</span>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              setDraft(rule);
+              setEditing(true);
+            }}
+            className="text-text-3 hover:text-text-0"
+          >
+            Edit
+          </button>
+          <button
+            onClick={() => onChange(null)}
+            className="text-text-3 hover:text-danger"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  function toggleWeekday(d: number) {
+    const days = new Set(draft.weekdays ?? []);
+    if (days.has(d)) days.delete(d);
+    else days.add(d);
+    setDraft({ ...draft, weekdays: Array.from(days).sort() });
+  }
+
+  return (
+    <div className="flex flex-col gap-2 text-[11px]">
+      <div className="flex items-center gap-1">
+        <span className="text-text-3">every</span>
+        <input
+          type="number"
+          min={1}
+          value={draft.interval}
+          onChange={(e) =>
+            setDraft({ ...draft, interval: Math.max(1, Number(e.target.value) || 1) })
+          }
+          className="w-12 rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-text-0 outline-none focus:border-border-focus"
+        />
+        <select
+          value={draft.pattern}
+          onChange={(e) =>
+            setDraft({
+              ...draft,
+              pattern: e.target.value as TaskRecurrenceRule["pattern"],
+            })
+          }
+          className="rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-text-0 outline-none focus:border-border-focus"
+        >
+          <option value="daily">day(s)</option>
+          <option value="weekly">week(s)</option>
+          <option value="monthly">month(s)</option>
+        </select>
+      </div>
+      {draft.pattern === "weekly" ? (
+        <div className="flex items-center gap-0.5">
+          {WEEKDAY_LABELS.map((lbl, idx) => {
+            const active = (draft.weekdays ?? []).includes(idx);
+            return (
+              <button
+                key={idx}
+                onClick={() => toggleWeekday(idx)}
+                className={cn(
+                  "h-5 w-5 rounded-sm text-[10px] font-mono",
+                  active
+                    ? "bg-accent text-bg-0"
+                    : "border border-border bg-bg-2 text-text-3 hover:text-text-0",
+                )}
+                aria-pressed={active}
+                aria-label={`Toggle ${lbl}`}
+              >
+                {lbl}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      <label className="flex items-center gap-1 text-text-3">
+        Until
+        <input
+          type="date"
+          value={draft.end_date ?? ""}
+          onChange={(e) =>
+            setDraft({ ...draft, end_date: e.target.value || undefined })
+          }
+          className="rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-text-0 outline-none focus:border-border-focus"
+        />
+      </label>
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => setEditing(false)}
+          className="text-text-3 hover:text-text-1"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={() => {
+            onChange(draft);
+            setEditing(false);
+          }}
+          className="rounded-sm bg-accent px-2 py-0.5 text-bg-0 hover:opacity-90"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function summarize(rule: TaskRecurrenceRule): string {
+  const u =
+    rule.pattern === "daily"
+      ? rule.interval === 1
+        ? "day"
+        : "days"
+      : rule.pattern === "weekly"
+        ? rule.interval === 1
+          ? "week"
+          : "weeks"
+        : rule.interval === 1
+          ? "month"
+          : "months";
+  let s = `Every ${rule.interval} ${u}`;
+  if (rule.pattern === "weekly" && rule.weekdays && rule.weekdays.length > 0) {
+    s += ` on ${rule.weekdays.map((d) => WEEKDAY_LABELS[d]).join("")}`;
+  }
+  if (rule.end_date) s += `, until ${rule.end_date}`;
+  return s;
 }
 
 /* ------------------------------------------------------------------- */
