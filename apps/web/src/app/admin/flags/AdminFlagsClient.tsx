@@ -47,8 +47,13 @@ export function AdminFlagsClient() {
     setTimeout(() => setSuccess(null), 2500);
   }
 
-  async function remove(id: string) {
-    if (!confirm("Remove this flag?")) return;
+  async function remove(id: string, key: string) {
+    if (
+      !confirm(
+        `Remove flag "${key}"? Any client code reading this flag will fall back to its default.`,
+      )
+    )
+      return;
     setBusy(id);
     try {
       const r = await fetch(`/api/v1/admin/flags?id=${id}`, {
@@ -122,7 +127,7 @@ export function AdminFlagsClient() {
                   <AdminTd align="right">
                     <AdminButton
                       variant="danger"
-                      onClick={() => void remove(r.id)}
+                      onClick={() => void remove(r.id, r.key)}
                       disabled={busy === r.id}
                     >
                       <Trash2 className="h-3 w-3" />

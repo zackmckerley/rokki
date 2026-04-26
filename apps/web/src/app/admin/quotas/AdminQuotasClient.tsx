@@ -60,8 +60,13 @@ export function AdminQuotasClient() {
     setTimeout(() => setSuccess(null), 2500);
   }
 
-  async function remove(id: string) {
-    if (!confirm("Remove this quota?")) return;
+  async function remove(id: string, label: string) {
+    if (
+      !confirm(
+        `Remove the ${label} quota? The subject becomes unlimited until you set a new one.`,
+      )
+    )
+      return;
     setBusy(id);
     try {
       const r = await fetch(`/api/v1/admin/quotas?id=${id}`, {
@@ -163,7 +168,12 @@ export function AdminQuotasClient() {
                     <AdminTd align="right">
                       <AdminButton
                         variant="danger"
-                        onClick={() => void remove(q.id)}
+                        onClick={() =>
+                          void remove(
+                            q.id,
+                            `${q.tool?.slug ?? "unknown"} (${q.subject_type}:${q.subject_id.slice(0, 8)})`,
+                          )
+                        }
                         disabled={busy === q.id}
                       >
                         <Trash2 className="h-3 w-3" />
