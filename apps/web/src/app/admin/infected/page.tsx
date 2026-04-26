@@ -76,7 +76,7 @@ export default async function AdminInfectedPage() {
                   <td className="px-3 py-2 font-mono text-xs">
                     {r.terminals ? (
                       <Link
-                        href={`/p/${r.terminals.ticker}`}
+                        href={`/admin/terminals/${r.terminals.ticker}`}
                         className="text-accent hover:underline"
                       >
                         {r.terminals.ticker}
