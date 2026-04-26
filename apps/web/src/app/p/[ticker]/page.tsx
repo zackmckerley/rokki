@@ -4,7 +4,7 @@ import { CheckSquare, Users } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 import { ProjectTerminal } from "@/components/ProjectTerminal";
-import { RecentTerminalTracker } from "@/components/dashboard/RecentTerminalTracker";
+import { TerminalPresence } from "@/components/dashboard/TerminalPresence";
 import { CORE_MODULE_CARDS, SPACE_TAGLINE } from "@/lib/project-templates";
 import type { ProjectStatus } from "@rokki/db";
 
@@ -59,20 +59,29 @@ export default async function ProjectTerminalPage({ params }: Props) {
   if (!project) notFound();
   const p = project as ProjectRow;
 
-  const [{ data: activity }, { data: rawMembers }, { data: org }] =
-    await Promise.all([
-      supabase
-        .from("activity")
-        .select("id, action, metadata, created_at")
-        .eq("terminal_id", p.id)
-        .order("created_at", { ascending: false })
-        .limit(10),
-      supabase
-        .from("terminal_members")
-        .select("user_id, role")
-        .eq("terminal_id", p.id),
-      supabase.from("spaces").select("slug, name").eq("id", p.space_id).single(),
-    ]);
+  const [
+    { data: activity },
+    { data: rawMembers },
+    { data: org },
+    { data: callerProfile },
+  ] = await Promise.all([
+    supabase
+      .from("activity")
+      .select("id, action, metadata, created_at")
+      .eq("terminal_id", p.id)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    supabase
+      .from("terminal_members")
+      .select("user_id, role")
+      .eq("terminal_id", p.id),
+    supabase.from("spaces").select("slug, name").eq("id", p.space_id).single(),
+    supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+  ]);
 
   const activities = (activity ?? []) as ActivityRow[];
   const bareMembers =
@@ -104,6 +113,11 @@ export default async function ProjectTerminalPage({ params }: Props) {
   const isOwnerOrManager =
     callerMembership?.role === "owner" || callerMembership?.role === "manager";
 
+  const callerName =
+    (callerProfile as { full_name: string | null } | null)?.full_name ??
+    user.email?.split("@")[0] ??
+    "—";
+
   const tickerItems = activities.map((a) => ({
     id: a.id,
     text: humanizeAction(a.action, a.metadata),
@@ -111,9 +125,7 @@ export default async function ProjectTerminalPage({ params }: Props) {
   }));
 
   return (
-    <>
-      <RecentTerminalTracker ticker={p.ticker} name={p.name} />
-      <ProjectTerminal
+    <ProjectTerminal
       topBar={
         <TopBar>
           <span className="text-text-3">/</span>
@@ -125,15 +137,11 @@ export default async function ProjectTerminalPage({ params }: Props) {
           <span className="text-text-3">/</span>
           <span className="text-text-0 font-medium">{p.name}</span>
           <span className="ml-auto flex items-center gap-3">
-            <Link
-              href={`/p/${p.ticker}/print`}
-              target="_blank"
-              rel="noopener"
-              title="Print or export this terminal as PDF"
-              className="text-text-3 hover:text-text-1"
-            >
-              Print / PDF
-            </Link>
+            <TerminalPresence
+              terminalId={p.id}
+              userId={user.id}
+              fullName={callerName}
+            />
             <Link
               href={`/p/${p.ticker}/settings`}
               className="text-text-3 hover:text-text-1"
@@ -157,7 +165,6 @@ export default async function ProjectTerminalPage({ params }: Props) {
       overviewMain={<OverviewMain project={p} />}
       rightPane={<AIChatStub project={p} />}
     />
-    </>
   );
 }
 
