@@ -29,16 +29,32 @@
 
 BEGIN;
 
+-- ----------------------------------------------------------------------------
+-- IMMUTABLE wrapper around to_tsvector. Postgres rejects to_tsvector(regconfig,
+-- text) inside a GENERATED ALWAYS expression because the regconfig argument is
+-- treated as STABLE (the language can be rebound at runtime). Pinning the
+-- 'english' config at function-definition time and marking the wrapper
+-- IMMUTABLE satisfies the generated-column constraint while keeping the same
+-- stemming/stopword behaviour.
+-- ----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION rokki_to_tsvector(text)
+RETURNS tsvector
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+RETURNS NULL ON NULL INPUT
+AS $$ SELECT to_tsvector('pg_catalog.english'::regconfig, $1) $$;
+
 -- ============================================================================
 -- 1. tasks ------------------------------------------------------------------
 -- ============================================================================
 ALTER TABLE tasks
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(to_tsvector('english', coalesce(title, '')), 'A')
-      || setweight(to_tsvector('english', coalesce(description, '')), 'B')
+      setweight(rokki_to_tsvector(coalesce(title, '')), 'A')
+      || setweight(rokki_to_tsvector(coalesce(description, '')), 'B')
       || setweight(
-           to_tsvector('english', array_to_string(coalesce(labels, '{}'), ' ')),
+           rokki_to_tsvector(array_to_string(coalesce(labels, '{}'), ' ')),
            'C')
     ) STORED;
 
@@ -53,8 +69,8 @@ CREATE INDEX IF NOT EXISTS idx_tasks_search_vector
 ALTER TABLE files
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(to_tsvector('english', coalesce(filename, '')), 'A')
-      || setweight(to_tsvector('english', coalesce(folder, '')), 'C')
+      setweight(rokki_to_tsvector(coalesce(filename, '')), 'A')
+      || setweight(rokki_to_tsvector(coalesce(folder, '')), 'C')
     ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_files_search_vector
@@ -67,7 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_files_search_vector
 ALTER TABLE comments
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(to_tsvector('english', coalesce(body, '')), 'A')
+      setweight(rokki_to_tsvector(coalesce(body, '')), 'A')
     ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_comments_search_vector
@@ -80,9 +96,9 @@ CREATE INDEX IF NOT EXISTS idx_comments_search_vector
 ALTER TABLE terminals
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(to_tsvector('english', coalesce(name, '')), 'A')
-      || setweight(to_tsvector('english', coalesce(ticker, '')), 'A')
-      || setweight(to_tsvector('english', coalesce(description, '')), 'B')
+      setweight(rokki_to_tsvector(coalesce(name, '')), 'A')
+      || setweight(rokki_to_tsvector(coalesce(ticker, '')), 'A')
+      || setweight(rokki_to_tsvector(coalesce(description, '')), 'B')
     ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_terminals_search_vector
@@ -95,9 +111,9 @@ CREATE INDEX IF NOT EXISTS idx_terminals_search_vector
 ALTER TABLE spaces
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
-      setweight(to_tsvector('english', coalesce(name, '')), 'A')
-      || setweight(to_tsvector('english', coalesce(slug, '')), 'A')
-      || setweight(to_tsvector('english', coalesce(description, '')), 'B')
+      setweight(rokki_to_tsvector(coalesce(name, '')), 'A')
+      || setweight(rokki_to_tsvector(coalesce(slug, '')), 'A')
+      || setweight(rokki_to_tsvector(coalesce(description, '')), 'B')
     ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_spaces_search_vector
