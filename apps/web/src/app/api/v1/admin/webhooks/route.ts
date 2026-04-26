@@ -9,8 +9,10 @@ import crypto from "node:crypto";
  *
  * Secrets are auto-generated server-side and returned ONCE on insert.
  *
- * NOTE: actual outbound delivery is the indexer/queue's job. This endpoint
- * just manages the configuration.
+ * Outbound delivery is handled by `lib/webhooks.ts` — `emitEvent` fans
+ * each domain event out to active destinations subscribed to that name.
+ * Failed deliveries retry on exponential backoff before dead-lettering;
+ * see `/api/v1/admin/webhooks/process-due`.
  */
 export async function GET(request: NextRequest) {
   const gate = await requireAdmin(request);

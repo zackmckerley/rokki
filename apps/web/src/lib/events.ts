@@ -1,11 +1,17 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
+import { enqueueWebhook } from "./webhooks";
 
 /**
  * Domain event emitter. Single entry point so every call site gets the
  * same shape and the same service-role client. Emit is best-effort: if the
  * insert fails we log and continue — losing an audit row is better than
  * breaking the primary operation.
+ *
+ * Side-effect: every emit also fans out to any active webhook
+ * destinations subscribed to that event name. Webhook delivery has its
+ * own retry queue (`webhook_deliveries`) so failures don't propagate
+ * back to the emitter.
  *
  * Usage:
  *   await emitEvent("task.created", {
@@ -60,4 +66,19 @@ export async function emitEvent(
   } catch (e) {
     console.error(`[events] ${name} errored:`, e);
   }
+
+  // Fan out to subscribed webhook destinations. Errors here never throw
+  // — every failure mode lands in the webhook_deliveries row.
+  void enqueueWebhook(name, {
+    name,
+    actor_id: args.actor_id ?? null,
+    actor_token_id: args.actor_token_id ?? null,
+    space_id: args.space_id ?? null,
+    terminal_id: args.terminal_id ?? null,
+    entity_type: args.entity_type ?? null,
+    entity_id: args.entity_id ?? null,
+    payload: args.payload ?? {},
+  }).catch((e: unknown) => {
+    console.error(`[events] webhook fan-out for ${name} errored:`, e);
+  });
 }

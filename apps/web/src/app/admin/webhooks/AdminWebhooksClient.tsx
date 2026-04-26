@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, Power, PowerOff } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  Power,
+  PowerOff,
+  AlertCircle,
+  Check,
+  RefreshCw,
+  RotateCcw,
+} from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
@@ -11,7 +20,6 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
-import { toast } from "@/lib/toast";
 
 interface Row {
   id: string;
@@ -22,8 +30,33 @@ interface Row {
   created_at: string;
 }
 
+interface DeliveryRow {
+  id: string;
+  destination_id: string;
+  event_name: string;
+  attempt: number;
+  status: string;
+  response_code: number | null;
+  last_error: string | null;
+  next_attempt_at: string | null;
+  attempted_at: string | null;
+  delivered_at: string | null;
+  dead_lettered_at: string | null;
+  created_at: string;
+}
+
+type Lifecycle = "all" | "pending" | "delivered" | "dead";
+
+function lifecycleOf(d: DeliveryRow): Lifecycle {
+  if (d.delivered_at) return "delivered";
+  if (d.dead_lettered_at) return "dead";
+  return "pending";
+}
+
 export function AdminWebhooksClient() {
   const [rows, setRows] = useState<Row[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [revealedSecret, setRevealedSecret] = useState<{
     id: string;
@@ -35,12 +68,17 @@ export function AdminWebhooksClient() {
       .then((r) => r.json())
       .then((b: { data?: Row[] }) => setRows(b.data ?? []))
       .catch((e: unknown) =>
-        toast.error(e instanceof Error ? e.message : "load failed"),
+        setError(e instanceof Error ? e.message : "load failed"),
       );
   }, []);
   useEffect(() => {
     load();
   }, [load]);
+
+  function flash(m: string) {
+    setSuccess(m);
+    setTimeout(() => setSuccess(null), 2500);
+  }
 
   async function toggle(id: string, active: boolean) {
     setBusy(id);
@@ -52,10 +90,10 @@ export function AdminWebhooksClient() {
         body: JSON.stringify({ active }),
       });
       if (!r.ok) {
-        toast.error(await msg(r));
+        setError(await msg(r));
         return;
       }
-      toast.success(active ? "Activated" : "Deactivated");
+      flash(active ? "Activated" : "Deactivated");
       load();
     } finally {
       setBusy(null);
@@ -72,10 +110,10 @@ export function AdminWebhooksClient() {
         credentials: "include",
       });
       if (!r.ok) {
-        toast.error(await msg(r));
+        setError(await msg(r));
         return;
       }
-      toast.success("Deleted");
+      flash("Deleted");
       load();
     } finally {
       setBusy(null);
@@ -86,10 +124,11 @@ export function AdminWebhooksClient() {
     <div className="flex flex-col gap-4">
       <NewForm
         onCreated={(id, secret) => {
-          toast.success("Webhook created");
+          flash("Webhook created");
           setRevealedSecret({ id, secret });
           load();
         }}
+        onError={setError}
       />
       {revealedSecret ? (
         <div className="rounded border border-warning/40 bg-warning-subtle p-3 text-xs">
@@ -106,6 +145,16 @@ export function AdminWebhooksClient() {
             dismiss
           </button>
         </div>
+      ) : null}
+      {error ? (
+        <p className="flex items-center gap-1 rounded-sm border border-danger/40 bg-danger-subtle px-3 py-1.5 text-xs text-danger">
+          <AlertCircle className="h-3 w-3" /> {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p className="flex items-center gap-1 rounded-sm border border-success/40 bg-success-subtle px-3 py-1.5 text-xs text-success">
+          <Check className="h-3 w-3" /> {success}
+        </p>
       ) : null}
 
       {rows.length === 0 ? (
@@ -174,14 +223,218 @@ export function AdminWebhooksClient() {
           </AdminTable>
         </AdminPanel>
       )}
+
+      <DeliveriesPanel destinations={rows} onError={setError} onFlash={flash} />
     </div>
   );
 }
 
+function DeliveriesPanel({
+  destinations,
+  onError,
+  onFlash,
+}: {
+  destinations: Row[];
+  onError: (m: string) => void;
+  onFlash: (m: string) => void;
+}) {
+  const [items, setItems] = useState<DeliveryRow[]>([]);
+  const [filter, setFilter] = useState<Lifecycle>("all");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const load = useCallback(() => {
+    const q = filter === "all" ? "" : `?lifecycle=${filter}`;
+    fetch(`/api/v1/admin/webhooks/deliveries${q}`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((b: { data?: DeliveryRow[] }) => setItems(b.data ?? []))
+      .catch((e: unknown) =>
+        onError(e instanceof Error ? e.message : "load failed"),
+      );
+  }, [filter, onError]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  async function processDue() {
+    setWorking(true);
+    try {
+      const r = await fetch("/api/v1/admin/webhooks/process-due", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        onError(`HTTP ${r.status}`);
+        return;
+      }
+      const body = (await r.json()) as {
+        data?: {
+          attempted: number;
+          succeeded: number;
+          deadLettered: number;
+        };
+      };
+      const d = body.data;
+      onFlash(
+        d
+          ? `Processed ${d.attempted} (${d.succeeded} ok, ${d.deadLettered} dead)`
+          : "Processed",
+      );
+      load();
+    } finally {
+      setWorking(false);
+    }
+  }
+
+  async function replay(id: string) {
+    setBusy(id);
+    try {
+      const r = await fetch(
+        `/api/v1/admin/webhooks/deliveries/${id}/replay`,
+        { method: "POST", credentials: "include" },
+      );
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as {
+          errors?: { message: string }[];
+        };
+        onError(body.errors?.[0]?.message ?? `HTTP ${r.status}`);
+        return;
+      }
+      onFlash("Re-queued for retry");
+      load();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const destUrls = new Map(destinations.map((d) => [d.id, d.url]));
+
+  return (
+    <AdminPanel
+      title="Recent deliveries"
+      className="mt-2"
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-border bg-bg-2 px-3 py-2">
+        <div className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-3">
+          {(["all", "pending", "delivered", "dead"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setFilter(k)}
+              className={
+                "rounded-sm px-2 py-1 font-mono " +
+                (filter === k
+                  ? "bg-accent-subtle text-accent"
+                  : "text-text-3 hover:text-text-1")
+              }
+            >
+              {k}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          <AdminButton onClick={() => load()} disabled={working}>
+            <RefreshCw className="h-3 w-3" /> Refresh
+          </AdminButton>
+          <AdminButton
+            variant="accent"
+            onClick={() => void processDue()}
+            disabled={working}
+          >
+            <RotateCcw className="h-3 w-3" />{" "}
+            {working ? "Working…" : "Process due"}
+          </AdminButton>
+        </div>
+      </div>
+      {items.length === 0 ? (
+        <AdminEmpty>No deliveries.</AdminEmpty>
+      ) : (
+        <AdminTable className="border-0">
+          <thead>
+            <tr className="border-b border-border bg-bg-2">
+              <AdminTh>When</AdminTh>
+              <AdminTh>Destination</AdminTh>
+              <AdminTh>Event</AdminTh>
+              <AdminTh align="right">Attempt</AdminTh>
+              <AdminTh>Lifecycle</AdminTh>
+              <AdminTh>Detail</AdminTh>
+              <AdminTh align="right">Actions</AdminTh>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {items.map((d) => {
+              const lc = lifecycleOf(d);
+              const detail =
+                lc === "delivered"
+                  ? `${d.response_code ?? ""} OK`
+                  : d.last_error
+                    ? d.last_error
+                    : d.response_code
+                      ? `HTTP ${d.response_code}`
+                      : "—";
+              const when = relTime(d.created_at);
+              const url = destUrls.get(d.destination_id) ?? d.destination_id;
+              return (
+                <tr key={d.id}>
+                  <AdminTd mono>{when}</AdminTd>
+                  <AdminTd mono>
+                    <span className="block max-w-[16rem] truncate">{url}</span>
+                  </AdminTd>
+                  <AdminTd mono>{d.event_name}</AdminTd>
+                  <AdminTd align="right" mono>
+                    {d.attempt}
+                  </AdminTd>
+                  <AdminTd>
+                    {lc === "delivered" ? (
+                      <AdminBadge variant="success">delivered</AdminBadge>
+                    ) : lc === "dead" ? (
+                      <AdminBadge variant="danger">dead-letter</AdminBadge>
+                    ) : (
+                      <AdminBadge variant="warning">pending</AdminBadge>
+                    )}
+                  </AdminTd>
+                  <AdminTd>
+                    <span className="block max-w-[24rem] truncate text-text-2">
+                      {detail}
+                    </span>
+                  </AdminTd>
+                  <AdminTd align="right">
+                    {lc === "dead" ? (
+                      <AdminButton
+                        onClick={() => void replay(d.id)}
+                        disabled={busy === d.id}
+                      >
+                        <RotateCcw className="h-3 w-3" /> Replay
+                      </AdminButton>
+                    ) : null}
+                  </AdminTd>
+                </tr>
+              );
+            })}
+          </tbody>
+        </AdminTable>
+      )}
+    </AdminPanel>
+  );
+}
+
+function relTime(iso: string): string {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const s = Math.floor(diffMs / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
 function NewForm({
   onCreated,
+  onError,
 }: {
   onCreated: (id: string, secret: string) => void;
+  onError: (m: string) => void;
 }) {
   const [url, setUrl] = useState("");
   const [eventsCsv, setEventsCsv] = useState(
@@ -196,7 +449,7 @@ function NewForm({
       .map((e) => e.trim())
       .filter(Boolean);
     if (!url || events.length === 0) {
-      toast.error("URL and at least one event required.");
+      onError("URL and at least one event required.");
       return;
     }
     setBusy(true);
@@ -208,7 +461,7 @@ function NewForm({
         body: JSON.stringify({ url, events }),
       });
       if (!r.ok) {
-        toast.error(await msg(r));
+        onError(await msg(r));
         return;
       }
       const body = (await r.json()) as { data: { id: string; secret: string } };

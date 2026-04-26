@@ -9,7 +9,7 @@ export default function AdminWebhooksPage() {
     <div className="flex flex-col gap-4">
       <AdminSectionHeader
         title="Webhooks"
-        description="Outbound HTTP destinations subscribed to platform events. Delivery and retry are handled by the indexer."
+        description="Outbound HTTP destinations subscribed to platform events. Failed deliveries retry with exponential backoff (1m, 5m, 25m, 2h, 12h) before dead-lettering."
       />
       <AdminWebhooksClient />
     </div>

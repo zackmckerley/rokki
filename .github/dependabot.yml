@@ -1,0 +1,75 @@
+version: 2
+updates:
+  # NPM packages — root pnpm workspace covers every app and package.
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    # Cap concurrent PRs so a quiet week doesn't open ten reviews.
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    labels:
+      - dependencies
+    commit-message:
+      prefix: deps
+      include: scope
+    # Group everything non-security into a single weekly PR per ecosystem.
+    # Security advisories still open their own dedicated PRs because they
+    # match the `security-updates: all` group below by exclusion.
+    groups:
+      npm-non-security:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+        exclude-patterns:
+          # Major-version bumps for the framework get their own PR — they
+          # almost always need code changes.
+          - "next"
+          - "react"
+          - "react-dom"
+          - "@sentry/*"
+      sentry:
+        applies-to: version-updates
+        patterns:
+          - "@sentry/*"
+        update-types:
+          - minor
+          - patch
+    # Pin some risky majors so nightly Dependabot doesn't open massive
+    # framework upgrades unattended. Bump them by hand when ready.
+    ignore:
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "tailwindcss"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions versions for every workflow file.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions-non-security:
+        applies-to: version-updates
+        patterns:
+          - "*"
