@@ -113,6 +113,79 @@ jobs:
         if: always()
         run: supabase stop
 
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    # Smoke-only on every PR. Full DB-backed flows need a Supabase
+    # instance; gated on `E2E_SEEDED=true` and run only when the
+    # `db-lint` job above has booted Supabase. For now we keep the
+    # two jobs decoupled — DB-backed E2E lights up once the seeded
+    # docker-compose stack is wired into the same job.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Cache the downloaded Playwright browser binaries between runs.
+      # `~/.cache/ms-playwright` is the default install location on Linux.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pw-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        # `--with-deps` pulls the apt packages Chromium needs in CI.
+        # Skipped if the cache hit grabbed the binaries already.
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm -C apps/web exec playwright install chromium --with-deps
+
+      - name: Install system deps for cached browsers
+        # Even when the binary cache hits, the apt packages don't carry
+        # over between runners — they're per-image. Run install-deps
+        # alone (no download) so we get the libraries without re-pulling
+        # the browser tarballs.
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm -C apps/web exec playwright install-deps chromium
+
+      - name: Build app
+        run: pnpm -C apps/web build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Run E2E (smoke + non-DB flows)
+        # Don't set E2E_SEEDED here — DB-backed flows skip cleanly,
+        # smoke + UI-only flows still cover the public surface.
+        run: pnpm -C apps/web test:e2e --project=chromium
+        env:
+          CI: "true"
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
   security:
     name: Security audit
     runs-on: ubuntu-latest
