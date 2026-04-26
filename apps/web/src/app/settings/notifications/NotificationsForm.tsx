@@ -96,7 +96,7 @@ export function NotificationsForm({ initial }: { initial: NotificationPrefs }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <Section title="Browser" icon={<Bell className="h-3 w-3" />}>
+      <Section title="Browser" icon={<Bell className="h-2.5 w-2.5" />}>
         <PushToggle />
       </Section>
 
@@ -123,7 +123,7 @@ export function NotificationsForm({ initial }: { initial: NotificationPrefs }) {
 
       <Section
         title="Quiet hours"
-        icon={<Moon className="h-3 w-3" />}
+        icon={<Moon className="h-2.5 w-2.5" />}
       >
         <QuietHoursRow
           value={prefs.quiet_hours}

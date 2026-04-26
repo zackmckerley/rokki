@@ -88,7 +88,7 @@ export function ApiKeysClient({ initial }: { initial: StoredKey[] }) {
     <div className="flex flex-col gap-5">
       <section className="overflow-hidden rounded border border-border bg-bg-1">
         <header className="flex items-center gap-1.5 border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
-          <Plus className="h-3 w-3" />
+          <Plus className="h-2.5 w-2.5" />
           Add or replace a key
         </header>
         <form onSubmit={add} className="flex flex-col gap-3 px-4 py-3">
@@ -152,7 +152,7 @@ export function ApiKeysClient({ initial }: { initial: StoredKey[] }) {
 
       <section className="overflow-hidden rounded border border-border bg-bg-1">
         <header className="flex items-center gap-1.5 border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
-          <Key className="h-3 w-3" />
+          <Key className="h-2.5 w-2.5" />
           Stored keys
         </header>
         {keys.length === 0 ? (
@@ -183,7 +183,7 @@ export function ApiKeysClient({ initial }: { initial: StoredKey[] }) {
                   aria-label="Remove key"
                   className="rounded p-1 text-text-3 hover:bg-bg-3 hover:text-danger"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </li>
             ))}

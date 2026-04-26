@@ -57,7 +57,7 @@ export function TokensClient() {
             Your tokens
           </h2>
           <Button variant="accent" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> New token
+            <Plus className="h-3.5 w-3.5" /> New token
           </Button>
         </div>
 
@@ -117,7 +117,7 @@ function TokenRow({ token, onRevoke }: { token: TokenRow; onRevoke: () => void }
         aria-label="Revoke"
         className="rounded-sm p-1 text-text-3 hover:bg-bg-3 hover:text-danger"
       >
-        <Trash2 className="h-4 w-4" />
+        <Trash2 className="h-3.5 w-3.5" />
       </button>
     </div>
   );
