@@ -268,7 +268,6 @@ function NewQuotaForm({
   onError: (m: string) => void;
 }) {
   const [toolId, setToolId] = useState("");
-  const [subjectType, setSubjectType] = useState<"user" | "org">("user");
   const [user, setUser] = useState<PickedUser | null>(null);
   const [period, setPeriod] = useState<"day" | "month">("day");
   const [limit, setLimit] = useState(100);
@@ -280,7 +279,7 @@ function NewQuotaForm({
       onError("Pick a tool.");
       return;
     }
-    if (subjectType === "user" && !user) {
+    if (!user) {
       onError("Pick a user.");
       return;
     }
@@ -292,8 +291,8 @@ function NewQuotaForm({
         credentials: "include",
         body: JSON.stringify({
           tool_id: toolId,
-          subject_type: subjectType,
-          subject_id: user!.user_id,
+          subject_type: "user",
+          subject_id: user.user_id,
           period,
           limit_credits: limit,
         }),
