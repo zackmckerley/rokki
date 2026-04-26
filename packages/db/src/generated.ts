@@ -1130,6 +1130,51 @@ export type Database = {
           },
         ]
       }
+      jobs: {
+        Row: {
+          attempt: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          locked_by: string | null
+          max_attempts: number
+          next_run_at: string
+          payload: Json
+          queue: string
+          status: string
+        }
+        Insert: {
+          attempt?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          next_run_at?: string
+          payload?: Json
+          queue: string
+          status?: string
+        }
+        Update: {
+          attempt?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          next_run_at?: string
+          payload?: Json
+          queue?: string
+          status?: string
+        }
+        Relationships: []
+      }
       message_threads: {
         Row: {
           created_at: string
@@ -2345,14 +2390,13 @@ export type Database = {
         Row: {
           attempt: number
           attempted_at: string
-          created_at: string
-          dead_lettered_at: string | null
+          dead_at: string | null
           delivered_at: string | null
           destination_id: string
+          event_id: string | null
           event_name: string
           id: string
-          last_error: string | null
-          next_attempt_at: string | null
+          last_attempt_at: string | null
           payload: Json
           response_body: string | null
           response_code: number | null
@@ -2361,14 +2405,13 @@ export type Database = {
         Insert: {
           attempt?: number
           attempted_at?: string
-          created_at?: string
-          dead_lettered_at?: string | null
+          dead_at?: string | null
           delivered_at?: string | null
           destination_id: string
+          event_id?: string | null
           event_name: string
           id?: string
-          last_error?: string | null
-          next_attempt_at?: string | null
+          last_attempt_at?: string | null
           payload: Json
           response_body?: string | null
           response_code?: number | null
@@ -2377,14 +2420,13 @@ export type Database = {
         Update: {
           attempt?: number
           attempted_at?: string
-          created_at?: string
-          dead_lettered_at?: string | null
+          dead_at?: string | null
           delivered_at?: string | null
           destination_id?: string
+          event_id?: string | null
           event_name?: string
           id?: string
-          last_error?: string | null
-          next_attempt_at?: string | null
+          last_attempt_at?: string | null
           payload?: Json
           response_body?: string | null
           response_code?: number | null

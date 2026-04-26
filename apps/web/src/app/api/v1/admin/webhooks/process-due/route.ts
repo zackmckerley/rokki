@@ -1,43 +1,50 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
-import { processDueDeliveries } from "@/lib/webhooks";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { claimAndProcess } from "@/lib/jobs";
+import {
+  WEBHOOK_DELIVERY_QUEUE,
+  webhookDeliveryHandler,
+} from "@/lib/webhooks";
 
 /**
  * POST /api/v1/admin/webhooks/process-due
  *
- * Walks the `webhook_deliveries` queue for any rows whose
- * `next_attempt_at` has elapsed and attempts each. Designed to be
- * triggered by a cron or scheduled task — Vercel Cron, an external
- * scheduler, or a one-shot CLI hit.
+ * Backwards-compat thin wrapper. Older cron jobs that pointed at this
+ * URL still work; new deployments should hit /api/v1/admin/jobs/process
+ * which iterates every queue.
  *
- * Two ways to authenticate:
- *   - Platform-admin session (the dashboard "Process now" button), OR
- *   - `x-cron-secret: $CRON_SECRET` header so a scheduler can hit it
- *     without an interactive session.
- *
- * Suggested cron cadence: every 1 minute. The work is idempotent — a
- * concurrent invocation can't double-deliver a row because each worker
- * claims rows by bumping the `attempt` counter atomically before the
- * outbound POST.
+ * Dual-auth: admin session OR x-cron-secret. Same as the generic
+ * worker endpoint.
  */
-export async function POST(request: NextRequest) {
-  const cronSecret = process.env.CRON_SECRET;
-  const headerSecret = request.headers.get("x-cron-secret");
-  const cronAuthorized =
-    !!cronSecret && !!headerSecret && headerSecret === cronSecret;
+export const dynamic = "force-dynamic";
 
-  if (!cronAuthorized) {
+export async function POST(request: NextRequest) {
+  const cronHeader = request.headers.get("x-cron-secret");
+  const expected = process.env.CRON_SECRET;
+  let allowed = !!cronHeader && !!expected && cronHeader === expected;
+
+  if (!allowed) {
     const gate = await requireAdmin(request);
     if ("status" in gate) return gate;
+    allowed = true;
+  }
+  if (!allowed) {
+    return NextResponse.json(
+      { errors: [{ code: "unauthenticated", message: "Sign in or supply x-cron-secret" }] },
+      { status: 401 },
+    );
   }
 
-  const url = new URL(request.url);
-  const limitParam = url.searchParams.get("limit");
-  const limit = Math.min(Math.max(Number(limitParam) || 50, 1), 200);
-
-  const result = await processDueDeliveries(limit);
-  return NextResponse.json({ data: result });
+  try {
+    const result = await claimAndProcess(WEBHOOK_DELIVERY_QUEUE, {
+      [WEBHOOK_DELIVERY_QUEUE]: webhookDeliveryHandler,
+    });
+    return NextResponse.json({ data: result });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json(
+      { errors: [{ code: "internal_error", message: msg }] },
+      { status: 500 },
+    );
+  }
 }
