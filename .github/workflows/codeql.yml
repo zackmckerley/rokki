@@ -1,0 +1,66 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly Monday 09:00 UTC — staggered an hour after Dependabot so
+    # any auto-updated dependency PR is scanned with the new versions.
+    - cron: "0 9 * * 1"
+
+# CodeQL needs the merge commit's diff to compute incremental analysis;
+# don't cancel a queued scan when a newer commit lands.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-and-quality
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        # Frozen lockfile so a poisoned upstream can't slip into the
+        # scanned tree. CodeQL still scans the resolved graph.
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (autobuild)
+        # Autobuild handles the typescript compilation step needed for
+        # taint analysis. Falls back gracefully if no build is required.
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
