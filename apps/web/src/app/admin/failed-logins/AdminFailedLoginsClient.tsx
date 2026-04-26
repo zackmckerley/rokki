@@ -39,7 +39,14 @@ export function AdminFailedLoginsClient() {
       </p>
     );
   if (rows.length === 0)
-    return <AdminEmpty>No failed login attempts in the last 24h.</AdminEmpty>;
+    return (
+      <AdminEmpty
+        panel
+        body="Quiet so far. Failed sign-in attempts in the last 24 hours show here."
+      >
+        No failed login attempts.
+      </AdminEmpty>
+    );
 
   return (
     <AdminPanel>

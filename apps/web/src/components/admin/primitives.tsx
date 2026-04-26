@@ -1,8 +1,9 @@
 "use client";
 
-import { Copy, Check as CheckIcon } from "lucide-react";
+import { Copy, Check as CheckIcon, Inbox } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/EmptyState";
 
 /**
  * Shared primitives for `/admin/*` pages. Goal: functional, dense, no
@@ -178,12 +179,46 @@ export function AdminTd({
   );
 }
 
-export function AdminEmpty({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="rounded border border-dashed border-border bg-bg-1 p-8 text-center text-xs text-text-3">
-      {children}
-    </p>
+export function AdminEmpty({
+  children,
+  body,
+  action,
+  panel = false,
+}: {
+  /** Title — short, sentence form. */
+  children: React.ReactNode;
+  /** Optional helper line. */
+  body?: React.ReactNode;
+  /** Optional CTA — pass `{ label, href }` or `{ label, onClick }`. */
+  action?: {
+    label: string;
+    href?: string;
+    onClick?: () => void;
+    variant?: "accent" | "default";
+  };
+  /**
+   * Wrap in a dashed-border panel. Set when used at top level (between
+   * AdminSectionHeader and the main content). Leave false when nested
+   * inside an `AdminPanel` so we don't double up borders.
+   */
+  panel?: boolean;
+}) {
+  const inner = (
+    <EmptyState
+      icon={Inbox}
+      title={typeof children === "string" ? children : String(children)}
+      body={body}
+      action={action}
+    />
   );
+  if (panel) {
+    return (
+      <div className="rounded border border-dashed border-border bg-bg-1">
+        {inner}
+      </div>
+    );
+  }
+  return inner;
 }
 
 export function AdminButton({

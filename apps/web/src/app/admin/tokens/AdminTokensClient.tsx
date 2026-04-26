@@ -116,7 +116,12 @@ export function AdminTokensClient() {
       ) : null}
 
       {rows.length === 0 ? (
-        <AdminEmpty>No tokens match.</AdminEmpty>
+        <AdminEmpty
+          panel
+          body="API tokens issued via /settings/tokens by any user appear here."
+        >
+          No tokens match.
+        </AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">

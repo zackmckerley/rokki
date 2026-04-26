@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { breadcrumbOf, isValidFolderName } from "@/lib/folder-path";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
+import { EmptyState } from "./EmptyState";
 
 interface FileRow {
   id: string;
@@ -1026,36 +1027,25 @@ function EmptyFolder({
   atRoot: boolean;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
-      <p className="text-sm text-text-2">
-        {atRoot ? "No files yet." : "This folder is empty."}
-      </p>
-      <div className="flex gap-2">
-        <button
-          onClick={onUpload}
-          className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
-        >
-          Upload
-        </button>
-        <button
-          onClick={onNewFolder}
-          className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
-        >
-          New folder
-        </button>
-      </div>
-    </div>
+    <EmptyState
+      icon={FileText}
+      title={atRoot ? "No files yet." : "This folder is empty."}
+      body="Drag files here, or use the buttons below. Up to 25 MB per file."
+      action={{ label: "Upload", onClick: onUpload, variant: "accent" }}
+      secondaryAction={{ label: "New folder", onClick: onNewFolder }}
+      className="p-10"
+    />
   );
 }
 
 function EmptyTrash() {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-      <p className="text-sm text-text-2">Trash is empty.</p>
-      <p className="text-xs text-text-3">
-        Deleted files and folders land here, recoverable until you remove them for good.
-      </p>
-    </div>
+    <EmptyState
+      icon={Trash2}
+      title="Trash is empty."
+      body="Deleted files and folders land here, recoverable until you remove them for good."
+      className="p-10"
+    />
   );
 }
 

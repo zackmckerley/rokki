@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, Circle, MessageSquare, Maximize2 } from "lucide-react";
+import { Plus, Check, Circle, MessageSquare, Maximize2, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "./EmptyState";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { CommentThread } from "./CommentThread";
@@ -452,16 +453,18 @@ function SkeletonList() {
 
 function Empty({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
-      <p className="text-sm text-text-2">No tasks yet.</p>
-      <button
-        onClick={onCreate}
-        className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
-      >
-        Create first task
-      </button>
-      <p className="font-mono text-xs text-text-3">or press C</p>
-    </div>
+    <EmptyState
+      icon={ListTodo}
+      title="No tasks yet."
+      body="Tasks track work in this terminal — assignees, due dates, status."
+      action={{
+        label: "+ New task",
+        onClick: onCreate,
+        variant: "accent",
+        shortcut: "C",
+      }}
+      className="p-10"
+    />
   );
 }
 

@@ -126,7 +126,12 @@ export function AdminWebhooksClient() {
       ) : null}
 
       {rows.length === 0 ? (
-        <AdminEmpty>No webhooks configured.</AdminEmpty>
+        <AdminEmpty
+          panel
+          body="Outbound webhooks let external systems subscribe to Rokki events."
+        >
+          No webhooks configured.
+        </AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">

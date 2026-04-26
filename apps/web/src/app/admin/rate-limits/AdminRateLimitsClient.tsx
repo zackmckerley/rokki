@@ -135,7 +135,12 @@ export function AdminRateLimitsClient() {
       ) : null}
 
       {rows.length === 0 ? (
-        <AdminEmpty>No hits in the selected window.</AdminEmpty>
+        <AdminEmpty
+          panel
+          body="No 429 responses or near-cap warnings recorded in the selected window."
+        >
+          No rate-limit hits.
+        </AdminEmpty>
       ) : (
         <AdminPanel>
           <AdminTable className="border-0">

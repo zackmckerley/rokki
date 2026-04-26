@@ -81,7 +81,12 @@ export function AdminAnnouncementsClient() {
         </p>
       ) : null}
       {rows.length === 0 ? (
-        <AdminEmpty>No announcements.</AdminEmpty>
+        <AdminEmpty
+          panel
+          body="Maintenance windows or platform-wide notes go here. None scheduled."
+        >
+          No announcements.
+        </AdminEmpty>
       ) : (
         <AdminPanel title={`${rows.length} announcement${rows.length === 1 ? "" : "s"}`}>
           <AdminTable className="border-0">

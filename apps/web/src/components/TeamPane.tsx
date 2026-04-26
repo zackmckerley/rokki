@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Mail, UserPlus, Clock, Circle } from "lucide-react";
+import { Mail, UserPlus, Clock, Circle, Users as UsersIcon } from "lucide-react";
 import { Dialog } from "./Dialog";
+import { EmptyState } from "./EmptyState";
 import { Button } from "./ui/Button";
 import { Input } from "./ui/Input";
 import { cn } from "@/lib/utils";
@@ -330,20 +331,26 @@ function Empty({
   onInvite: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
-      <p className="text-sm text-text-2">No one else is here yet.</p>
-      {canInvite ? (
-        <button
-          onClick={onInvite}
-          className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
-        >
-          Invite someone
-        </button>
-      ) : null}
-      {canInvite ? (
-        <p className="font-mono text-xs text-text-3">or press I</p>
-      ) : null}
-    </div>
+    <EmptyState
+      icon={UsersIcon}
+      title="No one else is here yet."
+      body={
+        canInvite
+          ? "Invite a teammate or guest by email — they get a magic link that auto-accepts."
+          : "An owner or manager will need to add people to this terminal."
+      }
+      action={
+        canInvite
+          ? {
+              label: "+ Invite team",
+              onClick: onInvite,
+              variant: "accent",
+              shortcut: "I",
+            }
+          : undefined
+      }
+      className="p-10"
+    />
   );
 }
 

@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Check, Copy } from "lucide-react";
+import { Plus, Trash2, Check, Copy, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/Dialog";
 import { Input } from "@/components/ui/Input";
+import { EmptyState } from "@/components/EmptyState";
 
 interface TokenRow {
   id: string;
@@ -64,7 +65,7 @@ export function TokensClient() {
         {loading ? (
           <Skeleton />
         ) : active.length === 0 ? (
-          <EmptyState onCreate={() => setCreateOpen(true)} />
+          <TokensEmpty onCreate={() => setCreateOpen(true)} />
         ) : (
           <div className="divide-y divide-border overflow-hidden rounded border border-border bg-bg-1">
             {active.map((t) => (
@@ -138,16 +139,19 @@ function Skeleton() {
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function TokensEmpty({ onCreate }: { onCreate: () => void }) {
   return (
-    <div className="rounded border border-border bg-bg-1 p-8 text-center">
-      <p className="text-sm text-text-1">No tokens yet.</p>
-      <p className="mt-1 text-xs text-text-3">
-        Create one to let your Claude / ChatGPT read this account.
-      </p>
-      <Button variant="accent" className="mt-4" onClick={onCreate}>
-        Create token
-      </Button>
+    <div className="rounded border border-border bg-bg-1">
+      <EmptyState
+        icon={KeyRound}
+        title="No tokens yet."
+        body="Create one to let your Claude / ChatGPT read this account."
+        action={{
+          label: "+ New token",
+          onClick: onCreate,
+          variant: "accent",
+        }}
+      />
     </div>
   );
 }
