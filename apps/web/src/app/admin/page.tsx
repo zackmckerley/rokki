@@ -233,7 +233,7 @@ export default async function AdminOverviewPage() {
               value={fileCount ?? 0}
             />
             <Stat
-              href="/tools"
+              href="/admin/tools"
               icon={<Sparkles />}
               label="Tools"
               value={toolCount ?? 0}
