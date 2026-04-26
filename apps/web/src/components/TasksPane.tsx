@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, Circle, MessageSquare, Maximize2, ListTodo } from "lucide-react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { Plus, Check, Circle, MessageSquare, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EmptyState } from "./EmptyState";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
+import { createClient } from "@/lib/supabase/client";
 import { CommentThread } from "./CommentThread";
+import { ViewsMenu, type UserView } from "./ViewsMenu";
 import {
   PriorityDots,
   StatusPill,
@@ -27,6 +29,21 @@ interface Task {
   created_at: string;
   completed_at: string | null;
 }
+
+/** TasksPane view payload — kept loose so adding a knob doesn't migrate the DB. */
+interface TasksFilter {
+  status?: TaskStatus[];
+  priority?: number[];
+  labels?: string[];
+  due?: "any" | "overdue" | "today" | "week";
+}
+type TasksSortBy = "status" | "priority" | "due" | "created" | "title";
+interface TasksSort {
+  by: TasksSortBy;
+  dir: "asc" | "desc";
+}
+const DEFAULT_SORT: TasksSort = { by: "status", dir: "asc" };
+const DEFAULT_FILTER: TasksFilter = {};
 
 interface TasksPaneProps {
   ticker: string;
@@ -61,6 +78,78 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
   const createRef = useRef<HTMLInputElement>(null);
+
+  // Saved-views state. activeViewId mirrors the URL ?view= param so
+  // sharing a link reproduces the same filter/sort. The actual filter +
+  // sort live in their own state — applying a view writes to all three.
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<TasksFilter>(DEFAULT_FILTER);
+  const [sort, setSort] = useState<TasksSort>(DEFAULT_SORT);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const supa = createClient();
+    void supa.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
+
+  // On mount + when the ?view= param changes, hydrate the active view.
+  // We do this inside its own effect so the user can land on a deep
+  // link, get the right filter/sort applied without a re-fetch race.
+  useEffect(() => {
+    const viewParam = searchParams?.get("view") ?? null;
+    if (viewParam === activeViewId) return;
+    if (!viewParam) {
+      setActiveViewId(null);
+      setFilter(DEFAULT_FILTER);
+      setSort(DEFAULT_SORT);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const r = await fetch(
+        `/api/v1/user-views?scope=tasks&terminal=${projectId}`,
+        { credentials: "include" },
+      );
+      if (!r.ok || cancelled) return;
+      const body = (await r.json()) as {
+        data?: UserView<TasksFilter, TasksSort>[];
+      };
+      const match = body.data?.find((v) => v.id === viewParam);
+      if (!match || cancelled) return;
+      setActiveViewId(match.id);
+      setFilter(coerceFilter(match.filter));
+      setSort(coerceSort(match.sort));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally don't depend on activeViewId — that would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, projectId]);
+
+  function applyView(view: UserView<TasksFilter, TasksSort>) {
+    setActiveViewId(view.id);
+    setFilter(coerceFilter(view.filter));
+    setSort(coerceSort(view.sort));
+    pushViewParam(view.id);
+  }
+  function clearView() {
+    setActiveViewId(null);
+    setFilter(DEFAULT_FILTER);
+    setSort(DEFAULT_SORT);
+    pushViewParam(null);
+  }
+  function pushViewParam(id: string | null) {
+    if (!pathname) return;
+    const next = new URLSearchParams(searchParams?.toString() ?? "");
+    if (id) next.set("view", id);
+    else next.delete("view");
+    const qs = next.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,11 +195,18 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     };
   }, [ticker]);
 
+  // Apply the active view's filter + sort. Realtime mutations refresh
+  // `tasks` and the derived list re-runs.
+  const displayTasks = useMemo(
+    () => sortByView(applyFilter(tasks, filter), sort),
+    [tasks, filter, sort],
+  );
+
   // Realtime: mirror DB changes (inserts, updates, deletes) into local state
   // without refetching the whole list. RLS scopes the events to this user.
   const paletteCommands = useMemo(
     () => {
-      const selected = tasks[selectedIdx];
+      const selected = displayTasks[selectedIdx];
       const base = [
         {
           id: `tasks/new:${projectId}`,
@@ -150,7 +246,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       return base;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, selectedIdx, projectId],
+    [displayTasks, selectedIdx, projectId],
   );
   useRegisterCommands(`tasks:${projectId}`, paletteCommands);
 
@@ -178,7 +274,9 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     if (creating) createRef.current?.focus();
   }, [creating]);
 
-  // Keyboard shortcuts (scoped — only fire when focus isn't in an input)
+  // Keyboard shortcuts (scoped — only fire when focus isn't in an input).
+  // Walks `displayTasks` rather than `tasks` so j/k matches what's on screen
+  // when a view is filtering rows out.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target;
@@ -186,7 +284,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
 
       if (e.key === "j") {
         e.preventDefault();
-        setSelectedIdx((i) => Math.min(i + 1, Math.max(tasks.length - 1, 0)));
+        setSelectedIdx((i) => Math.min(i + 1, Math.max(displayTasks.length - 1, 0)));
       } else if (e.key === "k") {
         e.preventDefault();
         setSelectedIdx((i) => Math.max(i - 1, 0));
@@ -195,17 +293,17 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
         setCreating(true);
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        const t = tasks[selectedIdx];
+        const t = displayTasks[selectedIdx];
         if (t && t.status !== "done") void toggleComplete(t);
       } else if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
-        const t = tasks[selectedIdx];
+        const t = displayTasks[selectedIdx];
         if (t) {
           e.preventDefault();
           void toggleComplete(t);
         }
       } else if (e.key === ";") {
         // Open the comment thread on the selected task.
-        const t = tasks[selectedIdx];
+        const t = displayTasks[selectedIdx];
         if (t) {
           e.preventDefault();
           setCommentTaskId((prev) => (prev === t.id ? null : t.id));
@@ -215,7 +313,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, selectedIdx]);
+  }, [displayTasks, selectedIdx]);
 
   async function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "done" ? "todo" : "done";
@@ -280,14 +378,30 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
-          <span className="font-mono text-xs text-text-3">{tasks.length}</span>
+          <span className="font-mono text-xs text-text-3">
+            {displayTasks.length === tasks.length
+              ? tasks.length
+              : `${displayTasks.length}/${tasks.length}`}
+          </span>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
-        >
-          <Plus className="h-3 w-3" /> New task <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
-        </button>
+        <div className="flex items-center gap-1">
+          <ViewsMenu<TasksFilter, TasksSort>
+            scope="tasks"
+            terminalId={projectId}
+            currentUserId={currentUserId}
+            currentFilter={filter}
+            currentSort={sort}
+            activeViewId={activeViewId}
+            onApply={applyView}
+            onClear={clearView}
+          />
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+          >
+            <Plus className="h-3 w-3" /> New task <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -301,9 +415,11 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           <SkeletonList />
         ) : tasks.length === 0 && !creating ? (
           <Empty onCreate={() => setCreating(true)} />
+        ) : displayTasks.length === 0 ? (
+          <FilteredEmpty onClear={clearView} hasView={Boolean(activeViewId)} />
         ) : (
           <ul className="divide-y divide-border">
-            {tasks.map((t, i) => (
+            {displayTasks.map((t, i) => (
               <TaskRow
                 key={t.id}
                 task={t}
@@ -453,18 +569,40 @@ function SkeletonList() {
 
 function Empty({ onCreate }: { onCreate: () => void }) {
   return (
-    <EmptyState
-      icon={ListTodo}
-      title="No tasks yet."
-      body="Tasks track work in this terminal — assignees, due dates, status."
-      action={{
-        label: "+ New task",
-        onClick: onCreate,
-        variant: "accent",
-        shortcut: "C",
-      }}
-      className="p-10"
-    />
+    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+      <p className="text-sm text-text-2">No tasks yet.</p>
+      <button
+        onClick={onCreate}
+        className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
+      >
+        Create first task
+      </button>
+      <p className="font-mono text-xs text-text-3">or press C</p>
+    </div>
+  );
+}
+
+function FilteredEmpty({
+  onClear,
+  hasView,
+}: {
+  onClear: () => void;
+  hasView: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+      <p className="text-sm text-text-2">
+        No tasks match {hasView ? "this view" : "the current filter"}.
+      </p>
+      {hasView ? (
+        <button
+          onClick={onClear}
+          className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
+        >
+          Clear view
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -493,3 +631,152 @@ function sortTasks(tasks: Task[]): Task[] {
   });
 }
 
+/* ------------------------------------------------------------------------- */
+/* Saved-view helpers                                                         */
+/* ------------------------------------------------------------------------- */
+
+const STATUS_RANK: Record<TaskStatus, number> = {
+  todo: 0,
+  in_progress: 1,
+  review: 2,
+  blocked: 3,
+  done: 4,
+};
+
+function applyFilter(tasks: Task[], filter: TasksFilter): Task[] {
+  let out = tasks;
+  if (filter.status && filter.status.length > 0) {
+    const set = new Set(filter.status);
+    out = out.filter((t) => set.has(t.status));
+  }
+  if (filter.priority && filter.priority.length > 0) {
+    const set = new Set(filter.priority);
+    out = out.filter((t) => set.has(t.priority));
+  }
+  if (filter.labels && filter.labels.length > 0) {
+    const want = filter.labels.map((l) => l.toLowerCase());
+    out = out.filter((t) =>
+      t.labels.some((l) => want.includes(l.toLowerCase())),
+    );
+  }
+  if (filter.due && filter.due !== "any") {
+    const today = startOfDayUtc(new Date());
+    const inWeek = today + 7 * 86400_000;
+    out = out.filter((t) => {
+      if (!t.due_date) return false;
+      const d = startOfDayUtc(new Date(t.due_date));
+      switch (filter.due) {
+        case "overdue":
+          return d < today && t.status !== "done";
+        case "today":
+          return d === today;
+        case "week":
+          return d <= inWeek;
+        default:
+          return true;
+      }
+    });
+  }
+  return out;
+}
+
+function sortByView(tasks: Task[], sort: TasksSort): Task[] {
+  const dir = sort.dir === "desc" ? -1 : 1;
+  // Always tie-break with created_at desc — matches existing behaviour
+  // so realtime inserts don't shuffle.
+  const tieBreak = (a: Task, b: Task): number =>
+    new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+
+  return [...tasks].sort((a, b) => {
+    let primary = 0;
+    switch (sort.by) {
+      case "status":
+        primary = STATUS_RANK[a.status] - STATUS_RANK[b.status];
+        break;
+      case "priority":
+        primary = a.priority - b.priority;
+        break;
+      case "due": {
+        const da = a.due_date
+          ? new Date(a.due_date).getTime()
+          : Number.POSITIVE_INFINITY;
+        const db = b.due_date
+          ? new Date(b.due_date).getTime()
+          : Number.POSITIVE_INFINITY;
+        primary = da - db;
+        break;
+      }
+      case "created":
+        primary =
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        break;
+      case "title":
+        primary = a.title.localeCompare(b.title);
+        break;
+    }
+    if (primary !== 0) return primary * dir;
+    return tieBreak(a, b);
+  });
+}
+
+function startOfDayUtc(d: Date): number {
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+const VALID_STATUSES = new Set<TaskStatus>([
+  "todo",
+  "in_progress",
+  "review",
+  "blocked",
+  "done",
+]);
+const VALID_DUE = new Set(["any", "overdue", "today", "week"]);
+const VALID_SORT_BY = new Set<TasksSortBy>([
+  "status",
+  "priority",
+  "due",
+  "created",
+  "title",
+]);
+
+/**
+ * The view payload comes back as raw JSON. Coerce defensively so a
+ * hand-edited `filter` jsonb (or a future schema change) doesn't crash
+ * the pane — we drop unknown values instead.
+ */
+function coerceFilter(raw: unknown): TasksFilter {
+  if (!raw || typeof raw !== "object") return {};
+  const r = raw as Record<string, unknown>;
+  const out: TasksFilter = {};
+  if (Array.isArray(r.status)) {
+    const arr = r.status.filter(
+      (s): s is TaskStatus => typeof s === "string" && VALID_STATUSES.has(s as TaskStatus),
+    );
+    if (arr.length > 0) out.status = arr;
+  }
+  if (Array.isArray(r.priority)) {
+    const arr = r.priority.filter(
+      (p): p is number => typeof p === "number" && p >= 1 && p <= 4,
+    );
+    if (arr.length > 0) out.priority = arr;
+  }
+  if (Array.isArray(r.labels)) {
+    const arr = r.labels.filter((l): l is string => typeof l === "string");
+    if (arr.length > 0) out.labels = arr;
+  }
+  if (typeof r.due === "string" && VALID_DUE.has(r.due)) {
+    out.due = r.due as TasksFilter["due"];
+  }
+  return out;
+}
+
+function coerceSort(raw: unknown): TasksSort {
+  if (!raw || typeof raw !== "object") return DEFAULT_SORT;
+  const r = raw as Record<string, unknown>;
+  const by =
+    typeof r.by === "string" && VALID_SORT_BY.has(r.by as TasksSortBy)
+      ? (r.by as TasksSortBy)
+      : DEFAULT_SORT.by;
+  const dir = r.dir === "desc" ? "desc" : "asc";
+  return { by, dir };
+}
