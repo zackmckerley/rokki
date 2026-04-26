@@ -146,6 +146,12 @@ async function handlePost(request: NextRequest, { params }: Props) {
     tags?: string[];
     status?: TaskStatus;
     recurrence_rule?: TaskRecurrenceRule | null;
+    /**
+     * Optional explicit assignee list. Omit (or send empty) to fall back
+     * to "creator is the assignee" — handled both here and by the
+     * trg_tasks_default_assignee trigger.
+     */
+    assignee_ids?: string[];
   };
 
   if (!body.title?.trim()) return bad("title is required");
@@ -189,6 +195,28 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   if (result.error || !data) {
     return internal(result.error?.message ?? "insert failed");
+  }
+
+  // Default-assignee fallback (defence in depth — the AFTER INSERT trigger
+  // also enforces this at the DB level). When the caller passes assignees
+  // explicitly we honour the list; otherwise the creator becomes the sole
+  // assignee. The trigger is idempotent (ON CONFLICT DO NOTHING) so the
+  // explicit-insert path here is never wasted work.
+  const explicitAssignees = (body.assignee_ids ?? []).filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+  const toAssign =
+    explicitAssignees.length > 0 ? explicitAssignees : [user.id];
+  if (toAssign.length > 0) {
+    const rows = toAssign.map((uid) => ({
+      task_id: data.id,
+      user_id: uid,
+      assigned_by: user.id,
+    }));
+    await supabase
+      .from("task_assignees")
+      // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
+      .upsert(rows, { onConflict: "task_id,user_id" });
   }
 
   await supabase
