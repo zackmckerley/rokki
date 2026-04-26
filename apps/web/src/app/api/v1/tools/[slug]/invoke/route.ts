@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkQuota, recordQuotaUsage } from "@/lib/quotas";
 import { decryptToken } from "@/lib/token-crypto";
-import { withObservability } from "@/lib/observability";
+import { withObservability, traceSpan } from "@/lib/observability";
 import crypto from "node:crypto";
 
 interface Props {
@@ -206,7 +206,7 @@ async function handlePost(request: NextRequest, { params }: Props) {
   const envForTool = await resolveByokEnv(supabase, user.id);
 
   const start = Date.now();
-  let result: {
+  type ExecutorResult = {
     status: "success" | "error" | "timeout";
     output?: unknown;
     logs: string[];
@@ -214,44 +214,60 @@ async function handlePost(request: NextRequest, { params }: Props) {
     error_message?: string;
     error_code?: string;
   };
-  try {
-    const res = await fetch(`${EXECUTOR_URL}/v1/invoke`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${EXECUTOR_TOKEN}`,
+  // Wrap the executor RPC in an `ai.tool` span. Tool runs are the
+  // longest single span on most authed traces — distinct op label makes
+  // them easy to filter on in Sentry's performance tab.
+  const result: ExecutorResult = await traceSpan(
+    {
+      name: `ai.tool.invoke ${tool.slug}`,
+      op: "ai.tool",
+      attributes: {
+        tool_slug: tool.slug,
+        tool_version: tool.current_version,
+        timeout_s: tool.timeout_seconds,
+        draft: Boolean(body.scripts),
       },
-      body: JSON.stringify({
-        invocation_id: invocationId ?? crypto.randomUUID(),
-        runtime: "node20",
-        entrypoint,
-        scripts,
-        input: body.input ?? {},
-        timeout_seconds: tool.timeout_seconds,
-        env: envForTool,
-      }),
-    });
-    if (!res.ok) {
-      const msg = await res.text();
-      result = {
-        status: "error",
-        logs: [],
-        duration_ms: Date.now() - start,
-        error_code: "executor_unreachable",
-        error_message: `${res.status}: ${msg.slice(0, 200)}`,
-      };
-    } else {
-      result = (await res.json()) as typeof result;
-    }
-  } catch (e) {
-    result = {
-      status: "error",
-      logs: [],
-      duration_ms: Date.now() - start,
-      error_code: "executor_unreachable",
-      error_message: e instanceof Error ? e.message : "network error",
-    };
-  }
+    },
+    async () => {
+      try {
+        const res = await fetch(`${EXECUTOR_URL}/v1/invoke`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${EXECUTOR_TOKEN}`,
+          },
+          body: JSON.stringify({
+            invocation_id: invocationId ?? crypto.randomUUID(),
+            runtime: "node20",
+            entrypoint,
+            scripts,
+            input: body.input ?? {},
+            timeout_seconds: tool.timeout_seconds,
+            env: envForTool,
+          }),
+        });
+        if (!res.ok) {
+          const msg = await res.text();
+          return {
+            status: "error",
+            logs: [],
+            duration_ms: Date.now() - start,
+            error_code: "executor_unreachable",
+            error_message: `${res.status}: ${msg.slice(0, 200)}`,
+          };
+        }
+        return (await res.json()) as ExecutorResult;
+      } catch (e) {
+        return {
+          status: "error",
+          logs: [],
+          duration_ms: Date.now() - start,
+          error_code: "executor_unreachable",
+          error_message: e instanceof Error ? e.message : "network error",
+        };
+      }
+    },
+  );
 
   if (invocationId) {
     const outputJson = JSON.stringify(result.output ?? null);

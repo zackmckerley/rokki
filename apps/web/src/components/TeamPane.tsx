@@ -9,6 +9,7 @@ import { Input } from "./ui/Input";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import { traceBreadcrumb } from "@/lib/observability";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { currentTimeIn, shortZoneLabel } from "@/lib/timezone";
 import type { ProjectRole } from "@rokki/db";
@@ -119,7 +120,21 @@ export function TeamPane({ ticker, projectId, canInvite }: TeamPaneProps) {
         const state = channel.presenceState() as Record<string, unknown[]>;
         setOnlineUserIds(new Set(Object.keys(state)));
       });
+      traceBreadcrumb({
+        category: "realtime",
+        message: "presence.subscribe",
+        data: { project_id: projectId },
+      });
       await channel.subscribe(async (status) => {
+        traceBreadcrumb({
+          category: "realtime",
+          message: `presence.${status.toLowerCase()}`,
+          data: { project_id: projectId, status },
+          level:
+            status === "CHANNEL_ERROR" || status === "TIMED_OUT"
+              ? "warning"
+              : "info",
+        });
         if (status === "SUBSCRIBED" && channel) {
           await channel.track({ user_id: me, at: new Date().toISOString() });
         }
@@ -128,6 +143,11 @@ export function TeamPane({ ticker, projectId, canInvite }: TeamPaneProps) {
     return () => {
       cancelled = true;
       if (channel) {
+        traceBreadcrumb({
+          category: "realtime",
+          message: "presence.unsubscribe",
+          data: { project_id: projectId },
+        });
         void channel.unsubscribe();
         void createClient().removeChannel(channel);
       }

@@ -18,6 +18,7 @@ Read the BUILD_SPEC.md first, then these docs in order:
 10. **[09_ENVIRONMENTS.md](09_ENVIRONMENTS.md)** — local dev, staging, prod, env vars, CI/CD
 11. **[10_TESTING.md](10_TESTING.md)** — test strategy, fixtures, e2e with examples
 12. **[11_ACCEPTANCE.md](11_ACCEPTANCE.md)** — Phase 0/1/2 concrete acceptance tests
+13. **[13_OBSERVABILITY.md](13_OBSERVABILITY.md)** — Sentry tracing surface, span helpers, sample-rate trade-offs
 
 ## Document responsibility map
 
