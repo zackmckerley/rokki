@@ -227,7 +227,7 @@ export function AccountBlock({
               it inside the open dropdown is redundant. */}
           {error ? (
             <p className="flex items-center gap-1 border-b border-border bg-danger-subtle px-3 py-1.5 text-[11px] text-danger">
-              <AlertCircle className="h-3 w-3" /> {error}
+              <AlertCircle className="h-2.5 w-2.5" /> {error}
             </p>
           ) : null}
 
