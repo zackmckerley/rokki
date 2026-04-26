@@ -280,14 +280,32 @@ function AccountBlock({
         credentials: "include",
         body: JSON.stringify({ user_id: userId }),
       });
+      const body = (await r.json().catch(() => ({}))) as {
+        data?: { switched_to?: string };
+        errors?: { code?: string; message: string }[];
+      };
+      // Diagnostic: surface the entire response shape to the console
+      // so the next time switching silently fails we can see exactly
+      // why (cookie not set, refresh expired, decryption mismatch, etc.).
+      console.info("[AccountSwitcher] switch response:", {
+        ok: r.ok,
+        status: r.status,
+        body,
+      });
       if (!r.ok) {
-        const body = (await r.json().catch(() => ({}))) as {
-          errors?: { message: string }[];
-        };
-        setError(body.errors?.[0]?.message ?? `HTTP ${r.status}`);
+        const msg =
+          body.errors?.[0]?.message ?? `HTTP ${r.status} switching account`;
+        setError(msg);
         return;
       }
+      // Land on the OTHER account's natural home — admins go to /admin,
+      // regular users to /. We don't know yet which (we'd need a /me
+      // round-trip), so do a hard reload to / and let the dashboard's
+      // pure-admin shortcut redirect to /admin if applicable.
       window.location.href = "/";
+    } catch (e) {
+      console.error("[AccountSwitcher] switch threw:", e);
+      setError(e instanceof Error ? e.message : "Switch failed");
     } finally {
       setBusy(null);
     }
@@ -364,27 +382,9 @@ function AccountBlock({
           role="menu"
           className="absolute bottom-full left-0 right-0 z-30 mb-0 max-h-[80vh] overflow-y-auto border border-border bg-bg-1 text-xs shadow-lg"
         >
-          {/* Identity header — large, so the user knows which account
-              this dropdown is operating in. */}
-          <div className="border-b border-border bg-bg-2 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 text-xs font-semibold text-text-0">
-                {initials}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm text-text-0">{name}</div>
-                <div className="truncate font-mono text-[10px] text-text-3">
-                  {email}
-                </div>
-              </div>
-              {isPlatformAdmin ? (
-                <span className="inline-flex items-center gap-1 rounded-sm border border-accent/40 bg-accent-subtle px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-accent">
-                  <ShieldCheck className="h-3 w-3" /> admin
-                </span>
-              ) : null}
-            </div>
-          </div>
-
+          {/* No duplicate identity header here — the trigger button below
+              already shows avatar + name + email + admin chip. Repeating
+              it inside the open dropdown is redundant. */}
           {error ? (
             <p className="flex items-center gap-1 border-b border-border bg-danger-subtle px-3 py-1.5 text-[11px] text-danger">
               <AlertCircle className="h-3 w-3" /> {error}
