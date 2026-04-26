@@ -193,7 +193,7 @@ export function VendorsClient({
                 </div>
                 {v.tags.length ? (
                   <div className="mt-0.5 flex items-center gap-1 text-[10px] text-text-3">
-                    <Tag className="h-3 w-3" />
+                    <Tag className="h-2.5 w-2.5" />
                     {v.tags.join(" · ")}
                   </div>
                 ) : null}
