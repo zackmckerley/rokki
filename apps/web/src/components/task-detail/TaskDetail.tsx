@@ -22,8 +22,7 @@ import type { TaskRecurrenceRule } from "@rokki/db";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { CommentThread } from "@/components/CommentThread";
-import { useUndoStack } from "@/lib/use-undo-stack";
-import { announceUndo } from "@/lib/undo-toast";
+import { RichTextarea } from "@/components/ui/RichTextarea";
 import {
   PriorityDots,
   StatusPill,
@@ -160,13 +159,11 @@ export function TaskDetail({
   const [bundle, setBundle] = useState<Bundle | null>(null);
   const [loadingBundle, setLoadingBundle] = useState(true);
   const [editingDescription, setEditingDescription] = useState(false);
-  // Undo/redo on the description editor — ⌘Z reverts the last 200ms-batched
-  // change. We `reset()` the stack each time we open the editor so the
-  // history starts fresh per editing session.
-  const descriptionUndo = useUndoStack(initialTask.description ?? "", {
-    onUndo: ({ from, to, agoSeconds }) =>
-      announceUndo({ from, to, agoSeconds, context: "description" }),
-  });
+  // Description draft — owned by RichTextarea via value/onChange. The
+  // editor has built-in undo/redo, slash commands, and a markdown preview.
+  const [draftDescription, setDraftDescription] = useState(
+    initialTask.description ?? "",
+  );
   const [editingTitle, setEditingTitle] = useState(false);
   const [draftTitle, setDraftTitle] = useState(initialTask.title);
 
@@ -251,8 +248,8 @@ export function TaskDetail({
 
   async function saveDescription() {
     setEditingDescription(false);
-    const next = descriptionUndo.value;
-    if (next !== (task.description ?? "")) await patchTask({ description: next });
+    if (draftDescription !== (task.description ?? ""))
+      await patchTask({ description: draftDescription });
   }
 
   async function toggleStatus() {
@@ -441,7 +438,7 @@ export function TaskDetail({
               !editingDescription ? (
                 <button
                   onClick={() => {
-                    descriptionUndo.reset(task.description ?? "");
+                    setDraftDescription(task.description ?? "");
                     setEditingDescription(true);
                   }}
                   className="flex items-center gap-1 text-[11px] text-text-3 hover:text-text-0"
@@ -453,29 +450,29 @@ export function TaskDetail({
           >
             {editingDescription ? (
               <div className="flex flex-col gap-2">
-                <textarea
+                <RichTextarea
+                  value={draftDescription}
+                  onChange={setDraftDescription}
                   autoFocus
-                  value={descriptionUndo.value}
-                  onChange={(e) => descriptionUndo.setValue(e.target.value)}
+                  minHeight={160}
+                  placeholder="Markdown supported. ⌘↵ to save, Esc to cancel. ⌘Z to undo. Type / for blocks."
+                  ariaLabel="Task description"
+                  undoContext="description"
                   onKeyDown={(e) => {
-                    descriptionUndo.onKeyDown(e);
-                    if (e.defaultPrevented) return;
                     if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
                       e.preventDefault();
                       void saveDescription();
                     }
                     if (e.key === "Escape") {
-                      descriptionUndo.reset(task.description ?? "");
+                      setDraftDescription(task.description ?? "");
                       setEditingDescription(false);
                     }
                   }}
-                  placeholder="Markdown supported. ⌘↵ to save, Esc to cancel. ⌘Z to undo."
-                  className="min-h-[160px] w-full resize-y rounded border border-border bg-bg-0 p-3 text-sm text-text-0 outline-none focus:border-border-focus"
                 />
                 <div className="flex items-center justify-end gap-2 text-xs">
                   <button
                     onClick={() => {
-                      descriptionUndo.reset(task.description ?? "");
+                      setDraftDescription(task.description ?? "");
                       setEditingDescription(false);
                     }}
                     className="text-text-3 hover:text-text-1"
@@ -495,7 +492,7 @@ export function TaskDetail({
             ) : (
               <button
                 onClick={() => {
-                  descriptionUndo.reset("");
+                  setDraftDescription("");
                   setEditingDescription(true);
                 }}
                 className="text-xs text-text-3 hover:text-text-1"

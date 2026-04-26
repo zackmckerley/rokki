@@ -1,12 +1,11 @@
 "use client";
 
-import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageSquare, Send, X, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
-import { useUndoStack } from "@/lib/use-undo-stack";
-import { announceUndo } from "@/lib/undo-toast";
+import { RichTextarea } from "@/components/ui/RichTextarea";
 
 interface CommentAuthor {
   user_id: string;
@@ -59,24 +58,13 @@ export function CommentThread({
 }: CommentThreadProps) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
-  // Undo/redo for the composer. ⌘Z reverts the last burst of typing.
-  const draftUndo = useUndoStack("", {
-    onUndo: ({ from, to, agoSeconds }) =>
-      announceUndo({ from, to, agoSeconds, context: "comment" }),
-  });
-  const draft = draftUndo.value;
+  // Composer / edit drafts. RichTextarea owns its own undo stack — we just
+  // hand it value/onChange and read the current value when the user submits.
+  const [draft, setDraft] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
-  // Edit-in-place reuses one undo stack; we `reset()` on enter so the
-  // history doesn't leak between comments.
-  const editUndo = useUndoStack("", {
-    onUndo: ({ from, to, agoSeconds }) =>
-      announceUndo({ from, to, agoSeconds, context: "comment edit" }),
-  });
-  const editDraft = editUndo.value;
-
-  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [editDraft, setEditDraft] = useState("");
 
   useEffect(() => {
     const supa = createClient();
@@ -136,7 +124,7 @@ export function CommentThread({
         alert(body.errors?.[0]?.message ?? "Failed to post comment");
         return;
       }
-      draftUndo.reset("");
+      setDraft("");
       await load();
     } finally {
       setSubmitting(false);
@@ -210,11 +198,23 @@ export function CommentThread({
                 </div>
                 {editingId === c.id ? (
                   <div className="flex flex-col gap-2">
-                    <textarea
+                    <RichTextarea
                       value={editDraft}
-                      onChange={(e) => editUndo.setValue(e.target.value)}
-                      onKeyDown={editUndo.onKeyDown}
-                      className="min-h-[60px] resize-y rounded-sm border border-border bg-bg-0 p-1.5 text-xs text-text-0 outline-none focus:border-border-focus"
+                      onChange={setEditDraft}
+                      compact
+                      minHeight={60}
+                      ariaLabel="Edit comment"
+                      undoContext="comment edit"
+                      textareaClassName="text-xs p-1.5"
+                      onKeyDown={(e) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                          e.preventDefault();
+                          void saveEdit(c.id);
+                        }
+                        if (e.key === "Escape") {
+                          setEditingId(null);
+                        }
+                      }}
                     />
                     <div className="flex items-center justify-end gap-2 text-xs">
                       <button
@@ -243,7 +243,7 @@ export function CommentThread({
                         <button
                           onClick={() => {
                             setEditingId(c.id);
-                            editUndo.reset(c.body);
+                            setEditDraft(c.body);
                           }}
                           className="flex items-center gap-1 text-text-3 hover:text-text-1"
                         >
@@ -270,18 +270,17 @@ export function CommentThread({
         className="flex flex-col gap-1 border-t border-border bg-bg-1 p-2"
       >
         <MentionTextarea
-          ref={inputRef}
           value={draft}
-          onChange={(v) => draftUndo.setValue(v)}
-          onExtraKeyDown={draftUndo.onKeyDown}
-          placeholder="Write a comment — use @ to mention"
+          onChange={setDraft}
+          placeholder="Write a comment — use @ to mention. Type / for blocks."
           mentionables={mentionables}
           disabled={submitting}
+          onSubmit={() => void submit()}
         />
         <div className="flex items-center justify-between text-xs text-text-3">
           <span>
             ⌘↵ to send ·{" "}
-            <span className="text-text-2">@</span> to mention
+            <span className="text-text-2">@</span> to mention · / for blocks
           </span>
           <button
             type="submit"
@@ -297,8 +296,18 @@ export function CommentThread({
 }
 
 /* ------------------------------------------------------------------------ */
-/* Mention-aware input                                                        */
+/* Mention-aware composer                                                     */
 /* ------------------------------------------------------------------------ */
+/**
+ * Composer for new comments. Built on RichTextarea so authors get the same
+ * markdown toolbar / shortcuts / slash commands as everywhere else, plus
+ * the @-mention popup that's specific to threaded discussion.
+ *
+ * The @-mention picker reads the live cursor position from the underlying
+ * textarea via `textareaRef`, then rewrites the value through the same
+ * onChange the rest of the component uses — that way RichTextarea's undo
+ * stack records the mention insertion as a single undoable step.
+ */
 
 interface MentionTextareaProps {
   value: string;
@@ -306,95 +315,101 @@ interface MentionTextareaProps {
   placeholder?: string;
   disabled?: boolean;
   mentionables: Mentionable[];
-  /** Extra keydown handler — runs before our built-in ⌘Enter logic so the
-   *  caller (e.g. an undo stack) can preventDefault first. */
-  onExtraKeyDown?: (
-    e: React.KeyboardEvent<HTMLTextAreaElement>,
-  ) => void;
+  onSubmit: () => void;
 }
 
-const MentionTextarea = forwardRef<HTMLTextAreaElement, MentionTextareaProps>(
-  function MentionTextarea(
-    { value, onChange, placeholder, disabled, mentionables, onExtraKeyDown },
-    ref,
-  ) {
-    const [query, setQuery] = useState<string | null>(null);
-    const [mentionStart, setMentionStart] = useState<number | null>(null);
+function MentionTextarea({
+  value,
+  onChange,
+  placeholder,
+  disabled,
+  mentionables,
+  onSubmit,
+}: MentionTextareaProps) {
+  const taRef = useRef<HTMLTextAreaElement | null>(null);
+  const [query, setQuery] = useState<string | null>(null);
+  const [mentionStart, setMentionStart] = useState<number | null>(null);
 
-    function handleChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
-      const v = e.target.value;
-      onChange(v);
-      const cursor = e.target.selectionStart ?? v.length;
-      const tail = v.slice(0, cursor);
-      const m = tail.match(/(?:^|\s)@([\p{L}0-9 _-]*)$/u);
-      if (m) {
-        setMentionStart(cursor - (m[1].length + 1));
-        setQuery(m[1]);
-      } else {
-        setMentionStart(null);
-        setQuery(null);
-      }
-    }
-
-    function choose(u: Mentionable) {
-      if (mentionStart == null) return;
-      const name = u.full_name ?? "user";
-      const token = `@[${name}](user:${u.user_id}) `;
-      const before = value.slice(0, mentionStart);
-      const after = value.slice(mentionStart + 1 + (query ?? "").length);
-      onChange(before + token + after);
+  // Re-detect after every value change. We can't get selectionStart from
+  // RichTextarea's onChange directly, so we read it off the live ref; if
+  // the ref is gone (rare race during preview-toggle) we fall back to end.
+  useEffect(() => {
+    const el = taRef.current;
+    const cursor = el?.selectionStart ?? value.length;
+    const tail = value.slice(0, cursor);
+    const m = /(?:^|\s)@([\p{L}0-9 _-]*)$/u.exec(tail);
+    if (m) {
+      setMentionStart(cursor - (m[1].length + 1));
+      setQuery(m[1]);
+    } else {
       setMentionStart(null);
       setQuery(null);
     }
+  }, [value]);
 
-    const filtered =
-      query != null
-        ? mentionables
-            .filter((u) =>
-              (u.full_name ?? "").toLowerCase().includes(query.toLowerCase()),
-            )
-            .slice(0, 6)
-        : [];
+  function choose(u: Mentionable) {
+    if (mentionStart == null) return;
+    const name = u.full_name ?? "user";
+    const token = `@[${name}](user:${u.user_id}) `;
+    const before = value.slice(0, mentionStart);
+    const after = value.slice(mentionStart + 1 + (query ?? "").length);
+    onChange(before + token + after);
+    setMentionStart(null);
+    setQuery(null);
+  }
 
-    return (
-      <div className="relative">
-        <textarea
-          ref={ref}
-          value={value}
-          onChange={handleChange}
-          onKeyDown={(e) => {
-            onExtraKeyDown?.(e);
-            if (e.defaultPrevented) return;
-            if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-              e.preventDefault();
-              const form = (e.target as HTMLTextAreaElement).form;
-              form?.requestSubmit();
-            }
-          }}
-          placeholder={placeholder}
-          disabled={disabled}
-          className="min-h-[60px] w-full resize-y rounded-sm border border-border bg-bg-0 p-2 text-xs text-text-0 outline-none focus:border-border-focus"
-        />
-        {filtered.length > 0 ? (
-          <ul className="absolute bottom-full left-0 mb-1 w-56 overflow-hidden rounded-sm border border-border bg-bg-2 text-xs shadow-lg">
-            {filtered.map((u) => (
-              <li key={u.user_id}>
-                <button
-                  type="button"
-                  onClick={() => choose(u)}
-                  className="flex w-full items-center gap-2 px-2 py-1 text-left text-text-0 hover:bg-bg-3"
-                >
-                  <span className="h-5 w-5 rounded-full bg-bg-3" />
-                  {u.full_name ?? "user"}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </div>
-    );
-  },
-);
+  const filtered =
+    query != null
+      ? mentionables
+          .filter((u) =>
+            (u.full_name ?? "").toLowerCase().includes(query.toLowerCase()),
+          )
+          .slice(0, 6)
+      : [];
+
+  return (
+    <div className="relative">
+      <RichTextarea
+        value={value}
+        onChange={onChange}
+        textareaRef={taRef}
+        compact
+        minHeight={60}
+        placeholder={placeholder}
+        disabled={disabled}
+        ariaLabel="Comment composer"
+        undoContext="comment"
+        textareaClassName="text-xs p-2"
+        onKeyDown={(e) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+            e.preventDefault();
+            onSubmit();
+          }
+        }}
+      />
+      {filtered.length > 0 ? (
+        <ul className="absolute bottom-full left-0 mb-1 w-56 overflow-hidden rounded-sm border border-border bg-bg-2 text-xs shadow-lg">
+          {filtered.map((u) => (
+            <li key={u.user_id}>
+              <button
+                type="button"
+                // mousedown so the click runs before the textarea blurs.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  choose(u);
+                }}
+                className="flex w-full items-center gap-2 px-2 py-1 text-left text-text-0 hover:bg-bg-3"
+              >
+                <span className="h-5 w-5 rounded-full bg-bg-3" />
+                {u.full_name ?? "user"}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
 
 /* ------------------------------------------------------------------------ */
 /* Rendering                                                                   */

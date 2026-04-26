@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Megaphone, Trash2 } from "lucide-react";
+import { Megaphone, Trash2, Check, AlertCircle } from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
@@ -12,8 +12,7 @@ import {
   AdminTh,
 } from "@/components/admin/primitives";
 import { SpacePicker, type PickedSpace } from "@/components/admin/SpacePicker";
-import { toast } from "@/lib/toast";
-import { FormError } from "@/components/ui/FormError";
+import { RichTextarea } from "@/components/ui/RichTextarea";
 
 interface Row {
   id: string;
@@ -28,6 +27,8 @@ interface Row {
 
 export function AdminAnnouncementsClient() {
   const [rows, setRows] = useState<Row[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -35,12 +36,17 @@ export function AdminAnnouncementsClient() {
       .then((r) => r.json())
       .then((b: { data?: Row[] }) => setRows(b.data ?? []))
       .catch((e: unknown) =>
-        toast.error(e instanceof Error ? e.message : "load failed"),
+        setError(e instanceof Error ? e.message : "load failed"),
       );
   }, []);
   useEffect(() => {
     load();
   }, [load]);
+
+  function flash(m: string) {
+    setSuccess(m);
+    setTimeout(() => setSuccess(null), 2500);
+  }
 
   async function remove(id: string, body: string) {
     const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
@@ -52,10 +58,10 @@ export function AdminAnnouncementsClient() {
         credentials: "include",
       });
       if (!r.ok) {
-        toast.error(await msg(r));
+        setError(await msg(r));
         return;
       }
-      toast.success("Deleted");
+      flash("Deleted");
       load();
     } finally {
       setBusy(null);
@@ -64,7 +70,17 @@ export function AdminAnnouncementsClient() {
 
   return (
     <div className="flex flex-col gap-4">
-      <NewAnnouncementForm onCreated={load} />
+      <NewAnnouncementForm onCreated={load} onError={setError} onSuccess={flash} />
+      {error ? (
+        <p className="flex items-center gap-1 rounded-sm border border-danger/40 bg-danger-subtle px-3 py-1.5 text-xs text-danger">
+          <AlertCircle className="h-3 w-3" /> {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p className="flex items-center gap-1 rounded-sm border border-success/40 bg-success-subtle px-3 py-1.5 text-xs text-success">
+          <Check className="h-3 w-3" /> {success}
+        </p>
+      ) : null}
       {rows.length === 0 ? (
         <AdminEmpty
           panel
@@ -124,24 +140,30 @@ export function AdminAnnouncementsClient() {
   );
 }
 
-function NewAnnouncementForm({ onCreated }: { onCreated: () => void }) {
+function NewAnnouncementForm({
+  onCreated,
+  onError,
+  onSuccess,
+}: {
+  onCreated: () => void;
+  onError: (m: string) => void;
+  onSuccess: (m: string) => void;
+}) {
   const [body, setBody] = useState("");
   const [audience, setAudience] = useState<"all" | "admins" | "space">("all");
   const [endsDays, setEndsDays] = useState(7);
   const [dismissible, setDismissible] = useState(true);
   const [space, setSpace] = useState<PickedSpace | null>(null);
   const [busy, setBusy] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setFormError(null);
     if (body.trim().length < 1) {
-      setFormError("Body required.");
+      onError("Body required.");
       return;
     }
     if (audience === "space" && !space) {
-      setFormError("Pick a space when audience is 'space'.");
+      onError("Pick a space when audience is 'space'.");
       return;
     }
     setBusy(true);
@@ -163,13 +185,10 @@ function NewAnnouncementForm({ onCreated }: { onCreated: () => void }) {
         }),
       });
       if (!r.ok) {
-        // Server-side errors (rate-limit, validation) belong with the
-        // form; transient ops feedback (delete success/fail) goes to the
-        // toast. Two surfaces, two purposes.
-        setFormError(await msg(r));
+        onError(await msg(r));
         return;
       }
-      toast.success("Announcement posted");
+      onSuccess("Announcement posted");
       setBody("");
       onCreated();
     } finally {
@@ -180,14 +199,14 @@ function NewAnnouncementForm({ onCreated }: { onCreated: () => void }) {
   return (
     <AdminPanel title="Post announcement">
       <form onSubmit={submit} className="flex flex-col gap-3 p-4">
-        <FormError message={formError} onDismiss={() => setFormError(null)} />
-        <textarea
+        <RichTextarea
           value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={3}
+          onChange={setBody}
+          minHeight={72}
           maxLength={4000}
-          placeholder="Markdown supported. Keep it short — this shows above the TopBar."
-          className="rounded-sm border border-border bg-bg-0 px-2 py-1.5 text-sm text-text-0 outline-none focus:border-border-focus"
+          placeholder="Markdown supported. Keep it short — this shows above the TopBar. Type / for blocks."
+          ariaLabel="Announcement body"
+          undoContext="announcement"
         />
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm">

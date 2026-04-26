@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, UserMinus, Check, AlertTriangle } from "lucide-react";
 import { Avatar } from "@/components/primitives";
-import { HelpTip } from "@/components/HelpTip";
+import { RichTextarea } from "@/components/ui/RichTextarea";
 import { cn } from "@/lib/utils";
 import type { ProjectStatus, ProjectRole } from "@rokki/db";
 
@@ -72,7 +72,6 @@ export function TerminalSettingsForm({
       <IdentityCard
         initial={initial}
         canManage={canManage}
-        helpTerm="ticker-symbol"
         onSaved={() => router.refresh()}
       />
       <StatusCard
@@ -104,12 +103,10 @@ export function TerminalSettingsForm({
 function IdentityCard({
   initial,
   canManage,
-  helpTerm,
   onSaved,
 }: {
   initial: Initial;
   canManage: boolean;
-  helpTerm?: string;
   onSaved: () => void;
 }) {
   const [name, setName] = useState(initial.name);
@@ -135,7 +132,7 @@ function IdentityCard({
     name.trim() !== initial.name || description.trim() !== initial.description;
 
   return (
-    <Card title="Identity" helpTerm={helpTerm}>
+    <Card title="Identity">
       <form onSubmit={submit} className="flex flex-col gap-3 px-4 py-3">
         <LabelledInput
           label="Name"
@@ -144,15 +141,24 @@ function IdentityCard({
           disabled={!canManage}
           maxLength={200}
         />
-        <LabelledTextarea
-          label="Description"
-          value={description}
-          onChange={setDescription}
-          disabled={!canManage}
-          maxLength={2000}
-          rows={3}
-          hint="Plain text. Markdown will render in the terminal overview soon."
-        />
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] uppercase tracking-wide text-text-3">
+            Description
+          </span>
+          <RichTextarea
+            value={description}
+            onChange={setDescription}
+            disabled={!canManage}
+            maxLength={2000}
+            minHeight={96}
+            ariaLabel="Terminal description"
+            undoContext="terminal description"
+            placeholder="Markdown supported. Type / for blocks."
+          />
+          <span className="text-[10px] text-text-3">
+            Markdown supported — preview with the eye icon.
+          </span>
+        </label>
         <FormFooter
           saving={saving}
           savedAt={savedAt}
@@ -196,7 +202,7 @@ function StatusCard({
   }
 
   return (
-    <Card title="Status" helpTerm="task-status">
+    <Card title="Status">
       <div className="flex flex-wrap gap-1.5 px-4 py-3">
         {STATUSES.filter((s) => s !== "archived").map((s) => (
           <button
@@ -284,7 +290,6 @@ function MembersCard({
   return (
     <Card
       title="Members"
-      helpTerm="terminal-role"
       subtitle={`${members.length} ${members.length === 1 ? "person" : "people"}`}
     >
       <ul className="divide-y divide-border">
@@ -426,25 +431,16 @@ function DangerCard({
 function Card({
   title,
   subtitle,
-  helpTerm,
   children,
 }: {
   title: string;
   subtitle?: string;
-  /** Optional contextual help term — wraps the title in a `?` chip. */
-  helpTerm?: string;
   children: React.ReactNode;
 }) {
   return (
     <section className="overflow-hidden rounded border border-border bg-bg-1">
       <header className="flex items-center justify-between border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
-        {helpTerm ? (
-          <HelpTip term={helpTerm}>
-            <span>{title}</span>
-          </HelpTip>
-        ) : (
-          <span>{title}</span>
-        )}
+        <span>{title}</span>
         {subtitle ? <span className="normal-case text-text-3">{subtitle}</span> : null}
       </header>
       {children}
@@ -480,46 +476,6 @@ function LabelledInput({
           disabled && "cursor-not-allowed opacity-60",
         )}
       />
-    </label>
-  );
-}
-
-function LabelledTextarea({
-  label,
-  value,
-  onChange,
-  disabled,
-  maxLength,
-  rows,
-  hint,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  disabled?: boolean;
-  maxLength?: number;
-  rows?: number;
-  hint?: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1">
-      <span className="text-[10px] uppercase tracking-wide text-text-3">
-        {label}
-      </span>
-      <textarea
-        value={value}
-        rows={rows ?? 3}
-        maxLength={maxLength}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className={cn(
-          "rounded-sm border border-border bg-bg-0 px-3 py-1.5 text-sm text-text-0 outline-none focus:border-border-focus",
-          disabled && "cursor-not-allowed opacity-60",
-        )}
-      />
-      {hint ? (
-        <span className="text-[10px] text-text-3">{hint}</span>
-      ) : null}
     </label>
   );
 }
