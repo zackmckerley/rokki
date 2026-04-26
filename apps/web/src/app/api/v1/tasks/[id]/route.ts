@@ -121,29 +121,41 @@ async function handleDelete(_request: NextRequest, { params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) return unauth();
 
-  // Capture terminal_id for the activity log before deletion
+  // Soft-delete: set deleted_at + deleted_by. Hard-delete is reserved for
+  // /admin/trash → "Permanent delete" with explicit confirmation. Tasks
+  // remain queryable by service-role tooling and visible under emergency
+  // access; normal terminal members lose them from list/detail views.
   const { data: existing } = await supabase
     .from("tasks")
     .select("terminal_id")
     .eq("id", id)
+    .is("deleted_at", null)
     .maybeSingle();
 
-  const { error } = await supabase.from("tasks").delete().eq("id", id);
+  if (!existing) return notFound();
+  const project = existing as { terminal_id: string };
+
+  const { error } = await supabase
+    .from("tasks")
+    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
+    .update({
+      deleted_at: new Date().toISOString(),
+      deleted_by: user.id,
+    })
+    .eq("id", id);
   if (error) return internal(error.message);
 
-  if (existing) {
-    const project = existing as { terminal_id: string };
-    await supabase
-      .from("activity")
-      // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
-      .insert({
-        terminal_id: project.terminal_id,
-        actor_id: user.id,
-        action: "task.delete",
-        entity_type: "task",
-        entity_id: id,
-      });
-  }
+  await supabase
+    .from("activity")
+    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
+    .insert({
+      terminal_id: project.terminal_id,
+      actor_id: user.id,
+      action: "task.delete",
+      entity_type: "task",
+      entity_id: id,
+      metadata: { soft: true },
+    });
 
   return new NextResponse(null, { status: 204 });
 }
