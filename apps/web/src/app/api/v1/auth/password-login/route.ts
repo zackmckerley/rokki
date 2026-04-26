@@ -57,9 +57,15 @@ async function handlePost(request: NextRequest) {
     username?: string;
     email?: string;
     password?: string;
+    /** Default true. When false the auth cookies are scoped to the
+     *  browser session and disappear on close. */
+    remember?: boolean;
   };
   const password = body.password ?? "";
   const rawUsername = (body.username ?? "").trim().toLowerCase();
+  // Treat undefined as "remember" so the historical behaviour is the
+  // default. Only an explicit false from the form opts the user out.
+  const remember = body.remember !== false;
   let email = body.email?.trim().toLowerCase();
 
   if (!email) {
@@ -110,9 +116,17 @@ async function handlePost(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet: CookieToSet[]) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            // When the user opted out of "Keep me signed in", strip
+            // maxAge / expires so the browser treats every Supabase
+            // auth cookie as session-scoped (cleared on browser close).
+            // Other cookie attributes (httpOnly, secure, sameSite, path)
+            // come from Supabase and stay intact.
+            const finalOptions: CookieOptions = remember
+              ? options ?? {}
+              : { ...(options ?? {}), maxAge: undefined, expires: undefined };
+            response.cookies.set(name, value, finalOptions);
+          });
         },
       },
     },
