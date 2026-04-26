@@ -186,6 +186,74 @@ jobs:
           path: apps/web/playwright-report
           retention-days: 7
 
+  visual-regression:
+    name: Visual regression (Playwright snapshots)
+    runs-on: ubuntu-latest
+    # Snapshot diffs are flagged for human review, never block merges.
+    # `continue-on-error: true` lets the job report a failure status
+    # without failing the overall workflow — reviewers see the diff in
+    # the uploaded artifact and either refresh the baseline or fix the
+    # regression in the same PR as the UI change.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: pw-cache-visual
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pw-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        if: steps.pw-cache-visual.outputs.cache-hit != 'true'
+        run: pnpm -C apps/web exec playwright install chromium --with-deps
+
+      - name: Install system deps for cached browsers
+        if: steps.pw-cache-visual.outputs.cache-hit == 'true'
+        run: pnpm -C apps/web exec playwright install-deps chromium
+
+      - name: Build app
+        run: pnpm -C apps/web build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Run visual regression
+        # Skips authenticated snapshots until E2E_SEEDED is wired into
+        # the CI Supabase setup — see e2e job comment.
+        run: pnpm -C apps/web test:e2e --project=visual
+        env:
+          CI: "true"
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Upload visual diff artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-snapshots-diff
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+          retention-days: 14
+
   security:
     name: Security audit
     runs-on: ubuntu-latest
