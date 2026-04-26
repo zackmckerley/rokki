@@ -12,18 +12,13 @@ interface TopBarProps {
  * Top bar — §6.3 BUILD_SPEC and §08.5.4 UI design.
  * 44px tall, Rokki wordmark at left, slot for breadcrumb, ⌘K hint at right.
  *
-<<<<<<< HEAD
  * Account-related actions (multi-account ring, sign out, settings, density,
  * admin console toggle) live in the bottom-left ExplorerRail's AccountBlock
  * so the top-right stays uncluttered.
-=======
- * The wordmark is *contextual*: clicking it from /admin/* lands you on
- * the admin overview (/admin), not the user dashboard. This avoids the
- * "I clicked the logo and got bounced out of admin" surprise.
  *
- * The AccountSwitcher folds the former AdminChip into a richer dropdown
- * that handles sign-in / sign-out / multi-account stacking.
->>>>>>> 17e3fc2 (quick wins: clock seconds, admin terminals deep-dive, contextual wordmark)
+ * The wordmark is *contextual*: clicking it from /admin/* lands you on
+ * the admin overview (/admin), not the user dashboard. Avoids the
+ * "I clicked the logo and got bounced out of admin" surprise.
  */
 export function TopBar({ children }: TopBarProps) {
   const pathname = usePathname();
