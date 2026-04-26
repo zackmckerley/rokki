@@ -1,25 +1,16 @@
 import Link from "next/link";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
+import { ActivityRowsTable, type AdminActivityRow } from "./ActivityRowsTable";
 
 export const metadata = { title: "Activity — Admin" };
 export const dynamic = "force-dynamic";
 
-interface Row {
-  id: string;
-  action: string;
-  entity_type: string | null;
-  entity_id: string | null;
-  actor_id: string | null;
-  terminal_id: string | null;
-  space_id: string | null;
-  metadata: Record<string, unknown>;
-  created_at: string;
-}
-
 /**
  * Admin activity log. Reads from the `activity` table directly — every
- * user-facing action writes one row. Paginated via ?before= timestamp.
+ * user-facing action writes one row; trigger-emitted UPDATE diffs surface
+ * with their `before_json` / `after_json` payload visible inline. Click a
+ * row to expand the per-field diff. Paginated via ?before= timestamp.
  */
 export default async function AdminActivityPage({
   searchParams,
@@ -35,17 +26,21 @@ export default async function AdminActivityPage({
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
+  // The `before_json` / `after_json` columns exist in the DB (migration
+  // 20260427050000_activity_diffs.sql) but the generated types are not
+  // regenerated until `supabase gen types` runs against the local DB.
+  // Cast through `unknown` so the build doesn't depend on regen.
   let query = admin
     .from("activity")
     .select(
-      "id, action, entity_type, entity_id, actor_id, terminal_id, space_id, metadata, created_at",
+      "id, action, entity_type, entity_id, actor_id, terminal_id, space_id, metadata, before_json, after_json, created_at",
     )
     .order("created_at", { ascending: false })
     .limit(PAGE);
   if (params.before) query = query.lt("created_at", params.before);
 
   const { data } = await query;
-  const rows = (data ?? []) as Row[];
+  const rows = ((data ?? []) as unknown) as AdminActivityRow[];
 
   const next =
     rows.length === PAGE ? rows[rows.length - 1]!.created_at : undefined;
@@ -55,70 +50,12 @@ export default async function AdminActivityPage({
       <header>
         <h1 className="text-xl font-semibold text-text-0">Activity</h1>
         <p className="mt-1 text-xs text-text-3">
-          Every state transition across the platform. Latest first.
+          Every state transition across the platform. Latest first. Rows with
+          a diff icon expand to a field-by-field before/after view.
         </p>
       </header>
 
-      <div className="overflow-hidden rounded border border-border bg-bg-1">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border bg-bg-2 text-[10px] uppercase tracking-wide text-text-3">
-              <th className="px-3 py-2 text-left font-semibold">When</th>
-              <th className="px-3 py-2 text-left font-semibold">Action</th>
-              <th className="px-3 py-2 text-left font-semibold">Entity</th>
-              <th className="px-3 py-2 text-left font-semibold">Actor</th>
-              <th className="px-3 py-2 text-left font-semibold">Metadata</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td className="px-3 py-1.5 font-mono text-[11px] text-text-3">
-                  {new Date(r.created_at).toLocaleString()}
-                </td>
-                <td className="px-3 py-1.5 font-mono text-xs text-accent">
-                  {r.action}
-                </td>
-                <td className="px-3 py-1.5 text-xs text-text-2">
-                  {r.entity_type ?? "—"}
-                  {r.entity_id ? (
-                    <span className="ml-1 font-mono text-[10px] text-text-3">
-                      {r.entity_id.slice(0, 8)}
-                    </span>
-                  ) : null}
-                </td>
-                <td className="px-3 py-1.5 font-mono text-[10px] text-text-3">
-                  {r.actor_id ? (
-                    <Link
-                      href={`/admin/users/${r.actor_id}`}
-                      className="hover:text-accent"
-                    >
-                      {r.actor_id.slice(0, 8)}
-                    </Link>
-                  ) : (
-                    "system"
-                  )}
-                </td>
-                <td className="px-3 py-1.5 font-mono text-[11px] text-text-3">
-                  <code className="truncate">
-                    {JSON.stringify(r.metadata).slice(0, 100)}
-                  </code>
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="px-3 py-6 text-center text-xs text-text-3"
-                >
-                  No activity.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
+      <ActivityRowsTable rows={rows} />
 
       {next ? (
         <div>

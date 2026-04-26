@@ -21,6 +21,7 @@ import {
   HeartPulse,
   Send,
   Palette,
+  Trash2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
@@ -154,6 +155,12 @@ export default async function AdminLayout({
                 icon={<Activity className="h-3.5 w-3.5" />}
               >
                 Activity
+              </NavLink>
+              <NavLink
+                href="/admin/trash"
+                icon={<Trash2 className="h-3.5 w-3.5" />}
+              >
+                Trash
               </NavLink>
               <NavLink
                 href="/admin/revocations"

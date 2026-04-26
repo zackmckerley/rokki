@@ -57,7 +57,8 @@ export async function GET(request: NextRequest, { params }: Props) {
       admin
         .from("tasks")
         .select("id, terminals!inner(space_id)", { count: "exact", head: true })
-        .eq("terminals.space_id", s.id),
+        .eq("terminals.space_id", s.id)
+        .is("deleted_at", null),
     ]);
 
   // Hydrate member emails/names

@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
+import { SettingsHistorySection } from "@/components/SettingsHistorySection";
 import { TerminalSettingsForm } from "./TerminalSettingsForm";
 import type { ProjectStatus, ProjectRole } from "@rokki/db";
 
@@ -165,6 +166,15 @@ export default async function TerminalSettingsPage({ params }: Props) {
           members={members}
           canManage={canManage}
           myUserId={user.id}
+        />
+        <SettingsHistorySection
+          entityType="terminal"
+          entityId={terminal.id}
+          actorNames={Object.fromEntries(
+            members
+              .filter((m) => m.full_name)
+              .map((m) => [m.user_id, m.full_name as string]),
+          )}
         />
       </main>
     </div>

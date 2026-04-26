@@ -22,6 +22,7 @@ import type { TaskRecurrenceRule } from "@rokki/db";
 import { cn } from "@/lib/utils";
 import { Markdown } from "@/components/Markdown";
 import { CommentThread } from "@/components/CommentThread";
+import { HistoryTimeline, type HistoryRow } from "@/components/HistoryTimeline";
 import {
   PriorityDots,
   StatusPill,
@@ -100,6 +101,8 @@ interface Activity {
   actor_id: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  before_json?: unknown;
+  after_json?: unknown;
 }
 
 interface Bundle {
@@ -533,24 +536,16 @@ export function TaskDetail({
           >
             {loadingBundle && !bundle ? (
               <p className="text-[11px] text-text-3">Loading…</p>
-            ) : (bundle?.activity?.length ?? 0) === 0 ? (
-              <p className="text-[11px] text-text-3">
-                No history yet — actions taken on this task will appear here.
-              </p>
             ) : (
-              <ul className="flex flex-col gap-1.5 text-xs">
-                {(bundle?.activity ?? []).slice(0, 50).map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex items-center gap-2 text-text-2"
-                  >
-                    <span className="font-mono text-[10px] text-text-3">
-                      {formatDate(a.created_at)}
-                    </span>
-                    <span>{describeActivity(a)}</span>
-                  </li>
-                ))}
-              </ul>
+              <HistoryTimeline
+                entityType="task"
+                entityId={task.id}
+                initialRows={(bundle?.activity ?? []) as HistoryRow[]}
+                actorNames={buildActorNameMap({
+                  members,
+                  creator: bundle?.creator ?? null,
+                })}
+              />
             )}
           </SectionCard>
         </div>
@@ -1511,24 +1506,24 @@ function formatDate(iso: string): string {
     : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-function describeActivity(a: Activity): string {
-  const m = (a.metadata ?? {}) as Record<string, unknown>;
-  const pick = (k: string): string | null =>
-    typeof m[k] === "string" ? (m[k] as string) : null;
-  switch (a.action) {
-    case "task.create":
-      return `created this task`;
-    case "task.update":
-      return `updated the task`;
-    case "task.complete":
-      return `marked complete`;
-    case "task.assign":
-      return `assigned ${pick("to") ?? "someone"}`;
-    case "task.unassign":
-      return `unassigned ${pick("from") ?? "someone"}`;
-    case "task.delete":
-      return `deleted the task`;
-    default:
-      return a.action.replace(/[._]/g, " ");
+/**
+ * Build a user_id → name map for the History timeline. Pulls from the
+ * terminal members already loaded for the assignee picker, plus the task
+ * creator from the bundle.
+ */
+function buildActorNameMap({
+  members,
+  creator,
+}: {
+  members: Member[];
+  creator: { user_id: string; full_name: string | null } | null;
+}): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const m of members) {
+    if (m.full_name) out[m.user_id] = m.full_name;
   }
+  if (creator && creator.full_name) {
+    out[creator.user_id] = creator.full_name;
+  }
+  return out;
 }

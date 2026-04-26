@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
+import { SettingsHistorySection } from "@/components/SettingsHistorySection";
 import { SpaceSettingsForm } from "./SpaceSettingsForm";
 
 interface Props {
@@ -134,6 +135,15 @@ export default async function SpaceSettingsPage({ params }: Props) {
           canManage={canManage}
           myRole={myRole}
           myUserId={user.id}
+        />
+        <SettingsHistorySection
+          entityType="space"
+          entityId={s.id}
+          actorNames={Object.fromEntries(
+            members
+              .filter((m) => m.full_name)
+              .map((m) => [m.user_id, m.full_name as string]),
+          )}
         />
       </main>
     </div>
