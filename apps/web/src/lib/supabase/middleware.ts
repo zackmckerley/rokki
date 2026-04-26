@@ -1,6 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import type { Database } from "@rokki/db";
+import { applySecurityHeaders } from "@/lib/security-headers";
 
 interface CookieToSet {
   name: string;
@@ -10,6 +11,7 @@ interface CookieToSet {
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
+  applySecurityHeaders(response.headers);
 
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -24,6 +26,10 @@ export async function updateSession(request: NextRequest) {
             request.cookies.set(name, value),
           );
           response = NextResponse.next({ request });
+          // Re-apply on every fresh response — security headers must
+          // never be lost just because Supabase rebuilt the response to
+          // attach refresh cookies.
+          applySecurityHeaders(response.headers);
           cookiesToSet.forEach(({ name, value, options }: CookieToSet) =>
             response.cookies.set(name, value, options),
           );
@@ -42,7 +48,15 @@ export async function updateSession(request: NextRequest) {
   // / share-link viewer). Those have to be reachable without a session
   // because they're *how* you get a session.
   const { pathname } = request.nextUrl;
+  // Image scrapers (Slack, iMessage, Twitter) hit OG / Twitter cards
+  // unauthenticated. Gating them behind /login defeats the entire
+  // purpose of share-link previews.
+  const isMetadataImage =
+    pathname === "/opengraph-image" ||
+    pathname === "/twitter-image" ||
+    /^\/p\/[^/]+\/(opengraph-image|twitter-image)$/.test(pathname);
   const isPublic =
+    isMetadataImage ||
     pathname === "/login" ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/api/v1/auth/") ||
@@ -58,13 +72,17 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect_to", pathname);
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    applySecurityHeaders(redirect.headers);
+    return redirect;
   }
 
   if (user && pathname === "/login") {
     const url = request.nextUrl.clone();
     url.pathname = "/";
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    applySecurityHeaders(redirect.headers);
+    return redirect;
   }
 
   // Maintenance-mode write gate. Reads the `maintenance_mode` feature
@@ -89,7 +107,7 @@ export async function updateSession(request: NextRequest) {
     if (isMaintenance) {
       const isAdmin = await callerIsPlatformAdmin(supabase, user.id);
       if (!isAdmin) {
-        return NextResponse.json(
+        const blocked = NextResponse.json(
           {
             errors: [
               {
@@ -101,6 +119,8 @@ export async function updateSession(request: NextRequest) {
           },
           { status: 503, headers: { "Retry-After": "60" } },
         );
+        applySecurityHeaders(blocked.headers);
+        return blocked;
       }
     }
   }
