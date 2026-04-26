@@ -72,7 +72,7 @@ export function TerminalShell({
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       {topBar}
       <div className="hidden sm:block">
         <FunctionKeys keys={functionKeys} active={active} onSelect={handle} />

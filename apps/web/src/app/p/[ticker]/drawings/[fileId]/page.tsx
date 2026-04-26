@@ -95,7 +95,7 @@ export default async function DrawingPage({ params }: Props) {
   }
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-bg-0">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg-0">
       <TopBar>
         <Link href="/" className="text-text-3 hover:text-text-1">
           ← Dashboard
