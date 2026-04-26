@@ -1717,6 +1717,47 @@ export type Database = {
         }
         Relationships: []
       }
+      subtasks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          done: boolean
+          id: string
+          label: string
+          position: number
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          done?: boolean
+          id?: string
+          label: string
+          position?: number
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          done?: boolean
+          id?: string
+          label?: string
+          position?: number
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subtasks_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_assignees: {
         Row: {
           assigned_at: string
@@ -1776,6 +1817,35 @@ export type Database = {
           },
         ]
       }
+      task_watchers: {
+        Row: {
+          added_at: string
+          added_by: string | null
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by?: string | null
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string | null
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_watchers_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           completed_at: string | null
@@ -1787,6 +1857,8 @@ export type Database = {
           labels: string[]
           metadata: Json
           priority: number
+          recurrence_parent_id: string | null
+          recurrence_rule: Json | null
           status: Database["public"]["Enums"]["task_status"]
           terminal_id: string
           ticker_seq: number
@@ -1803,6 +1875,8 @@ export type Database = {
           labels?: string[]
           metadata?: Json
           priority?: number
+          recurrence_parent_id?: string | null
+          recurrence_rule?: Json | null
           status?: Database["public"]["Enums"]["task_status"]
           terminal_id: string
           ticker_seq: number
@@ -1819,6 +1893,8 @@ export type Database = {
           labels?: string[]
           metadata?: Json
           priority?: number
+          recurrence_parent_id?: string | null
+          recurrence_rule?: Json | null
           status?: Database["public"]["Enums"]["task_status"]
           terminal_id?: string
           ticker_seq?: number
@@ -1826,6 +1902,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "tasks_recurrence_parent_id_fkey"
+            columns: ["recurrence_parent_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "tasks_terminal_id_fkey"
             columns: ["terminal_id"]
