@@ -18,6 +18,7 @@ const Newsreader_ = Newsreader({
   variable: "--font-display-loaded",
 });
 import { CommandPalette } from "@/components/CommandPalette";
+import { GlobalShortcuts } from "@/components/GlobalShortcuts";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { ShortcutsOverlay } from "@/components/ShortcutsOverlay";
 import { SessionGuard } from "@/components/SessionGuard";
@@ -123,7 +124,10 @@ export default function RootLayout({
       <body className="min-h-screen bg-bg-0 font-sans text-base text-text-0 antialiased">
         <MaintenanceBanner />
         <AnnouncementBanner />
-        <CommandPalette>{children}</CommandPalette>
+        <CommandPalette>
+          <GlobalShortcuts />
+          {children}
+        </CommandPalette>
         <ShortcutsOverlay />
         <SessionGuard />
         <EscapeProbe />

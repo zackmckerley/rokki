@@ -506,21 +506,30 @@ No cute illustrations. At most a single monochrome icon (24px, text-2).
 
 ## 8.6 Keyboard shortcuts
 
+> **Source of truth:** `apps/web/src/lib/shortcuts.ts`. The `/help` page
+> and the `?` overlay both render from `SHORTCUT_SECTIONS`. The tables
+> below mirror that data — when you wire a new binding, update the TS
+> module **and** this doc in the same change.
+
+> **Audit note (2026-04-26):** the previous tables included aspirational
+> shortcuts (`⌘1`-`⌘9` MRU, `[`/`]` tab nav, `S then T`, `P then 1`,
+> file `U`/`P`/`R`, AI chat `⌘J`/`⌘L`, etc.) that had no real handler.
+> Those have been removed. Anything below is wired to a concrete
+> keydown listener in code.
+
 ### 8.6.1 Global
 
 | Key | Action |
 |---|---|
 | `⌘K` / `Ctrl+K` | Open command palette |
-| `⌘/` | Focus search input |
-| `G` then `D` | Go to Dashboard |
-| `G` then `P` | Go to Projects list |
-| `G` then `T` | Go to Tools |
-| `G` then `A` | Go to Approvals |
-| `G` then `S` | Go to Settings |
-| `⌘⇧P` | Quick-switch project (fuzzy) |
-| `⌘,` | Open settings |
+| `⌘⇧P` | Quick-switch — open the palette to a terminal |
 | `?` | Show keyboard shortcut cheatsheet |
 | `Esc` | Close modal / dismiss / back out |
+| `⌘,` | Open settings |
+| `G` then `D` | Go to Dashboard |
+| `G` then `T` | Go to Tools |
+| `G` then `S` | Go to Settings |
+| `G` then `H` | Go to Help |
 | `⌘⇧L` | Toggle dark/light theme |
 | `⌘⇧D` | Toggle density mode |
 
@@ -531,10 +540,6 @@ No cute illustrations. At most a single monochrome icon (24px, text-2).
 | `F2` - `F12` | Function-key panels |
 | `⌘\\` | Toggle right pane |
 | `⌘⇧\\` | Toggle left pane |
-| `⌘⇧F` | Full-screen current pane |
-| `⌘1` - `⌘9` | Switch to last N projects (MRU) |
-| `[` | Previous tab / pane |
-| `]` | Next tab / pane |
 
 ### 8.6.3 Task list
 
@@ -542,42 +547,34 @@ No cute illustrations. At most a single monochrome icon (24px, text-2).
 |---|---|
 | `J` | Next task |
 | `K` | Previous task |
-| `Enter` | Open selected task |
-| `Space` | Preview (quick-look) |
+| `Enter` | Toggle complete on selected row |
 | `C` | Create new task inline |
-| `A` | Assign (open picker) |
-| `D` | Set due date |
-| `S` then status letter | Status (T=todo, I=in_progress, B=blocked, R=review, D=done) |
-| `P` then `1-4` | Priority |
-| `L` | Add label |
-| `⌘Enter` | Mark complete |
-| `⌘Backspace` | Delete |
-| `/` | Search within list |
+| `⌘Enter` | Mark complete (works while typing) |
+| `;` | Open comment thread |
 
-### 8.6.4 Files
+### 8.6.4 Team
 
 | Key | Action |
 |---|---|
-| `U` | Upload file |
-| `Space` | Quick-look preview |
-| `Enter` | Open file |
-| `P` | Permissions dialog |
-| `R` | Rename |
-| `D` or `⌘D` | Download |
-| `⌫` | Delete (soft) |
-| `V` | Toggle view (list / grid) |
+| `I` | Open the invite dialog (with permission) |
 
-### 8.6.5 AI chat
+### 8.6.5 Drawings (annotation draft)
 
 | Key | Action |
 |---|---|
-| `⌘J` | Toggle AI chat panel |
-| `⌘Enter` | Send message |
-| `⇧Enter` | New line |
-| `⌘L` | Clear chat |
-| `⌘↑` | Previous message (edit) |
+| Click drawing | Drop a pin / annotation anchor |
+| `⌘Enter` | Save the annotation draft |
+| `Esc` | Cancel the draft |
 
-### 8.6.6 Command bar syntax
+### 8.6.6 Messages & comments
+
+| Key | Action |
+|---|---|
+| `⌘Enter` | Send the message |
+| `⇧Enter` | New line inside the message |
+| `@` | Mention a terminal member |
+
+### 8.6.7 Command bar syntax
 
 Type in the command bar (bottom of terminal) to execute:
 
