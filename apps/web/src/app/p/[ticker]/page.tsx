@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CheckSquare, Users } from "lucide-react";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+import type { Database } from "@rokki/db";
 import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 import { ProjectTerminal } from "@/components/ProjectTerminal";
@@ -10,6 +13,67 @@ import type { ProjectStatus } from "@rokki/db";
 
 interface Props {
   params: Promise<{ ticker: string }>;
+}
+
+/**
+ * Per-page title + share-card metadata.
+ *
+ * Image scrapers (Slack, iMessage, Twitter, etc.) hit this without a
+ * session, so we look up the terminal name with the service-role client
+ * read-only. Falls back gracefully to just the ticker if the env vars
+ * aren't set or the lookup fails.
+ */
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { ticker } = await params;
+  const tickerUpper = ticker.toUpperCase();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  let displayName = tickerUpper;
+  if (url && serviceKey) {
+    try {
+      const admin = createAdminClient<Database>(url, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { data } = await admin
+        .from("terminals")
+        .select("name")
+        .eq("ticker", tickerUpper)
+        .is("archived_at", null)
+        .maybeSingle();
+      const row = data as { name: string } | null;
+      if (row?.name) displayName = row.name;
+    } catch {
+      // fall through with the ticker as the name
+    }
+  }
+
+  const title = `${tickerUpper} · ${displayName} — Rokki`;
+  const description =
+    displayName === tickerUpper
+      ? `Rokki terminal ${tickerUpper}.`
+      : `${displayName} on Rokki — terminal ${tickerUpper}.`;
+
+  return {
+    title,
+    description,
+    openGraph: {
+      siteName: "Rokki",
+      title,
+      description,
+      type: "website",
+      // The per-page opengraph-image.tsx is automatically picked up; we
+      // list it explicitly so previews built by tools that don't run
+      // the file convention still resolve the correct asset.
+      images: [`/p/${ticker}/opengraph-image`],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [`/p/${ticker}/opengraph-image`],
+    },
+  };
 }
 
 interface ProjectRow {

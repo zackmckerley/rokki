@@ -27,9 +27,11 @@ import { EscapeProbe } from "@/components/EscapeProbe";
 import { Toaster } from "@/components/Toaster";
 import "./globals.css";
 
+const ROKKI_DESCRIPTION = "The terminal for your projects.";
+
 export const metadata: Metadata = {
   title: "Rokki",
-  description: "The terminal for your projects.",
+  description: ROKKI_DESCRIPTION,
   robots: { index: false, follow: false },
   manifest: "/manifest.webmanifest",
   icons: {
@@ -40,6 +42,22 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "Rokki",
+  },
+  openGraph: {
+    siteName: "Rokki",
+    title: "Rokki",
+    description: ROKKI_DESCRIPTION,
+    type: "website",
+    // Picked up automatically from `app/opengraph-image.tsx`. Listing it
+    // explicitly keeps validators that don't run the file convention
+    // happy (e.g. some Slack preview tools).
+    images: ["/opengraph-image"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Rokki",
+    description: ROKKI_DESCRIPTION,
+    images: ["/twitter-image"],
   },
 };
 
