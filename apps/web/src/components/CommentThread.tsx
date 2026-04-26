@@ -138,16 +138,23 @@ export function CommentThread({
   async function saveEdit(id: string) {
     const content = editDraft.trim();
     if (!content) return;
-    const r = await fetch(`/api/v1/comments/${id}`, {
+    const target = comments.find((c) => c.id === id);
+    const r = await offlineFetch(`/api/v1/comments/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ body: content }),
+      body: JSON.stringify({
+        body: content,
+        expected_edited_at: target?.edited_at ?? "",
+      }),
+      label: "Edit comment",
     });
-    if (r.ok) {
+    if (r.ok || r.status === 202) {
       setEditingId(null);
-      await load();
+      if (r.status !== 202) await load();
     }
+    // 409 surfaces via the queue's conflict event (handled by
+    // ConflictResolver). Non-409 hard errors are silent for now —
+    // matches the previous behaviour.
   }
 
   async function del(id: string) {
