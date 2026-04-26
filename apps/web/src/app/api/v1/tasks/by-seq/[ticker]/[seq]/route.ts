@@ -173,10 +173,13 @@ export async function GET(_req: NextRequest, { params }: Props) {
     .map((id) => relatedById.get(id))
     .filter((r): r is R => !!r);
 
-  // Activity history for this task
+  // Activity history for this task — includes before_json / after_json so
+  // the per-record timeline can render the trigger-emitted diff inline.
   const { data: activity } = await supabase
     .from("activity")
-    .select("id, action, actor_id, metadata, created_at")
+    .select(
+      "id, action, actor_id, metadata, before_json, after_json, created_at",
+    )
     .eq("entity_type", "task")
     .eq("entity_id", task.id)
     .order("created_at", { ascending: false })
