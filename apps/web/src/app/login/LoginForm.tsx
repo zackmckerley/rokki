@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Eye, EyeOff } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, KeyRound, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { cn } from "@/lib/utils";
@@ -35,11 +35,15 @@ export function LoginForm() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [capsLock, setCapsLock] = useState(false);
   const [state, setState] = useState<"idle" | "sending" | "error">(
     callbackError ? "error" : "idle",
   );
   const [errorMessage, setErrorMessage] = useState(
     callbackError ? humanizeAuthError(callbackError) : "",
+  );
+  const [errorKind, setErrorKind] = useState<"auth" | "rate" | "network" | null>(
+    callbackError ? "auth" : null,
   );
 
   // Hydrate the saved identifier + remember preference on mount. We
@@ -65,6 +69,7 @@ export function LoginForm() {
 
     setState("sending");
     setErrorMessage("");
+    setErrorKind(null);
 
     // If the identifier looks like an email, send it as `email`; otherwise
     // pass it as `username` and let the server map it via its allow-list.
@@ -73,14 +78,29 @@ export function LoginForm() {
       ? { email: id, password, remember }
       : { username: id, password, remember };
 
-    const r = await fetch("/api/v1/auth/password-login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let r: Response;
+    try {
+      r = await fetch("/api/v1/auth/password-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch {
+      // Network failure — DNS down, offline, CSP block, etc. Fetch
+      // throws (vs returning a non-OK Response) so it lands here.
+      setState("error");
+      setErrorKind("network");
+      setErrorMessage(
+        "Can't reach the sign-in service. Check your connection and try again.",
+      );
+      return;
+    }
+
     if (!r.ok) {
       setState("error");
-      setErrorMessage(await messageOf(r));
+      const msg = await messageOf(r);
+      setErrorMessage(msg);
+      setErrorKind(r.status === 429 ? "rate" : "auth");
       return;
     }
 
@@ -101,8 +121,24 @@ export function LoginForm() {
     router.refresh();
   }
 
+  const valid = identifier.trim().length > 0 && password.length > 0;
+
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
+    <form onSubmit={onSubmit} className="space-y-3" noValidate>
+      {/* Form-level error banner. Lives at the top so the user sees the
+          message immediately, vs hunting through field-level state.
+          Quiet auth errors (wrong password) keep using the field-level
+          ring on the password input as well. */}
+      {state === "error" && errorKind && errorKind !== "auth" ? (
+        <div
+          role="alert"
+          className="flex items-start gap-2 rounded border border-danger/40 bg-danger-subtle px-3 py-2 text-xs text-danger"
+        >
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+          <span>{errorMessage}</span>
+        </div>
+      ) : null}
+
       <Input
         name="identifier"
         autoComplete="username email"
@@ -119,18 +155,31 @@ export function LoginForm() {
         onChange={setPassword}
         show={showPassword}
         onToggleShow={() => setShowPassword((s) => !s)}
-        error={state === "error" ? errorMessage : undefined}
+        capsLock={capsLock}
+        onCapsLockChange={setCapsLock}
+        error={
+          state === "error" && errorKind === "auth" ? errorMessage : undefined
+        }
       />
 
-      <label className="flex select-none items-center gap-2 pt-0.5 text-xs text-text-2">
-        <input
-          type="checkbox"
-          checked={remember}
-          onChange={(e) => setRemember(e.target.checked)}
-          className="h-3.5 w-3.5 cursor-pointer accent-accent"
-        />
-        <span>Keep me signed in on this device</span>
-      </label>
+      <div className="flex items-center justify-between gap-2 pt-0.5">
+        <label className="flex select-none items-center gap-2 text-xs text-text-2">
+          <input
+            type="checkbox"
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+            className="h-3.5 w-3.5 cursor-pointer accent-accent"
+          />
+          <span>Keep me signed in</span>
+        </label>
+        <a
+          href="mailto:support@rokki.ai?subject=Reset%20my%20Rokki%20password"
+          className="flex items-center gap-1 text-xs text-text-3 hover:text-text-1"
+        >
+          <KeyRound className="h-3 w-3" />
+          Forgot password?
+        </a>
+      </div>
 
       <Button
         type="submit"
@@ -138,8 +187,16 @@ export function LoginForm() {
         size="lg"
         className="w-full"
         loading={state === "sending"}
+        disabled={!valid || state === "sending"}
       >
-        Sign in
+        {state === "sending" ? (
+          <span className="flex items-center justify-center gap-2">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Signing in…
+          </span>
+        ) : (
+          "Sign in"
+        )}
       </Button>
       <p className="pt-1 text-center text-[11px] text-text-3">
         Accounts are provisioned by your administrator. No self-signup.
@@ -149,21 +206,29 @@ export function LoginForm() {
 }
 
 /**
- * Password input + show/hide eye toggle. Inline rather than added to the
- * shared <Input> so we don't carry an end-adornment slot on every other
- * input across the app for one screen's sake.
+ * Password input + show/hide eye toggle + CapsLock warning.
+ *
+ * Inline rather than added to the shared <Input> so we don't carry an
+ * end-adornment slot on every other input across the app for one
+ * screen's sake. CapsLock detection uses keyup's getModifierState which
+ * is the only browser-portable way to know caps without a dedicated
+ * `keydown(CapsLock)` event.
  */
 function PasswordField({
   value,
   onChange,
   show,
   onToggleShow,
+  capsLock,
+  onCapsLockChange,
   error,
 }: {
   value: string;
   onChange: (v: string) => void;
   show: boolean;
   onToggleShow: () => void;
+  capsLock: boolean;
+  onCapsLockChange: (on: boolean) => void;
   error?: string;
 }) {
   return (
@@ -181,6 +246,8 @@ function PasswordField({
           placeholder="••••••••"
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onKeyUp={(e) => onCapsLockChange(e.getModifierState("CapsLock"))}
+          onKeyDown={(e) => onCapsLockChange(e.getModifierState("CapsLock"))}
           className={cn(
             "h-9 w-full rounded border bg-bg-2 pl-3 pr-9 text-sm text-text-0 placeholder:text-text-3",
             "focus:border-border-focus focus:outline-none",
@@ -201,6 +268,12 @@ function PasswordField({
           )}
         </button>
       </div>
+      {capsLock && !error ? (
+        <span className="flex items-center gap-1 text-xs text-warning">
+          <AlertCircle className="h-3 w-3 flex-shrink-0" />
+          Caps Lock is on
+        </span>
+      ) : null}
       {error ? <span className="text-xs text-danger">{error}</span> : null}
     </div>
   );
