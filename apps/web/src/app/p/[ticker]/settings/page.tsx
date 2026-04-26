@@ -118,7 +118,7 @@ export default async function TerminalSettingsPage({ params }: Props) {
   }));
 
   return (
-    <div className="flex min-h-screen flex-col bg-bg-0">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg-0">
       <TopBar>
         <Link href="/" className="text-text-3 hover:text-text-1">
           Dashboard
@@ -137,7 +137,7 @@ export default async function TerminalSettingsPage({ params }: Props) {
         <span className="text-text-3">·</span>
         <span className="text-text-0">Settings</span>
       </TopBar>
-      <main className="mx-auto w-full max-w-3xl flex-1 p-6">
+      <main className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto p-6">
         <header className="mb-6">
           <div className="mb-1 flex items-center gap-2">
             <span className="font-mono text-xs font-semibold uppercase tracking-wide text-accent">
