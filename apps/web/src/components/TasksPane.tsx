@@ -11,6 +11,11 @@ import {
   ListChecks,
   ArrowDownUp,
   ChevronDown,
+  GripVertical,
+  X,
+  Trash2,
+  UserPlus,
+  Flag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
@@ -93,6 +98,15 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   // Sort key persists to localStorage. Default = priority then due_date.
   const [sortKey, setSortKey] = useState<TaskSortKey>("default");
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
+
+  // Multi-select. Anchor is the row a shift-click extends from.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [anchorId, setAnchorId] = useState<string | null>(null);
+
+  // Drag state for manual reorder. Only active when sortKey === "manual".
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
   const createRef = useRef<HTMLInputElement>(null);
 
   // Restore the user's saved sort on mount.
@@ -231,14 +245,25 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       const target = e.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
 
-      if (e.key === "j") {
+      if (e.key === "j" || (e.shiftKey && e.key === "J")) {
         e.preventDefault();
-        setSelectedIdx((i) =>
-          Math.min(i + 1, Math.max(sortedTasks.length - 1, 0)),
+        const next = Math.min(
+          selectedIdx + 1,
+          Math.max(sortedTasks.length - 1, 0),
         );
-      } else if (e.key === "k") {
+        setSelectedIdx(next);
+        if (e.shiftKey) extendSelection(next);
+      } else if (e.key === "k" || (e.shiftKey && e.key === "K")) {
         e.preventDefault();
-        setSelectedIdx((i) => Math.max(i - 1, 0));
+        const next = Math.max(selectedIdx - 1, 0);
+        setSelectedIdx(next);
+        if (e.shiftKey) extendSelection(next);
+      } else if (e.key === "x" && !e.metaKey && !e.ctrlKey) {
+        const t = sortedTasks[selectedIdx];
+        if (t) {
+          e.preventDefault();
+          toggleSelect(t.id);
+        }
       } else if (e.key === "c" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         setCreating(true);
@@ -259,12 +284,68 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           e.preventDefault();
           setCommentTaskId((prev) => (prev === t.id ? null : t.id));
         }
+      } else if (e.key === "Escape" && selectedIds.size > 0) {
+        e.preventDefault();
+        setSelectedIds(new Set());
+        setAnchorId(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sortedTasks, selectedIdx]);
+  }, [sortedTasks, selectedIdx, selectedIds, anchorId]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setAnchorId(id);
+  }
+
+  function extendSelection(toIdx: number) {
+    const anchorIdx = anchorId
+      ? sortedTasks.findIndex((t) => t.id === anchorId)
+      : -1;
+    if (anchorIdx === -1) {
+      const t = sortedTasks[toIdx];
+      if (t) {
+        setSelectedIds(new Set([t.id]));
+        setAnchorId(t.id);
+      }
+      return;
+    }
+    const [lo, hi] =
+      anchorIdx < toIdx ? [anchorIdx, toIdx] : [toIdx, anchorIdx];
+    const ids = sortedTasks.slice(lo, hi + 1).map((t) => t.id);
+    setSelectedIds(new Set(ids));
+  }
+
+  /**
+   * Click handlers mirror file-explorer norms:
+   *   plain click       → single select, clear any active multi-select
+   *   ctrl/cmd+click    → toggle one row in/out of the multi-selection
+   *   shift+click       → contiguous range from anchor to clicked row
+   */
+  function rowClick(e: React.MouseEvent, idx: number, t: Task) {
+    if (e.shiftKey) {
+      e.preventDefault();
+      setSelectedIdx(idx);
+      extendSelection(idx);
+    } else if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      toggleSelect(t.id);
+      setSelectedIdx(idx);
+    } else {
+      setSelectedIdx(idx);
+      if (selectedIds.size > 0) {
+        setSelectedIds(new Set());
+        setAnchorId(null);
+      }
+    }
+  }
 
   async function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "done" ? "todo" : "done";
@@ -321,6 +402,119 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     setDraftTitle("");
   }
 
+  /**
+   * Drag-drop reorder. Only invoked when sortKey === "manual".
+   *
+   * Midpoint trick: the new position is (prev.position + next.position) / 2.
+   * For the head/tail pick neighbour ±1000 so we have headroom either way.
+   * If positions get too tight to pick a clean midpoint we just bump out by
+   * 1; the next reorder picks up where it can. We don't try to globally
+   * re-space — it's cheap to do nothing here and let the sparse INT keep
+   * absorbing midpoints for thousands of moves.
+   */
+  async function reorderTo(taskId: string, dropTargetId: string) {
+    if (taskId === dropTargetId) return;
+    const ordered = sortedTasks;
+    const moving = tasks.find((t) => t.id === taskId);
+    if (!moving) return;
+    const filtered = ordered.filter((t) => t.id !== taskId);
+    const newIdx = filtered.findIndex((t) => t.id === dropTargetId);
+    if (newIdx < 0) return;
+    const prev = filtered[newIdx - 1];
+    const next = filtered[newIdx];
+    const prevPos = prev?.position ?? null;
+    const nextPos = next?.position ?? null;
+
+    let newPos: number;
+    if (prevPos != null && nextPos != null) {
+      newPos = Math.floor((prevPos + nextPos) / 2);
+      if (newPos === prevPos || newPos === nextPos) newPos = prevPos + 1;
+    } else if (prevPos != null) {
+      newPos = prevPos + 1000;
+    } else if (nextPos != null) {
+      newPos = nextPos - 1000;
+    } else {
+      newPos = 1000;
+    }
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, position: newPos } : t)),
+    );
+    try {
+      const r = await fetch(`/api/v1/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ position: newPos }),
+      });
+      if (!r.ok) await load();
+    } catch {
+      await load();
+    }
+  }
+
+  async function bulk(
+    action:
+      | { type: "status"; status: TaskStatus }
+      | { type: "priority"; priority: number }
+      | { type: "delete" }
+      | { type: "assign"; user_id: string; replace: boolean },
+  ) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    let payload:
+      | { action: "status"; status: TaskStatus; task_ids: string[] }
+      | { action: "priority"; priority: number; task_ids: string[] }
+      | { action: "delete"; task_ids: string[] }
+      | {
+          action: "assign";
+          user_ids: string[];
+          replace: boolean;
+          task_ids: string[];
+        };
+    switch (action.type) {
+      case "status":
+        payload = { action: "status", status: action.status, task_ids: ids };
+        break;
+      case "priority":
+        payload = {
+          action: "priority",
+          priority: action.priority,
+          task_ids: ids,
+        };
+        break;
+      case "delete":
+        payload = { action: "delete", task_ids: ids };
+        break;
+      case "assign":
+        payload = {
+          action: "assign",
+          user_ids: [action.user_id],
+          replace: action.replace,
+          task_ids: ids,
+        };
+        break;
+    }
+    try {
+      const r = await fetch(`/api/v1/tasks/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const body = (await r.json()) as { errors?: { message: string }[] };
+        setError(body.errors?.[0]?.message ?? "Bulk action failed");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setSelectedIds(new Set());
+      setAnchorId(null);
+      await load();
+    }
+  }
+
   const commentTask = sortedTasks.find((t) => t.id === commentTaskId) ?? null;
 
   function pickSort(next: TaskSortKey) {
@@ -373,11 +567,37 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
                 task={t}
                 ticker={ticker}
                 selected={i === selectedIdx}
-                onClick={() => setSelectedIdx(i)}
+                multiSelected={selectedIds.has(t.id)}
+                showDragHandle={sortKey === "manual"}
+                isDragOver={dragOverId === t.id}
+                onRowClick={(e) => rowClick(e, i, t)}
                 onToggle={() => toggleComplete(t)}
                 onOpenComments={() =>
-                  setCommentTaskId((prev) => (prev === t.id ? null : t.id))
+                  setCommentTaskId((prev) =>
+                    prev === t.id ? null : t.id,
+                  )
                 }
+                onDragStart={() => setDraggingId(t.id)}
+                onDragOver={(e) => {
+                  if (!draggingId || draggingId === t.id) return;
+                  e.preventDefault();
+                  setDragOverId(t.id);
+                }}
+                onDragLeave={() => {
+                  if (dragOverId === t.id) setDragOverId(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggingId && draggingId !== t.id) {
+                    void reorderTo(draggingId, t.id);
+                  }
+                  setDraggingId(null);
+                  setDragOverId(null);
+                }}
+                onDragEnd={() => {
+                  setDraggingId(null);
+                  setDragOverId(null);
+                }}
               />
             ))}
           </ul>
@@ -411,6 +631,23 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           </form>
         ) : null}
       </div>
+
+      {selectedIds.size > 0 ? (
+        <BulkActionBar
+          count={selectedIds.size}
+          members={mentionables}
+          onClear={() => {
+            setSelectedIds(new Set());
+            setAnchorId(null);
+          }}
+          onMarkDone={() => bulk({ type: "status", status: "done" })}
+          onSetPriority={(p) => bulk({ type: "priority", priority: p })}
+          onReassign={(uid, replace) =>
+            bulk({ type: "assign", user_id: uid, replace })
+          }
+          onDelete={() => bulk({ type: "delete" })}
+        />
+      ) : null}
       </div>
       {commentTask ? (
         <div className="h-full w-[320px] flex-shrink-0">
@@ -432,28 +669,67 @@ function TaskRow({
   task,
   ticker,
   selected,
-  onClick,
+  multiSelected,
+  showDragHandle,
+  isDragOver,
+  onRowClick,
   onToggle,
   onOpenComments,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: {
   task: Task;
   ticker: string;
   selected: boolean;
-  onClick: () => void;
+  multiSelected: boolean;
+  showDragHandle: boolean;
+  isDragOver: boolean;
+  onRowClick: (e: React.MouseEvent) => void;
   onToggle: () => void;
   onOpenComments: () => void;
+  onDragStart: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
 }) {
   const done = task.status === "done";
 
   return (
     <li
-      onClick={onClick}
+      onClick={onRowClick}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       className={cn(
-        "group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors",
+        "group flex cursor-pointer items-center gap-2 px-3 py-2 transition-colors",
         selected ? "bg-bg-2" : "hover:bg-bg-2",
-        selected && "border-l-2 border-l-border-focus pl-[14px]",
+        multiSelected && "bg-accent/10",
+        selected &&
+          !multiSelected &&
+          "border-l-2 border-l-border-focus pl-[10px]",
+        isDragOver && "border-t-2 border-t-accent",
       )}
     >
+      {showDragHandle ? (
+        <button
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/plain", task.id);
+            e.dataTransfer.effectAllowed = "move";
+            onDragStart();
+          }}
+          onDragEnd={onDragEnd}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Drag to reorder"
+          className="cursor-grab text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover:opacity-100 active:cursor-grabbing"
+        >
+          <GripVertical className="h-3 w-3" aria-hidden="true" />
+        </button>
+      ) : null}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -616,6 +892,162 @@ function SortMenu({
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function BulkActionBar({
+  count,
+  members,
+  onClear,
+  onMarkDone,
+  onSetPriority,
+  onReassign,
+  onDelete,
+}: {
+  count: number;
+  members: Mentionable[];
+  onClear: () => void;
+  onMarkDone: () => void;
+  onSetPriority: (p: number) => void;
+  onReassign: (userId: string, replace: boolean) => void;
+  onDelete: () => void;
+}) {
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  return (
+    <div className="flex items-center gap-2 border-t border-border bg-bg-1 px-3 py-2 text-xs">
+      <span className="font-mono text-text-2">{count} selected</span>
+      <button
+        onClick={onClear}
+        className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+        aria-label="Clear selection"
+        title="Clear selection (Esc)"
+      >
+        <X className="h-3 w-3" />
+      </button>
+      <span className="ml-2 h-4 w-px bg-border" aria-hidden="true" />
+      <button
+        onClick={onMarkDone}
+        className="flex items-center gap-1 rounded-sm px-2 py-1 text-text-2 hover:bg-bg-2 hover:text-text-0"
+      >
+        <Check className="h-3 w-3" /> Mark done
+      </button>
+      <div className="relative">
+        <button
+          onClick={() => {
+            setPriorityOpen((s) => !s);
+            setReassignOpen(false);
+          }}
+          className="flex items-center gap-1 rounded-sm px-2 py-1 text-text-2 hover:bg-bg-2 hover:text-text-0"
+        >
+          <Flag className="h-3 w-3" /> Priority
+        </button>
+        {priorityOpen ? (
+          <div className="absolute bottom-full left-0 mb-1 w-32 rounded border border-border bg-bg-1 py-1 shadow-lg">
+            {[
+              { p: 1, label: "Urgent" },
+              { p: 2, label: "High" },
+              { p: 3, label: "Medium" },
+              { p: 4, label: "Low" },
+            ].map(({ p, label }) => (
+              <button
+                key={p}
+                onClick={() => {
+                  onSetPriority(p);
+                  setPriorityOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-bg-2"
+              >
+                <PriorityDots priority={p} />
+                <span className="text-text-1">{label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="relative">
+        <button
+          onClick={() => {
+            setReassignOpen((s) => !s);
+            setPriorityOpen(false);
+          }}
+          className="flex items-center gap-1 rounded-sm px-2 py-1 text-text-2 hover:bg-bg-2 hover:text-text-0"
+        >
+          <UserPlus className="h-3 w-3" /> Reassign
+        </button>
+        {reassignOpen ? (
+          <div className="absolute bottom-full left-0 mb-1 max-h-56 w-56 overflow-y-auto rounded border border-border bg-bg-1 py-1 shadow-lg">
+            {members.length === 0 ? (
+              <span className="block px-3 py-1 text-text-3">No members.</span>
+            ) : (
+              members.map((m) => (
+                <div
+                  key={m.user_id}
+                  className="flex items-center justify-between gap-2 px-3 py-1 hover:bg-bg-2"
+                >
+                  <span className="flex flex-1 items-center gap-2 truncate">
+                    <Avatar name={m.full_name} size="xs" />
+                    <span className="truncate text-text-1">
+                      {m.full_name ?? "someone"}
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => {
+                      onReassign(m.user_id, false);
+                      setReassignOpen(false);
+                    }}
+                    className="text-[10px] text-text-3 hover:text-text-0"
+                    title="Add as assignee"
+                  >
+                    + add
+                  </button>
+                  <button
+                    onClick={() => {
+                      onReassign(m.user_id, true);
+                      setReassignOpen(false);
+                    }}
+                    className="text-[10px] text-text-3 hover:text-accent"
+                    title="Replace existing assignees"
+                  >
+                    set
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
+      </div>
+      <span className="ml-auto" />
+      {confirmDelete ? (
+        <div className="flex items-center gap-2">
+          <span className="text-text-3">Delete {count}?</span>
+          <button
+            onClick={() => setConfirmDelete(false)}
+            className="rounded-sm px-2 py-1 text-text-3 hover:text-text-1"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              onDelete();
+              setConfirmDelete(false);
+            }}
+            className="rounded-sm bg-danger px-2 py-1 text-bg-0 hover:opacity-90"
+          >
+            Confirm
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setConfirmDelete(true)}
+          className="flex items-center gap-1 rounded-sm px-2 py-1 text-danger hover:bg-danger-subtle"
+        >
+          <Trash2 className="h-3 w-3" /> Delete
+        </button>
+      )}
     </div>
   );
 }
