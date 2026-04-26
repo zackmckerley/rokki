@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 import {
   ShieldCheck,
   ShieldOff,
@@ -71,6 +70,14 @@ export function AdminToolsClient() {
   }
 
   async function moderate(slug: string, status: Row["moderation_status"]) {
+    if (status === "disabled") {
+      if (
+        !confirm(
+          `Disable "${slug}"? Existing invocations are blocked immediately and the tool stops appearing in the marketplace. You can re-approve it later.`,
+        )
+      )
+        return;
+    }
     setBusy(slug);
     try {
       const r = await fetch(
@@ -145,12 +152,15 @@ export function AdminToolsClient() {
               {rows.map((t) => (
                 <tr key={t.id}>
                   <AdminTd>
-                    <Link
+                    <a
                       href={`/tools/${t.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
                       className="text-text-0 hover:text-accent"
+                      title="Open marketplace listing in a new tab"
                     >
                       {t.name}
-                    </Link>
+                    </a>
                     <div className="font-mono text-[10px] text-text-3">
                       {t.slug}
                     </div>

@@ -88,7 +88,16 @@ export default async function AdminActivityPage({
                   ) : null}
                 </td>
                 <td className="px-3 py-1.5 font-mono text-[10px] text-text-3">
-                  {r.actor_id?.slice(0, 8) ?? "system"}
+                  {r.actor_id ? (
+                    <Link
+                      href={`/admin/users/${r.actor_id}`}
+                      className="hover:text-accent"
+                    >
+                      {r.actor_id.slice(0, 8)}
+                    </Link>
+                  ) : (
+                    "system"
+                  )}
                 </td>
                 <td className="px-3 py-1.5 font-mono text-[11px] text-text-3">
                   <code className="truncate">

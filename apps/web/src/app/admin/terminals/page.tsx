@@ -89,18 +89,32 @@ export default async function AdminTerminalsPage({
             {rows.map((t) => (
               <tr key={t.id} className="hover:bg-bg-2">
                 <td className="px-3 py-2 font-mono text-xs text-accent">
-                  <Link href={`/admin/terminals/${t.ticker}`}>{t.ticker}</Link>
+                  <Link
+                    href={`/admin/terminals/${t.ticker}`}
+                    className="hover:underline"
+                  >
+                    {t.ticker}
+                  </Link>
                 </td>
                 <td className="px-3 py-2 text-text-0">
                   <Link
                     href={`/admin/terminals/${t.ticker}`}
-                    className="hover:underline"
+                    className="text-text-0 hover:text-accent"
                   >
                     {t.name}
                   </Link>
                 </td>
                 <td className="px-3 py-2 text-xs text-text-2">
-                  {t.spaces?.name ?? "—"}
+                  {t.spaces ? (
+                    <Link
+                      href={`/admin/spaces/${t.spaces.slug}`}
+                      className="text-text-2 hover:text-accent"
+                    >
+                      {t.spaces.name}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
                 </td>
                 <td className="px-3 py-2 font-mono text-[10px] uppercase text-text-3">
                   {t.archived_at ? "archived" : t.status}

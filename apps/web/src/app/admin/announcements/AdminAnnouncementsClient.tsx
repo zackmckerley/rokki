@@ -47,8 +47,9 @@ export function AdminAnnouncementsClient() {
     setTimeout(() => setSuccess(null), 2500);
   }
 
-  async function remove(id: string) {
-    if (!confirm("Delete this announcement?")) return;
+  async function remove(id: string, body: string) {
+    const preview = body.length > 80 ? `${body.slice(0, 80)}…` : body;
+    if (!confirm(`Delete this announcement?\n\n"${preview}"`)) return;
     setBusy(id);
     try {
       const r = await fetch(`/api/v1/admin/announcements/${id}`, {
@@ -117,7 +118,7 @@ export function AdminAnnouncementsClient() {
                   <AdminTd align="right">
                     <AdminButton
                       variant="danger"
-                      onClick={() => void remove(r.id)}
+                      onClick={() => void remove(r.id, r.body)}
                       disabled={busy === r.id}
                     >
                       <Trash2 className="h-3 w-3" /> Delete

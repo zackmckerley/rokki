@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Trash2, Check, AlertCircle } from "lucide-react";
 import {
   AdminBadge,
@@ -60,8 +61,13 @@ export function AdminQuotasClient() {
     setTimeout(() => setSuccess(null), 2500);
   }
 
-  async function remove(id: string) {
-    if (!confirm("Remove this quota?")) return;
+  async function remove(id: string, label: string) {
+    if (
+      !confirm(
+        `Remove the ${label} quota? The subject becomes unlimited until you set a new one.`,
+      )
+    )
+      return;
     setBusy(id);
     try {
       const r = await fetch(`/api/v1/admin/quotas?id=${id}`, {
@@ -141,7 +147,16 @@ export function AdminQuotasClient() {
                       ) : null}
                     </AdminTd>
                     <AdminTd mono>
-                      {q.subject_type}: {q.subject_id.slice(0, 8)}
+                      {q.subject_type === "user" ? (
+                        <Link
+                          href={`/admin/users/${q.subject_id}`}
+                          className="text-text-1 hover:text-accent"
+                        >
+                          {q.subject_type}: {q.subject_id.slice(0, 8)}
+                        </Link>
+                      ) : (
+                        `${q.subject_type}: ${q.subject_id.slice(0, 8)}`
+                      )}
                     </AdminTd>
                     <AdminTd>
                       <AdminBadge>{q.period}</AdminBadge>
@@ -163,7 +178,12 @@ export function AdminQuotasClient() {
                     <AdminTd align="right">
                       <AdminButton
                         variant="danger"
-                        onClick={() => void remove(q.id)}
+                        onClick={() =>
+                          void remove(
+                            q.id,
+                            `${q.tool?.slug ?? "unknown"} (${q.subject_type}:${q.subject_id.slice(0, 8)})`,
+                          )
+                        }
                         disabled={busy === q.id}
                       >
                         <Trash2 className="h-3 w-3" />
@@ -230,7 +250,17 @@ function NearCapPanel() {
           {rows.map((r) => (
             <tr key={r.id}>
               <AdminTd mono>
-                {r.subject_email ?? `${r.subject_type}:${r.subject_id.slice(0, 8)}`}
+                {r.subject_type === "user" ? (
+                  <Link
+                    href={`/admin/users/${r.subject_id}`}
+                    className="text-text-1 hover:text-accent"
+                  >
+                    {r.subject_email ?? `user:${r.subject_id.slice(0, 8)}`}
+                  </Link>
+                ) : (
+                  (r.subject_email ??
+                    `${r.subject_type}:${r.subject_id.slice(0, 8)}`)
+                )}
               </AdminTd>
               <AdminTd>
                 {r.tool?.name ?? <span className="text-text-3">unknown</span>}
@@ -268,7 +298,6 @@ function NewQuotaForm({
   onError: (m: string) => void;
 }) {
   const [toolId, setToolId] = useState("");
-  const [subjectType, setSubjectType] = useState<"user" | "org">("user");
   const [user, setUser] = useState<PickedUser | null>(null);
   const [period, setPeriod] = useState<"day" | "month">("day");
   const [limit, setLimit] = useState(100);
@@ -280,7 +309,7 @@ function NewQuotaForm({
       onError("Pick a tool.");
       return;
     }
-    if (subjectType === "user" && !user) {
+    if (!user) {
       onError("Pick a user.");
       return;
     }
@@ -292,8 +321,8 @@ function NewQuotaForm({
         credentials: "include",
         body: JSON.stringify({
           tool_id: toolId,
-          subject_type: subjectType,
-          subject_id: user!.user_id,
+          subject_type: "user",
+          subject_id: user.user_id,
           period,
           limit_credits: limit,
         }),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { ShieldAlert, X, Check, AlertCircle } from "lucide-react";
 import {
   AdminBadge,
@@ -112,7 +113,14 @@ export function AdminEmergencyClient() {
             <tbody className="divide-y divide-border">
               {active.map((g) => (
                 <tr key={g.id}>
-                  <AdminTd mono>{g.target_user_id.slice(0, 12)}</AdminTd>
+                  <AdminTd mono>
+                    <Link
+                      href={`/admin/users/${g.target_user_id}`}
+                      className="text-text-1 hover:text-accent"
+                    >
+                      {g.target_user_id.slice(0, 12)}
+                    </Link>
+                  </AdminTd>
                   <AdminTd mono>
                     {g.target_terminal_id
                       ? `terminal: ${g.target_terminal_id.slice(0, 8)}`
@@ -172,8 +180,22 @@ export function AdminEmergencyClient() {
                         {new Date(g.started_at).toLocaleString()}
                       </span>
                     </AdminTd>
-                    <AdminTd mono>{g.admin_id.slice(0, 12)}</AdminTd>
-                    <AdminTd mono>{g.target_user_id.slice(0, 12)}</AdminTd>
+                    <AdminTd mono>
+                      <Link
+                        href={`/admin/users/${g.admin_id}`}
+                        className="text-text-1 hover:text-accent"
+                      >
+                        {g.admin_id.slice(0, 12)}
+                      </Link>
+                    </AdminTd>
+                    <AdminTd mono>
+                      <Link
+                        href={`/admin/users/${g.target_user_id}`}
+                        className="text-text-1 hover:text-accent"
+                      >
+                        {g.target_user_id.slice(0, 12)}
+                      </Link>
+                    </AdminTd>
                     <AdminTd>
                       {g.revoked_at ? (
                         <AdminBadge variant="muted">revoked</AdminBadge>

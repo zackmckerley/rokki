@@ -110,19 +110,28 @@ export default async function AdminOverviewPage() {
     { count: lastHourEvents },
   ] = counts;
 
-  // Recent events (right column)
+  // Recent events (right column). Reads from `activity` so this list stays
+  // in lock-step with /admin/activity and the "Activity / hour" stat above —
+  // earlier this panel read `domain_events` and could show 15 rows while
+  // the Activity page below it sat empty (PR #7 fixed the count mismatch).
   const { data: recent } = await admin
-    .from("domain_events")
-    .select("id, name, actor_id, occurred_at, payload")
-    .order("occurred_at", { ascending: false })
+    .from("activity")
+    .select("id, action, actor_id, created_at, metadata")
+    .order("created_at", { ascending: false })
     .limit(15);
-  const events = (recent ?? []) as Array<{
+  const events = ((recent ?? []) as Array<{
     id: string;
-    name: string;
+    action: string;
     actor_id: string | null;
-    occurred_at: string;
-    payload: Record<string, unknown>;
-  }>;
+    created_at: string;
+    metadata: Record<string, unknown> | null;
+  }>).map((r) => ({
+    id: r.id,
+    name: r.action,
+    actor_id: r.actor_id,
+    occurred_at: r.created_at,
+    payload: r.metadata ?? {},
+  }));
 
   // Health probes — light-touch. DB query just succeeded so we know the
   // primary DB is up; the indexer/scanner pulses are derived from the
@@ -228,12 +237,13 @@ export default async function AdminOverviewPage() {
               }
             />
             <Stat
+              href="/admin/storage"
               icon={<FileText />}
               label="Files"
               value={fileCount ?? 0}
             />
             <Stat
-              href="/tools"
+              href="/admin/tools"
               icon={<Sparkles />}
               label="Tools"
               value={toolCount ?? 0}
@@ -255,6 +265,7 @@ export default async function AdminOverviewPage() {
               }
             />
             <Stat
+              href="/admin/storage"
               icon={<ShieldAlert />}
               label="Scans pending"
               value={pendingScans ?? 0}
