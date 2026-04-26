@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Trash2, RefreshCw, AlertCircle, Check } from "lucide-react";
+import { Trash2, RefreshCw } from "lucide-react";
 import { AdminButton, AdminPanel } from "@/components/admin/primitives";
+import { toast } from "@/lib/toast";
 
 /**
  * Storage maintenance ops — orphan sweep + virus-scan re-queue. Both
@@ -12,18 +13,6 @@ import { AdminButton, AdminPanel } from "@/components/admin/primitives";
  */
 export function StorageOps() {
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  function flash(m: string) {
-    setSuccess(m);
-    setError(null);
-    setTimeout(() => setSuccess(null), 4000);
-  }
-  function fail(m: string) {
-    setError(m);
-    setSuccess(null);
-  }
 
   async function cleanupOrphans() {
     if (
@@ -39,13 +28,13 @@ export function StorageOps() {
         credentials: "include",
       });
       if (!r.ok) {
-        fail(await msg(r));
+        toast.error(await msg(r));
         return;
       }
       const body = (await r.json()) as {
         data: { swept: number; capped: boolean };
       };
-      flash(
+      toast.success(
         `Swept ${body.data.swept} orphaned file${body.data.swept === 1 ? "" : "s"}${body.data.capped ? " (capped — run again to continue)" : ""}.`,
       );
     } finally {
@@ -68,11 +57,11 @@ export function StorageOps() {
         { method: "POST", credentials: "include" },
       );
       if (!r.ok) {
-        fail(await msg(r));
+        toast.error(await msg(r));
         return;
       }
       const body = (await r.json()) as { data: { requeued: number } };
-      flash(
+      toast.success(
         `Re-queued ${body.data.requeued} file${body.data.requeued === 1 ? "" : "s"} for virus scanning.`,
       );
     } finally {
@@ -107,16 +96,6 @@ export function StorageOps() {
             {busy === "rescan-all" ? "Re-queuing…" : "Re-queue all scans"}
           </AdminButton>
         </div>
-        {error ? (
-          <p className="flex items-center gap-1 rounded-sm border border-danger/40 bg-danger-subtle px-3 py-1.5 text-xs text-danger">
-            <AlertCircle className="h-3 w-3" /> {error}
-          </p>
-        ) : null}
-        {success ? (
-          <p className="flex items-center gap-1 rounded-sm border border-success/40 bg-success-subtle px-3 py-1.5 text-xs text-success">
-            <Check className="h-3 w-3" /> {success}
-          </p>
-        ) : null}
         <p className="text-[11px] text-text-3">
           Orphans = files attached to terminals archived for 30+ days.
           Stuck scans = files whose virus_scan_status has been

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Trash2, Save, AlertCircle, Check } from "lucide-react";
+import { Trash2, Save } from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
@@ -12,6 +12,7 @@ import {
   AdminTh,
 } from "@/components/admin/primitives";
 import { SpacePicker, type PickedSpace } from "@/components/admin/SpacePicker";
+import { toast } from "@/lib/toast";
 
 interface Row {
   id: string;
@@ -26,8 +27,6 @@ interface Row {
 
 export function AdminFlagsClient() {
   const [rows, setRows] = useState<Row[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
@@ -35,17 +34,12 @@ export function AdminFlagsClient() {
       .then((r) => r.json())
       .then((b: { data?: Row[] }) => setRows(b.data ?? []))
       .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "load failed"),
+        toast.error(e instanceof Error ? e.message : "load failed"),
       );
   }, []);
   useEffect(() => {
     load();
   }, [load]);
-
-  function flash(m: string) {
-    setSuccess(m);
-    setTimeout(() => setSuccess(null), 2500);
-  }
 
   async function remove(id: string, key: string) {
     if (
@@ -61,10 +55,10 @@ export function AdminFlagsClient() {
         credentials: "include",
       });
       if (!r.ok) {
-        setError(await msg(r));
+        toast.error(await msg(r));
         return;
       }
-      flash("Removed");
+      toast.success("Removed");
       load();
     } finally {
       setBusy(null);
@@ -73,17 +67,7 @@ export function AdminFlagsClient() {
 
   return (
     <div className="flex flex-col gap-4">
-      <NewFlagForm onCreated={load} onError={setError} onSuccess={flash} />
-      {error ? (
-        <p className="flex items-center gap-1 rounded-sm border border-danger/40 bg-danger-subtle px-3 py-1.5 text-xs text-danger">
-          <AlertCircle className="h-3 w-3" /> {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="flex items-center gap-1 rounded-sm border border-success/40 bg-success-subtle px-3 py-1.5 text-xs text-success">
-          <Check className="h-3 w-3" /> {success}
-        </p>
-      ) : null}
+      <NewFlagForm onCreated={load} />
       {rows.length === 0 ? (
         <AdminEmpty
           panel
@@ -148,15 +132,7 @@ export function AdminFlagsClient() {
   );
 }
 
-function NewFlagForm({
-  onCreated,
-  onError,
-  onSuccess,
-}: {
-  onCreated: () => void;
-  onError: (m: string) => void;
-  onSuccess: (m: string) => void;
-}) {
+function NewFlagForm({ onCreated }: { onCreated: () => void }) {
   const [key, setKey] = useState("");
   const [valueJson, setValueJson] = useState("true");
   const [rollout, setRollout] = useState(100);
@@ -168,7 +144,7 @@ function NewFlagForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (scope === "space" && !space) {
-      onError("Pick a space when scope is per-space.");
+      toast.error("Pick a space when scope is per-space.");
       return;
     }
     setBusy(true);
@@ -177,7 +153,7 @@ function NewFlagForm({
       try {
         parsed = JSON.parse(valueJson);
       } catch {
-        onError(
+        toast.error(
           "Value must be valid JSON. Use `true`, `42`, `\"text\"`, or `{\"a\":1}`.",
         );
         return;
@@ -196,10 +172,10 @@ function NewFlagForm({
         }),
       });
       if (!r.ok) {
-        onError(await msg(r));
+        toast.error(await msg(r));
         return;
       }
-      onSuccess(`Flag ${key} set (${scope})`);
+      toast.success(`Flag ${key} set (${scope})`);
       setKey("");
       setValueJson("true");
       setSpace(null);

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, Power, PowerOff, AlertCircle, Check } from "lucide-react";
+import { Plus, Trash2, Power, PowerOff } from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
@@ -11,6 +11,7 @@ import {
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
+import { toast } from "@/lib/toast";
 
 interface Row {
   id: string;
@@ -23,8 +24,6 @@ interface Row {
 
 export function AdminWebhooksClient() {
   const [rows, setRows] = useState<Row[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [revealedSecret, setRevealedSecret] = useState<{
     id: string;
@@ -36,17 +35,12 @@ export function AdminWebhooksClient() {
       .then((r) => r.json())
       .then((b: { data?: Row[] }) => setRows(b.data ?? []))
       .catch((e: unknown) =>
-        setError(e instanceof Error ? e.message : "load failed"),
+        toast.error(e instanceof Error ? e.message : "load failed"),
       );
   }, []);
   useEffect(() => {
     load();
   }, [load]);
-
-  function flash(m: string) {
-    setSuccess(m);
-    setTimeout(() => setSuccess(null), 2500);
-  }
 
   async function toggle(id: string, active: boolean) {
     setBusy(id);
@@ -58,10 +52,10 @@ export function AdminWebhooksClient() {
         body: JSON.stringify({ active }),
       });
       if (!r.ok) {
-        setError(await msg(r));
+        toast.error(await msg(r));
         return;
       }
-      flash(active ? "Activated" : "Deactivated");
+      toast.success(active ? "Activated" : "Deactivated");
       load();
     } finally {
       setBusy(null);
@@ -78,10 +72,10 @@ export function AdminWebhooksClient() {
         credentials: "include",
       });
       if (!r.ok) {
-        setError(await msg(r));
+        toast.error(await msg(r));
         return;
       }
-      flash("Deleted");
+      toast.success("Deleted");
       load();
     } finally {
       setBusy(null);
@@ -92,11 +86,10 @@ export function AdminWebhooksClient() {
     <div className="flex flex-col gap-4">
       <NewForm
         onCreated={(id, secret) => {
-          flash("Webhook created");
+          toast.success("Webhook created");
           setRevealedSecret({ id, secret });
           load();
         }}
-        onError={setError}
       />
       {revealedSecret ? (
         <div className="rounded border border-warning/40 bg-warning-subtle p-3 text-xs">
@@ -113,16 +106,6 @@ export function AdminWebhooksClient() {
             dismiss
           </button>
         </div>
-      ) : null}
-      {error ? (
-        <p className="flex items-center gap-1 rounded-sm border border-danger/40 bg-danger-subtle px-3 py-1.5 text-xs text-danger">
-          <AlertCircle className="h-3 w-3" /> {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="flex items-center gap-1 rounded-sm border border-success/40 bg-success-subtle px-3 py-1.5 text-xs text-success">
-          <Check className="h-3 w-3" /> {success}
-        </p>
       ) : null}
 
       {rows.length === 0 ? (
@@ -197,10 +180,8 @@ export function AdminWebhooksClient() {
 
 function NewForm({
   onCreated,
-  onError,
 }: {
   onCreated: (id: string, secret: string) => void;
-  onError: (m: string) => void;
 }) {
   const [url, setUrl] = useState("");
   const [eventsCsv, setEventsCsv] = useState(
@@ -215,7 +196,7 @@ function NewForm({
       .map((e) => e.trim())
       .filter(Boolean);
     if (!url || events.length === 0) {
-      onError("URL and at least one event required.");
+      toast.error("URL and at least one event required.");
       return;
     }
     setBusy(true);
@@ -227,7 +208,7 @@ function NewForm({
         body: JSON.stringify({ url, events }),
       });
       if (!r.ok) {
-        onError(await msg(r));
+        toast.error(await msg(r));
         return;
       }
       const body = (await r.json()) as { data: { id: string; secret: string } };
