@@ -1,11 +1,11 @@
 "use client";
 
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
-import { MessageSquare, Send, X, Pencil, Trash2, MessagesSquare } from "lucide-react";
+import { MessageSquare, Send, X, Pencil, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
-import { EmptyState } from "./EmptyState";
+import { toast } from "@/lib/toast";
 
 interface CommentAuthor {
   user_id: string;
@@ -121,7 +121,7 @@ export function CommentThread({
       });
       if (!r.ok) {
         const body = (await r.json()) as { errors?: { message: string }[] };
-        alert(body.errors?.[0]?.message ?? "Failed to post comment");
+        toast.error(body.errors?.[0]?.message ?? "Failed to post comment");
         return;
       }
       setDraft("");
@@ -180,12 +180,9 @@ export function CommentThread({
         {loading && comments.length === 0 ? (
           <p className="text-center text-xs text-text-3">Loading…</p>
         ) : comments.length === 0 ? (
-          <EmptyState
-            icon={MessagesSquare}
-            title="No comments yet."
-            body="Start the thread — @-mention to ping someone."
-            className="p-6"
-          />
+          <p className="py-8 text-center text-xs text-text-3">
+            No comments yet. Start the thread.
+          </p>
         ) : (
           <ul className="flex flex-col gap-3">
             {comments.map((c) => (
