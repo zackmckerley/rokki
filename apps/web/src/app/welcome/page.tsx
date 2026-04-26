@@ -78,7 +78,7 @@ export default async function WelcomePage() {
       body: "Name and timezone — so mentions read right and your due dates land in your local time.",
       done: Boolean(p?.full_name && p?.timezone),
       cta: { label: "Open profile", href: "/settings/profile" },
-      icon: <User className="h-4 w-4 text-accent" />,
+      icon: <User className="h-3.5 w-3.5 text-accent" />,
     },
     {
       id: "space",
@@ -89,7 +89,7 @@ export default async function WelcomePage() {
         label: (spaceCount ?? 0) > 0 ? "View spaces" : "Go to dashboard",
         href: "/",
       },
-      icon: <Sparkles className="h-4 w-4 text-accent" />,
+      icon: <Sparkles className="h-3.5 w-3.5 text-accent" />,
     },
     {
       id: "terminal",
@@ -100,7 +100,7 @@ export default async function WelcomePage() {
         label: (terminalCount ?? 0) > 0 ? "Go to a terminal" : "Dashboard",
         href: "/",
       },
-      icon: <Terminal className="h-4 w-4 text-accent" />,
+      icon: <Terminal className="h-3.5 w-3.5 text-accent" />,
     },
     {
       id: "calendar",
@@ -108,7 +108,7 @@ export default async function WelcomePage() {
       body: "Google Calendar or Outlook. Events show up in This Week next to your tasks.",
       done: (calendarCount ?? 0) > 0,
       cta: { label: "Connect", href: "/settings/calendars" },
-      icon: <Calendar className="h-4 w-4 text-accent" />,
+      icon: <Calendar className="h-3.5 w-3.5 text-accent" />,
     },
     {
       id: "shortcuts",
@@ -116,7 +116,7 @@ export default async function WelcomePage() {
       body: "Rokki is keyboard-first. ⌘K opens everything. J/K moves through tasks. ? shows the full cheatsheet.",
       done: false,
       cta: { label: "Open reference", href: "/help" },
-      icon: <Keyboard className="h-4 w-4 text-accent" />,
+      icon: <Keyboard className="h-3.5 w-3.5 text-accent" />,
     },
   ];
 
@@ -164,9 +164,9 @@ export default async function WelcomePage() {
               >
                 <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center">
                   {s.done ? (
-                    <Check className="h-4 w-4 text-success" />
+                    <Check className="h-3.5 w-3.5 text-success" />
                   ) : (
-                    <Circle className="h-4 w-4 text-text-3" />
+                    <Circle className="h-3.5 w-3.5 text-text-3" />
                   )}
                 </span>
                 <span className="flex-1">
