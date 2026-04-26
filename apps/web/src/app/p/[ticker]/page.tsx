@@ -124,7 +124,16 @@ export default async function ProjectTerminalPage({ params }: Props) {
           ) : null}
           <span className="text-text-3">/</span>
           <span className="text-text-0 font-medium">{p.name}</span>
-          <span className="ml-auto">
+          <span className="ml-auto flex items-center gap-3">
+            <Link
+              href={`/p/${p.ticker}/print`}
+              target="_blank"
+              rel="noopener"
+              title="Print or export this terminal as PDF"
+              className="text-text-3 hover:text-text-1"
+            >
+              Print / PDF
+            </Link>
             <Link
               href={`/p/${p.ticker}/settings`}
               className="text-text-3 hover:text-text-1"

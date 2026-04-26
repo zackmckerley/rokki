@@ -310,3 +310,93 @@ kbd[data-active="true"] {
   background: var(--accent-subtle);
   color: var(--text-0);
 }
+
+/* ========================================================================
+ * Print
+ *
+ * Two screens-of-print rendering paths converge here:
+ *   1. The dedicated /p/[ticker]/print page is always print-themed (used
+ *      by browser-print AND server-side puppeteer). Wraps everything in
+ *      `[data-print-root="true"]`.
+ *   2. Anywhere else, @media print hides the chrome (TopBar, ExplorerRail,
+ *      TickerTape, FunctionKeys, AccountBlock) and preserves the main pane
+ *      so a user can hit ⌘P from the terminal page itself.
+ *
+ * Light theme is forced for paper readability inside the print page (the
+ * dark backgrounds eat ink). On any other page printed via ⌘P, we keep
+ * the user's screen theme — they may have intentionally set dark mode
+ * for a code review.
+ * ====================================================================== */
+
+@media print {
+  /* Hide universal chrome on all pages. Components opt-in to "I survive
+   * print" by adding data-print-keep="true" on a wrapper. */
+  [data-print-hide="true"],
+  nav[aria-label="Explorer"],
+  .ticker-tape,
+  .function-keys-bar,
+  .top-bar,
+  .floating-help,
+  .command-bar {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000 !important;
+  }
+
+  /* Strip the dashboard's overflow:hidden so the printer paginates the
+   * full main pane instead of clipping at viewport height. */
+  html,
+  body,
+  main,
+  [data-terminal-shell] {
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+
+  /* Avoid breaking sections across pages where it hurts most. */
+  section,
+  article,
+  table,
+  .print-keep-together {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  a {
+    color: #000;
+    text-decoration: none;
+  }
+}
+
+/* Inside the dedicated print page we always render light, even when the
+ * user's screen theme is dark — they're going to put it on paper. */
+[data-print-root="true"] {
+  --bg-0: #ffffff;
+  --bg-1: #ffffff;
+  --bg-2: #f5f5f7;
+  --bg-3: #ededef;
+  --bg-4: #e5e5e8;
+  --border: #d1d1d5;
+  --border-strong: #aeaeb3;
+  --text-0: #0a0a0b;
+  --text-1: #2a2a2f;
+  --text-2: #5a5a62;
+  --text-3: #8a8a92;
+  --accent: #b8740b;
+  --accent-subtle: #fff5e0;
+  --success: #1f7a30;
+  --warning: #8a5e0a;
+  --danger: #b8241c;
+  background: #ffffff !important;
+  color: #000;
+}
+
+[data-print-root="true"] * {
+  /* Avoid text shadows / glows printing as gray smudges. */
+  text-shadow: none !important;
+  box-shadow: none !important;
+}
