@@ -41,21 +41,17 @@ BEGIN;
 -- ============================================================================
 -- 1. tasks ------------------------------------------------------------------
 -- ============================================================================
+-- Only title + description in the generated vector. The labels TEXT[]
+-- field is excluded because array_to_string + coalesce on a text[] in
+-- a generated column trips Postgres's IMMUTABLE check on this version,
+-- regardless of explicit casting. Labels are still searchable via
+-- separate WHERE clauses on the array column at query time; falling
+-- back to a non-vector match for that one column is fine.
 ALTER TABLE tasks
   ADD COLUMN IF NOT EXISTS search_vector tsvector
     GENERATED ALWAYS AS (
       setweight(to_tsvector('english', coalesce(title, '')), 'A')
       || setweight(to_tsvector('english', coalesce(description, '')), 'B')
-      || setweight(
-           -- ARRAY[]::text[] is the explicit-cast form. coalesce(labels, '{}')
-           -- works at runtime but Postgres treats the implicit text→text[]
-           -- cast as STABLE, which kills the generated-column IMMUTABILITY
-           -- check. Casting at parse time keeps the whole expression IMMUTABLE.
-           to_tsvector(
-             'english',
-             array_to_string(coalesce(labels, ARRAY[]::text[]), ' ')
-           ),
-           'C')
     ) STORED;
 
 -- Partial: only "active" rows (we never search the deleted task because
