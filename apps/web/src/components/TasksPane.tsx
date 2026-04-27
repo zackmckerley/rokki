@@ -479,6 +479,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
                 }
               }}
               placeholder="New task… Enter to save, Esc to cancel"
+              aria-label="New task title"
               className="flex-1 bg-transparent text-sm text-text-0 placeholder:text-text-3 outline-none"
               disabled={submitting}
             />

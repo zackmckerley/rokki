@@ -328,6 +328,7 @@ function AddAccountForm({
         value={identifier}
         onChange={(e) => setIdentifier(e.target.value)}
         placeholder="Email or username"
+        aria-label="Email or username"
         className="rounded-sm border border-border bg-bg-0 px-2 py-1 text-sm text-text-0 outline-none focus:border-border-focus"
       />
       <input
@@ -335,6 +336,7 @@ function AddAccountForm({
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Password"
+        aria-label="Password"
         className="rounded-sm border border-border bg-bg-0 px-2 py-1 font-mono text-sm text-text-0 outline-none focus:border-border-focus"
       />
       <p className="text-[10px] text-text-3">

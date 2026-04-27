@@ -11,8 +11,6 @@ import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { currentTimeIn, shortZoneLabel } from "@/lib/timezone";
-import { setDragPayload } from "@/lib/drag-drop";
-import { HelpTip } from "./HelpTip";
 import type { ProjectRole } from "@rokki/db";
 
 interface MemberProfile {
@@ -178,9 +176,7 @@ export function TeamPane({ ticker, projectId, canInvite }: TeamPaneProps) {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <HelpTip term="terminal-role">
-            <h2 className="text-sm font-semibold text-text-0">Team</h2>
-          </HelpTip>
+          <h2 className="text-sm font-semibold text-text-0">Team</h2>
           <span className="font-mono text-xs text-text-3">
             {members.length} member{members.length === 1 ? "" : "s"}
             {invites.length > 0 ? ` · ${invites.length} pending` : ""}
@@ -270,21 +266,8 @@ function MemberRow({ member, online }: { member: Member; online: boolean }) {
   const tz = member.profiles?.timezone ?? null;
   const timeStr = tz ? currentTimeIn(tz) : null;
   const cityStr = tz ? shortZoneLabel(tz) : null;
-  const [dragging, setDragging] = useState(false);
   return (
-    <li
-      draggable
-      title="Drag onto a task to assign"
-      onDragStart={(e) => {
-        setDragPayload(e.dataTransfer, "user", member.user_id, name);
-        setDragging(true);
-      }}
-      onDragEnd={() => setDragging(false)}
-      className={cn(
-        "flex items-center gap-3 px-4 py-2.5",
-        dragging && "opacity-50",
-      )}
-    >
+    <li className="flex items-center gap-3 px-4 py-2.5">
       <SharedAvatar name={name} size="sm" online={online} />
       <div className="flex flex-1 flex-col min-w-0">
         <span className="truncate text-sm text-text-0">{name}</span>
@@ -454,10 +437,11 @@ function InviteDialog({
           error={error || undefined}
         />
         <div className="flex flex-col gap-1">
-          <HelpTip term="terminal-role">
-            <label className="text-xs font-medium text-text-1">Role</label>
-          </HelpTip>
+          <label htmlFor="invite-role" className="text-xs font-medium text-text-1">
+            Role
+          </label>
           <select
+            id="invite-role"
             value={role}
             onChange={(e) => setRole(e.target.value as ProjectRole)}
             className="h-9 rounded border border-border bg-bg-2 px-3 text-sm text-text-0 focus:border-border-focus focus:outline-none"

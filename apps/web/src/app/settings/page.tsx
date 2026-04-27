@@ -46,7 +46,11 @@ export default async function SettingsPage() {
         <span className="text-text-3">·</span>
         <span className="text-text-0">Settings</span>
       </TopBar>
-      <main className="mx-auto w-full max-w-3xl flex-1 p-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-3xl flex-1 p-6 focus:outline-none"
+      >
         <div className="mb-6 flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-bg-2 text-sm font-semibold text-text-0">
             {(user.email ?? "").slice(0, 2).toUpperCase()}

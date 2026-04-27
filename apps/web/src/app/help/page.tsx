@@ -29,7 +29,11 @@ export default function HelpPage() {
         <span className="text-text-0">Help</span>
       </TopBar>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 p-6">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="mx-auto w-full max-w-5xl flex-1 p-6 focus:outline-none"
+      >
         <header className="mb-6">
           <h1 className="font-display flex items-center gap-3 text-3xl text-text-0">
             <BookOpen className="h-6 w-6 text-accent" />

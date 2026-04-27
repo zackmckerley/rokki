@@ -237,7 +237,13 @@ export default async function AdminLayout({
             isPlatformAdmin
           />
         </aside>
-        <main className="flex-1 overflow-x-auto p-6">{children}</main>
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="flex-1 overflow-x-auto p-6 focus:outline-none"
+        >
+          {children}
+        </main>
       </div>
     </div>
   );
