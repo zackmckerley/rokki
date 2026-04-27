@@ -32,18 +32,95 @@ async function handleGet(request: NextRequest, { params }: Props) {
 
   let query = supabase
     .from("tasks")
-    .select("id, ticker_seq, title, description, status, priority, due_date, labels, created_at, completed_at")
+    .select(
+      "id, ticker_seq, title, description, status, priority, due_date, labels, position, created_at, updated_at, completed_at",
+    )
     .eq("terminal_id", project.id);
 
   if (status) query = query.eq("status", status);
 
-  const { data, error } = await query
+  const { data: taskRows, error } = await query
     .order("completed_at", { ascending: true, nullsFirst: true })
     .order("priority", { ascending: true })
     .order("due_date", { ascending: true, nullsFirst: false })
     .order("created_at", { ascending: false });
 
   if (error) return internal(error.message);
+
+  type TaskRow = {
+    id: string;
+    ticker_seq: number;
+    title: string;
+    description: string | null;
+    status: string;
+    priority: number;
+    due_date: string | null;
+    labels: string[] | null;
+    position: number | null;
+    created_at: string;
+    updated_at: string;
+    completed_at: string | null;
+  };
+  const tasks = (taskRows ?? []) as TaskRow[];
+  const taskIds = tasks.map((t) => t.id);
+
+  // Aggregate subtask completion + assignees in a single follow-up pass each.
+  // Two extra round-trips beat N+1 from joins; volumes here are O(few hundred).
+  let subtaskTotals = new Map<string, { total: number; done: number }>();
+  let assigneesByTask = new Map<
+    string,
+    { user_id: string; full_name: string | null }[]
+  >();
+
+  if (taskIds.length > 0) {
+    const { data: subtaskRows } = await supabase
+      .from("subtasks")
+      .select("task_id, done")
+      .in("task_id", taskIds);
+    type SubRow = { task_id: string; done: boolean };
+    for (const r of (subtaskRows ?? []) as SubRow[]) {
+      const acc = subtaskTotals.get(r.task_id) ?? { total: 0, done: 0 };
+      acc.total += 1;
+      if (r.done) acc.done += 1;
+      subtaskTotals.set(r.task_id, acc);
+    }
+
+    const { data: assigneeRows } = await supabase
+      .from("task_assignees")
+      .select("task_id, user_id")
+      .in("task_id", taskIds);
+    type ARow = { task_id: string; user_id: string };
+    const assigneeUserIds = Array.from(
+      new Set(((assigneeRows ?? []) as ARow[]).map((r) => r.user_id)),
+    );
+    let nameById = new Map<string, string | null>();
+    if (assigneeUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", assigneeUserIds);
+      type PRow = { user_id: string; full_name: string | null };
+      for (const p of (profiles ?? []) as PRow[]) {
+        nameById.set(p.user_id, p.full_name);
+      }
+    }
+    for (const r of (assigneeRows ?? []) as ARow[]) {
+      const list = assigneesByTask.get(r.task_id) ?? [];
+      list.push({
+        user_id: r.user_id,
+        full_name: nameById.get(r.user_id) ?? null,
+      });
+      assigneesByTask.set(r.task_id, list);
+    }
+  }
+
+  const data = tasks.map((t) => ({
+    ...t,
+    subtask_total: subtaskTotals.get(t.id)?.total ?? 0,
+    subtask_done: subtaskTotals.get(t.id)?.done ?? 0,
+    assignees: assigneesByTask.get(t.id) ?? [],
+  }));
+
   return NextResponse.json({ data });
 }
 
@@ -69,6 +146,12 @@ async function handlePost(request: NextRequest, { params }: Props) {
     tags?: string[];
     status?: TaskStatus;
     recurrence_rule?: TaskRecurrenceRule | null;
+    /**
+     * Optional explicit assignee list. Omit (or send empty) to fall back
+     * to "creator is the assignee" — handled both here and by the
+     * trg_tasks_default_assignee trigger.
+     */
+    assignee_ids?: string[];
   };
 
   if (!body.title?.trim()) return bad("title is required");
@@ -112,6 +195,28 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   if (result.error || !data) {
     return internal(result.error?.message ?? "insert failed");
+  }
+
+  // Default-assignee fallback (defence in depth — the AFTER INSERT trigger
+  // also enforces this at the DB level). When the caller passes assignees
+  // explicitly we honour the list; otherwise the creator becomes the sole
+  // assignee. The trigger is idempotent (ON CONFLICT DO NOTHING) so the
+  // explicit-insert path here is never wasted work.
+  const explicitAssignees = (body.assignee_ids ?? []).filter(
+    (id): id is string => typeof id === "string" && id.length > 0,
+  );
+  const toAssign =
+    explicitAssignees.length > 0 ? explicitAssignees : [user.id];
+  if (toAssign.length > 0) {
+    const rows = toAssign.map((uid) => ({
+      task_id: data.id,
+      user_id: uid,
+      assigned_by: user.id,
+    }));
+    await supabase
+      .from("task_assignees")
+      // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
+      .upsert(rows, { onConflict: "task_id,user_id" });
   }
 
   await supabase

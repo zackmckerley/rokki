@@ -2,27 +2,45 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, Circle, MessageSquare, Maximize2, ListTodo } from "lucide-react";
+import {
+  Plus,
+  Check,
+  Circle,
+  MessageSquare,
+  Maximize2,
+  ListChecks,
+  ArrowDownUp,
+  ChevronDown,
+  GripVertical,
+  X,
+  Trash2,
+  UserPlus,
+  Flag,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EmptyState } from "./EmptyState";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { CommentThread } from "./CommentThread";
-import { MergeTaskDialog } from "./MergeTaskDialog";
-import { HelpTip } from "./HelpTip";
 import {
   PriorityDots,
   StatusPill,
   DueChip,
+  Avatar,
 } from "./primitives";
 import {
-  getDragPayload,
-  hasDragKind,
-  setDragPayload,
-  subscribeActiveDragKind,
-  type RokkiDragKind,
-} from "@/lib/drag-drop";
+  TASK_SORT_KEYS,
+  TASK_SORT_LABELS,
+  applyTaskSort,
+  loadTaskSort,
+  saveTaskSort,
+  type TaskSortKey,
+} from "@/lib/tasks-sort";
 import type { TaskStatus } from "@rokki/db";
+
+interface Assignee {
+  user_id: string;
+  full_name: string | null;
+}
 
 interface Task {
   id: string;
@@ -33,8 +51,16 @@ interface Task {
   priority: number;
   due_date: string | null;
   labels: string[];
+  /** Sparse INT — populated by the manual-reorder migration; null otherwise. */
+  position: number | null;
   created_at: string;
+  updated_at: string;
   completed_at: string | null;
+  /** New: server-aggregated subtask completion. */
+  subtask_total: number;
+  subtask_done: number;
+  /** New: assignees with display names for the row preview. */
+  assignees: Assignee[];
 }
 
 interface TasksPaneProps {
@@ -69,18 +95,24 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   const [submitting, setSubmitting] = useState(false);
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
-  /** ID of the task being dragged within this pane (for merge). */
-  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
-  /** ID of the task currently underneath a drag (any kind). */
-  const [hoveredTaskId, setHoveredTaskId] = useState<string | null>(null);
-  /** Pair queued for the merge dialog. Source is being dropped onto target. */
-  const [mergePair, setMergePair] = useState<{
-    source: { id: string; title: string };
-    target: { id: string; title: string };
-  } | null>(null);
-  /** Toast text shown briefly after a drop succeeds. */
-  const [dropToast, setDropToast] = useState<string | null>(null);
+  // Sort key persists to localStorage. Default = priority then due_date.
+  const [sortKey, setSortKey] = useState<TaskSortKey>("default");
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+
+  // Multi-select. Anchor is the row a shift-click extends from.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [anchorId, setAnchorId] = useState<string | null>(null);
+
+  // Drag state for manual reorder. Only active when sortKey === "manual".
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
   const createRef = useRef<HTMLInputElement>(null);
+
+  // Restore the user's saved sort on mount.
+  useEffect(() => {
+    setSortKey(loadTaskSort());
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,11 +158,18 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     };
   }, [ticker]);
 
+  // Apply the active sort once per render so every consumer (rows, keyboard
+  // nav, command palette) sees the same order.
+  const sortedTasks = useMemo(
+    () => applyTaskSort(tasks, sortKey),
+    [tasks, sortKey],
+  );
+
   // Realtime: mirror DB changes (inserts, updates, deletes) into local state
   // without refetching the whole list. RLS scopes the events to this user.
   const paletteCommands = useMemo(
     () => {
-      const selected = tasks[selectedIdx];
+      const selected = sortedTasks[selectedIdx];
       const base = [
         {
           id: `tasks/new:${projectId}`,
@@ -170,24 +209,26 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       return base;
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tasks, selectedIdx, projectId],
+    [sortedTasks, selectedIdx, projectId],
   );
   useRegisterCommands(`tasks:${projectId}`, paletteCommands);
 
-  useRealtimeTable<Task>(
+  // Realtime payloads carry the raw tasks row, not the enriched view (no
+  // subtask aggregates / assignees). Inserts trigger a refetch so the new
+  // row gets the same shape; updates patch in place because the visible
+  // fields here are all on the row itself.
+  type TaskRowRT = Partial<Task> & { id: string };
+  useRealtimeTable<TaskRowRT>(
     {
       table: "tasks",
       filter: `terminal_id=eq.${projectId}`,
       channelKey: `tasks:${projectId}`,
     },
     {
-      onInsert: (row) =>
-        setTasks((prev) =>
-          prev.some((t) => t.id === row.id) ? prev : sortTasks([row, ...prev]),
-        ),
+      onInsert: () => void load(),
       onUpdate: (row) =>
         setTasks((prev) =>
-          sortTasks(prev.map((t) => (t.id === row.id ? { ...t, ...row } : t))),
+          prev.map((t) => (t.id === row.id ? { ...t, ...row } : t)),
         ),
       onDelete: (row) =>
         setTasks((prev) => prev.filter((t) => t.id !== row.id)),
@@ -204,38 +245,107 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       const target = e.target;
       if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return;
 
-      if (e.key === "j") {
+      if (e.key === "j" || (e.shiftKey && e.key === "J")) {
         e.preventDefault();
-        setSelectedIdx((i) => Math.min(i + 1, Math.max(tasks.length - 1, 0)));
-      } else if (e.key === "k") {
+        const next = Math.min(
+          selectedIdx + 1,
+          Math.max(sortedTasks.length - 1, 0),
+        );
+        setSelectedIdx(next);
+        if (e.shiftKey) extendSelection(next);
+      } else if (e.key === "k" || (e.shiftKey && e.key === "K")) {
         e.preventDefault();
-        setSelectedIdx((i) => Math.max(i - 1, 0));
+        const next = Math.max(selectedIdx - 1, 0);
+        setSelectedIdx(next);
+        if (e.shiftKey) extendSelection(next);
+      } else if (e.key === "x" && !e.metaKey && !e.ctrlKey) {
+        const t = sortedTasks[selectedIdx];
+        if (t) {
+          e.preventDefault();
+          toggleSelect(t.id);
+        }
       } else if (e.key === "c" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         setCreating(true);
       } else if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
-        const t = tasks[selectedIdx];
+        const t = sortedTasks[selectedIdx];
         if (t && t.status !== "done") void toggleComplete(t);
       } else if (e.key === "Enter" && !e.metaKey && !e.ctrlKey) {
-        const t = tasks[selectedIdx];
+        const t = sortedTasks[selectedIdx];
         if (t) {
           e.preventDefault();
           void toggleComplete(t);
         }
       } else if (e.key === ";") {
         // Open the comment thread on the selected task.
-        const t = tasks[selectedIdx];
+        const t = sortedTasks[selectedIdx];
         if (t) {
           e.preventDefault();
           setCommentTaskId((prev) => (prev === t.id ? null : t.id));
         }
+      } else if (e.key === "Escape" && selectedIds.size > 0) {
+        e.preventDefault();
+        setSelectedIds(new Set());
+        setAnchorId(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks, selectedIdx]);
+  }, [sortedTasks, selectedIdx, selectedIds, anchorId]);
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setAnchorId(id);
+  }
+
+  function extendSelection(toIdx: number) {
+    const anchorIdx = anchorId
+      ? sortedTasks.findIndex((t) => t.id === anchorId)
+      : -1;
+    if (anchorIdx === -1) {
+      const t = sortedTasks[toIdx];
+      if (t) {
+        setSelectedIds(new Set([t.id]));
+        setAnchorId(t.id);
+      }
+      return;
+    }
+    const [lo, hi] =
+      anchorIdx < toIdx ? [anchorIdx, toIdx] : [toIdx, anchorIdx];
+    const ids = sortedTasks.slice(lo, hi + 1).map((t) => t.id);
+    setSelectedIds(new Set(ids));
+  }
+
+  /**
+   * Click handlers mirror file-explorer norms:
+   *   plain click       → single select, clear any active multi-select
+   *   ctrl/cmd+click    → toggle one row in/out of the multi-selection
+   *   shift+click       → contiguous range from anchor to clicked row
+   */
+  function rowClick(e: React.MouseEvent, idx: number, t: Task) {
+    if (e.shiftKey) {
+      e.preventDefault();
+      setSelectedIdx(idx);
+      extendSelection(idx);
+    } else if (e.metaKey || e.ctrlKey) {
+      e.preventDefault();
+      toggleSelect(t.id);
+      setSelectedIdx(idx);
+    } else {
+      setSelectedIdx(idx);
+      if (selectedIds.size > 0) {
+        setSelectedIds(new Set());
+        setAnchorId(null);
+      }
+    }
+  }
 
   async function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "done" ? "todo" : "done";
@@ -263,106 +373,6 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       await load();
     }
   }
-
-  /** Show a transient toast above the task list. */
-  const flashToast = useCallback((msg: string) => {
-    setDropToast(msg);
-    window.setTimeout(() => setDropToast(null), 2200);
-  }, []);
-
-  /**
-   * Attach a file (already uploaded into this terminal) to a task. Posts
-   * to /api/v1/tasks/:id/files; does NOT optimistically mutate task state
-   * — the visible task row doesn't display attachments yet, so the toast
-   * is the only feedback path.
-   */
-  const attachFileToTask = useCallback(
-    async (taskId: string, fileId: string, taskTitle: string) => {
-      try {
-        const r = await fetch(`/api/v1/tasks/${taskId}/files`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_id: fileId }),
-          credentials: "include",
-        });
-        if (!r.ok && r.status !== 204) {
-          const body = (await r.json().catch(() => ({}))) as {
-            errors?: { message: string }[];
-          };
-          setError(body.errors?.[0]?.message ?? "Could not attach file");
-          return;
-        }
-        flashToast(`Attached file to ${taskTitle}`);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Network error");
-      }
-    },
-    [flashToast],
-  );
-
-  /**
-   * Assign a member (dragged from TeamPane) to a task. POST is idempotent
-   * — the API returns 204 even if the user is already an assignee.
-   */
-  const assignUserToTask = useCallback(
-    async (taskId: string, userId: string, taskTitle: string) => {
-      try {
-        const r = await fetch(`/api/v1/tasks/${taskId}/assignees`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: userId }),
-          credentials: "include",
-        });
-        if (!r.ok && r.status !== 204) {
-          const body = (await r.json().catch(() => ({}))) as {
-            errors?: { message: string }[];
-          };
-          setError(body.errors?.[0]?.message ?? "Could not assign");
-          return;
-        }
-        const assignee =
-          mentionables.find((m) => m.user_id === userId)?.full_name ?? "user";
-        flashToast(`Assigned ${assignee} to ${taskTitle}`);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Network error");
-      }
-    },
-    [flashToast, mentionables],
-  );
-
-  /**
-   * Resolve a drop on a task row. Sniffs the dataTransfer for our MIME
-   * types in priority order: file > user > task. The task case opens
-   * the merge dialog; file and user POST directly.
-   */
-  const handleTaskRowDrop = useCallback(
-    (target: Task, dt: DataTransfer) => {
-      // 1. file → attach
-      const fileId = getDragPayload(dt, "file");
-      if (fileId) {
-        void attachFileToTask(target.id, fileId, target.title);
-        return;
-      }
-      // 2. user → assign
-      const userId = getDragPayload(dt, "user");
-      if (userId) {
-        void assignUserToTask(target.id, userId, target.title);
-        return;
-      }
-      // 3. task → merge dialog (skip self-drops)
-      const sourceId = getDragPayload(dt, "task");
-      if (sourceId && sourceId !== target.id) {
-        const source = tasks.find((t) => t.id === sourceId);
-        if (source) {
-          setMergePair({
-            source: { id: source.id, title: source.title },
-            target: { id: target.id, title: target.title },
-          });
-        }
-      }
-    },
-    [attachFileToTask, assignUserToTask, tasks],
-  );
 
   async function createTask(e?: React.FormEvent) {
     e?.preventDefault();
@@ -392,33 +402,150 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     setDraftTitle("");
   }
 
-  const commentTask = tasks.find((t) => t.id === commentTaskId) ?? null;
+  /**
+   * Drag-drop reorder. Only invoked when sortKey === "manual".
+   *
+   * Midpoint trick: the new position is (prev.position + next.position) / 2.
+   * For the head/tail pick neighbour ±1000 so we have headroom either way.
+   * If positions get too tight to pick a clean midpoint we just bump out by
+   * 1; the next reorder picks up where it can. We don't try to globally
+   * re-space — it's cheap to do nothing here and let the sparse INT keep
+   * absorbing midpoints for thousands of moves.
+   */
+  async function reorderTo(taskId: string, dropTargetId: string) {
+    if (taskId === dropTargetId) return;
+    const ordered = sortedTasks;
+    const moving = tasks.find((t) => t.id === taskId);
+    if (!moving) return;
+    const filtered = ordered.filter((t) => t.id !== taskId);
+    const newIdx = filtered.findIndex((t) => t.id === dropTargetId);
+    if (newIdx < 0) return;
+    const prev = filtered[newIdx - 1];
+    const next = filtered[newIdx];
+    const prevPos = prev?.position ?? null;
+    const nextPos = next?.position ?? null;
+
+    let newPos: number;
+    if (prevPos != null && nextPos != null) {
+      newPos = Math.floor((prevPos + nextPos) / 2);
+      if (newPos === prevPos || newPos === nextPos) newPos = prevPos + 1;
+    } else if (prevPos != null) {
+      newPos = prevPos + 1000;
+    } else if (nextPos != null) {
+      newPos = nextPos - 1000;
+    } else {
+      newPos = 1000;
+    }
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, position: newPos } : t)),
+    );
+    try {
+      const r = await fetch(`/api/v1/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ position: newPos }),
+      });
+      if (!r.ok) await load();
+    } catch {
+      await load();
+    }
+  }
+
+  async function bulk(
+    action:
+      | { type: "status"; status: TaskStatus }
+      | { type: "priority"; priority: number }
+      | { type: "delete" }
+      | { type: "assign"; user_id: string; replace: boolean },
+  ) {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    let payload:
+      | { action: "status"; status: TaskStatus; task_ids: string[] }
+      | { action: "priority"; priority: number; task_ids: string[] }
+      | { action: "delete"; task_ids: string[] }
+      | {
+          action: "assign";
+          user_ids: string[];
+          replace: boolean;
+          task_ids: string[];
+        };
+    switch (action.type) {
+      case "status":
+        payload = { action: "status", status: action.status, task_ids: ids };
+        break;
+      case "priority":
+        payload = {
+          action: "priority",
+          priority: action.priority,
+          task_ids: ids,
+        };
+        break;
+      case "delete":
+        payload = { action: "delete", task_ids: ids };
+        break;
+      case "assign":
+        payload = {
+          action: "assign",
+          user_ids: [action.user_id],
+          replace: action.replace,
+          task_ids: ids,
+        };
+        break;
+    }
+    try {
+      const r = await fetch(`/api/v1/tasks/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      });
+      if (!r.ok) {
+        const body = (await r.json()) as { errors?: { message: string }[] };
+        setError(body.errors?.[0]?.message ?? "Bulk action failed");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+    } finally {
+      setSelectedIds(new Set());
+      setAnchorId(null);
+      await load();
+    }
+  }
+
+  const commentTask = sortedTasks.find((t) => t.id === commentTaskId) ?? null;
+
+  function pickSort(next: TaskSortKey) {
+    setSortKey(next);
+    saveTaskSort(next);
+    setSortMenuOpen(false);
+  }
 
   return (
     <div className="flex h-full">
-      <div className="relative flex h-full flex-1 flex-col">
-      {dropToast ? (
-        <div
-          className="pointer-events-none absolute inset-x-0 top-2 z-20 mx-auto w-fit rounded-sm border border-accent/40 bg-accent-subtle px-3 py-1 text-xs font-medium text-accent shadow-sm"
-          role="status"
-          aria-live="polite"
-        >
-          {dropToast}
-        </div>
-      ) : null}
+      <div className="flex h-full flex-1 flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
-          <HelpTip term="task-attach-files">
-            <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
-          </HelpTip>
+          <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
           <span className="font-mono text-xs text-text-3">{tasks.length}</span>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
-        >
-          <Plus className="h-3 w-3" /> New task <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
-        </button>
+        <div className="flex items-center gap-2">
+          <SortMenu
+            open={sortMenuOpen}
+            onOpenChange={setSortMenuOpen}
+            value={sortKey}
+            onChange={pickSort}
+          />
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+          >
+            <Plus className="h-3 w-3" /> New task{" "}
+            <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -430,35 +557,46 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <SkeletonList />
-        ) : tasks.length === 0 && !creating ? (
+        ) : sortedTasks.length === 0 && !creating ? (
           <Empty onCreate={() => setCreating(true)} />
         ) : (
           <ul className="divide-y divide-border">
-            {tasks.map((t, i) => (
+            {sortedTasks.map((t, i) => (
               <TaskRow
                 key={t.id}
                 task={t}
                 ticker={ticker}
                 selected={i === selectedIdx}
-                isDragging={draggingTaskId === t.id}
-                isDropTarget={hoveredTaskId === t.id && draggingTaskId !== t.id}
-                onClick={() => setSelectedIdx(i)}
+                multiSelected={selectedIds.has(t.id)}
+                showDragHandle={sortKey === "manual"}
+                isDragOver={dragOverId === t.id}
+                onRowClick={(e) => rowClick(e, i, t)}
                 onToggle={() => toggleComplete(t)}
                 onOpenComments={() =>
-                  setCommentTaskId((prev) => (prev === t.id ? null : t.id))
+                  setCommentTaskId((prev) =>
+                    prev === t.id ? null : t.id,
+                  )
                 }
-                onDragStartTask={() => setDraggingTaskId(t.id)}
-                onDragEndTask={() => {
-                  setDraggingTaskId(null);
-                  setHoveredTaskId(null);
+                onDragStart={() => setDraggingId(t.id)}
+                onDragOver={(e) => {
+                  if (!draggingId || draggingId === t.id) return;
+                  e.preventDefault();
+                  setDragOverId(t.id);
                 }}
-                onDragEnterRow={() => setHoveredTaskId(t.id)}
-                onDragLeaveRow={() => {
-                  setHoveredTaskId((prev) => (prev === t.id ? null : prev));
+                onDragLeave={() => {
+                  if (dragOverId === t.id) setDragOverId(null);
                 }}
-                onDropOnRow={(dt) => {
-                  setHoveredTaskId(null);
-                  handleTaskRowDrop(t, dt);
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (draggingId && draggingId !== t.id) {
+                    void reorderTo(draggingId, t.id);
+                  }
+                  setDraggingId(null);
+                  setDragOverId(null);
+                }}
+                onDragEnd={() => {
+                  setDraggingId(null);
+                  setDragOverId(null);
                 }}
               />
             ))}
@@ -493,6 +631,23 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           </form>
         ) : null}
       </div>
+
+      {selectedIds.size > 0 ? (
+        <BulkActionBar
+          count={selectedIds.size}
+          members={mentionables}
+          onClear={() => {
+            setSelectedIds(new Set());
+            setAnchorId(null);
+          }}
+          onMarkDone={() => bulk({ type: "status", status: "done" })}
+          onSetPriority={(p) => bulk({ type: "priority", priority: p })}
+          onReassign={(uid, replace) =>
+            bulk({ type: "assign", user_id: uid, replace })
+          }
+          onDelete={() => bulk({ type: "delete" })}
+        />
+      ) : null}
       </div>
       {commentTask ? (
         <div className="h-full w-[320px] flex-shrink-0">
@@ -506,21 +661,6 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           />
         </div>
       ) : null}
-      {mergePair ? (
-        <MergeTaskDialog
-          open={Boolean(mergePair)}
-          onClose={() => setMergePair(null)}
-          source={mergePair.source}
-          target={mergePair.target}
-          onMerged={(targetId) => {
-            const targetTitle =
-              tasks.find((t) => t.id === targetId)?.title ?? "task";
-            flashToast(`Merged into ${targetTitle}`);
-            setMergePair(null);
-            void load();
-          }}
-        />
-      ) : null}
     </div>
   );
 }
@@ -529,93 +669,66 @@ function TaskRow({
   task,
   ticker,
   selected,
-  isDragging,
-  isDropTarget,
-  onClick,
+  multiSelected,
+  showDragHandle,
+  isDragOver,
+  onRowClick,
   onToggle,
   onOpenComments,
-  onDragStartTask,
-  onDragEndTask,
-  onDragEnterRow,
-  onDragLeaveRow,
-  onDropOnRow,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: {
   task: Task;
   ticker: string;
   selected: boolean;
-  isDragging: boolean;
-  isDropTarget: boolean;
-  onClick: () => void;
+  multiSelected: boolean;
+  showDragHandle: boolean;
+  isDragOver: boolean;
+  onRowClick: (e: React.MouseEvent) => void;
   onToggle: () => void;
   onOpenComments: () => void;
-  onDragStartTask: () => void;
-  onDragEndTask: () => void;
-  onDragEnterRow: () => void;
-  onDragLeaveRow: () => void;
-  onDropOnRow: (dt: DataTransfer) => void;
+  onDragStart: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent) => void;
+  onDragEnd: () => void;
 }) {
   const done = task.status === "done";
 
-  // Caption shown above the drop ring while a drag is over this row,
-  // chosen by sniffing which kind we're carrying. dragenter doesn't expose
-  // payload values (browser security model), but `types` is available.
-  const dropCaption = useDropCaption(isDropTarget);
-
   return (
     <li
-      draggable
-      onDragStart={(e) => {
-        setDragPayload(e.dataTransfer, "task", task.id, task.title);
-        onDragStartTask();
-      }}
-      onDragEnd={onDragEndTask}
-      onDragEnter={(e) => {
-        if (
-          hasDragKind(e.dataTransfer, "file") ||
-          hasDragKind(e.dataTransfer, "user") ||
-          hasDragKind(e.dataTransfer, "task")
-        ) {
-          e.preventDefault();
-          onDragEnterRow();
-        }
-      }}
-      onDragOver={(e) => {
-        if (
-          hasDragKind(e.dataTransfer, "file") ||
-          hasDragKind(e.dataTransfer, "user") ||
-          hasDragKind(e.dataTransfer, "task")
-        ) {
-          e.preventDefault();
-          e.dataTransfer.dropEffect = hasDragKind(e.dataTransfer, "user")
-            ? "link"
-            : "move";
-        }
-      }}
-      onDragLeave={(e) => {
-        if (e.currentTarget === e.target) onDragLeaveRow();
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onDropOnRow(e.dataTransfer);
-      }}
-      onClick={onClick}
+      onClick={onRowClick}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
       className={cn(
-        "group relative flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors",
+        "group flex cursor-pointer items-center gap-2 px-3 py-2 transition-colors",
         selected ? "bg-bg-2" : "hover:bg-bg-2",
-        selected && "border-l-2 border-l-border-focus pl-[14px]",
-        isDragging && "opacity-50",
-        isDropTarget &&
-          "ring-1 ring-inset ring-warning/70 bg-warning-subtle/40",
+        multiSelected && "bg-accent/10",
+        selected &&
+          !multiSelected &&
+          "border-l-2 border-l-border-focus pl-[10px]",
+        isDragOver && "border-t-2 border-t-accent",
       )}
     >
-      {dropCaption ? (
-        <span
-          className="pointer-events-none absolute -top-2 left-3 z-10 rounded-sm border border-warning/40 bg-bg-1 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-warning"
-          aria-hidden="true"
+      {showDragHandle ? (
+        <button
+          draggable
+          onDragStart={(e) => {
+            e.dataTransfer.setData("text/plain", task.id);
+            e.dataTransfer.effectAllowed = "move";
+            onDragStart();
+          }}
+          onDragEnd={onDragEnd}
+          onClick={(e) => e.stopPropagation()}
+          aria-label="Drag to reorder"
+          className="cursor-grab text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover:opacity-100 active:cursor-grabbing"
         >
-          {dropCaption}
-        </span>
+          <GripVertical className="h-3 w-3" aria-hidden="true" />
+        </button>
       ) : null}
       <button
         onClick={(e) => {
@@ -640,6 +753,32 @@ function TaskRow({
       >
         {task.title}
       </span>
+      {task.subtask_total > 0 ? (
+        <span
+          className="flex flex-shrink-0 items-center gap-1 font-mono text-[10px] text-text-3"
+          title={`${task.subtask_done} of ${task.subtask_total} subtasks done`}
+        >
+          <ListChecks className="h-3 w-3" aria-hidden="true" />
+          {task.subtask_done}/{task.subtask_total}
+        </span>
+      ) : null}
+      {task.assignees[0] ? (
+        <span
+          className="flex flex-shrink-0 items-center gap-1 text-[10px] text-text-3"
+          title={
+            task.assignees.length === 1
+              ? (task.assignees[0]!.full_name ?? "someone")
+              : `${task.assignees[0]!.full_name ?? "someone"} +${
+                  task.assignees.length - 1
+                }`
+          }
+        >
+          <Avatar name={task.assignees[0]!.full_name} size="xs" />
+          {task.assignees.length > 1 ? (
+            <span className="font-mono">+{task.assignees.length - 1}</span>
+          ) : null}
+        </span>
+      ) : null}
       <Link
         href={`/p/${ticker}/task/${task.ticker_seq}`}
         onClick={(e) => e.stopPropagation()}
@@ -681,62 +820,234 @@ function SkeletonList() {
 
 function Empty({ onCreate }: { onCreate: () => void }) {
   return (
-    <EmptyState
-      icon={ListTodo}
-      title="No tasks yet."
-      body="Tasks track work in this terminal — assignees, due dates, status."
-      action={{
-        label: "+ New task",
-        onClick: onCreate,
-        variant: "accent",
-        shortcut: "C",
-      }}
-      className="p-10"
-    />
+    <div className="flex flex-col items-center justify-center gap-3 p-10 text-center">
+      <p className="text-sm text-text-2">No tasks yet.</p>
+      <button
+        onClick={onCreate}
+        className="rounded border border-border bg-bg-2 px-3 py-1.5 text-sm text-text-1 hover:bg-bg-3"
+      >
+        Create first task
+      </button>
+      <p className="font-mono text-xs text-text-3">or press C</p>
+    </div>
   );
 }
 
-/**
- * Pull the active drag kind from the global tracker and translate it to
- * a tiny caption shown above a hovered task row. Returns null when no
- * drag is in flight or when the row isn't actually a drop target.
- */
-function useDropCaption(active: boolean): string | null {
-  const [kind, setKind] = useState<RokkiDragKind | null>(null);
-  useEffect(() => subscribeActiveDragKind(setKind), []);
-  if (!active || !kind) return null;
-  switch (kind) {
-    case "file":
-      return "Attach file to task";
-    case "user":
-      return "Assign member";
-    case "task":
-      return "Merge into this task";
-  }
+function SortMenu({
+  open,
+  onOpenChange,
+  value,
+  onChange,
+}: {
+  open: boolean;
+  onOpenChange: (next: boolean) => void;
+  value: TaskSortKey;
+  onChange: (next: TaskSortKey) => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        onOpenChange(false);
+    };
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open, onOpenChange]);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => onOpenChange(!open)}
+        className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+        aria-haspopup="menu"
+        aria-expanded={open}
+      >
+        <ArrowDownUp className="h-3 w-3" />
+        <span className="hidden sm:inline">Sort:</span>
+        <span>{TASK_SORT_LABELS[value]}</span>
+        <ChevronDown className="h-3 w-3" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 z-20 mt-1 w-48 rounded border border-border bg-bg-1 py-1 shadow-lg"
+        >
+          {TASK_SORT_KEYS.map((k) => (
+            <button
+              key={k}
+              role="menuitemradio"
+              aria-checked={value === k}
+              onClick={() => onChange(k)}
+              className={cn(
+                "flex w-full items-center justify-between px-3 py-1.5 text-left text-xs hover:bg-bg-2",
+                value === k ? "text-text-0" : "text-text-2",
+              )}
+            >
+              <span>{TASK_SORT_LABELS[k]}</span>
+              {value === k ? (
+                <Check className="h-3 w-3 text-accent" aria-hidden="true" />
+              ) : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
-/**
- * Stable sort mirroring the server's ORDER BY (status → priority → due →
- * created). Realtime inserts can arrive in any order; sorting client-side
- * keeps the visible list stable.
- */
-function sortTasks(tasks: Task[]): Task[] {
-  const rank: Record<TaskStatus, number> = {
-    todo: 0,
-    in_progress: 1,
-    review: 2,
-    blocked: 3,
-    done: 4,
-  };
-  return [...tasks].sort((a, b) => {
-    const s = rank[a.status] - rank[b.status];
-    if (s !== 0) return s;
-    const p = a.priority - b.priority;
-    if (p !== 0) return p;
-    const da = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
-    const db = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY;
-    if (da !== db) return da - db;
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-  });
-}
+function BulkActionBar({
+  count,
+  members,
+  onClear,
+  onMarkDone,
+  onSetPriority,
+  onReassign,
+  onDelete,
+}: {
+  count: number;
+  members: Mentionable[];
+  onClear: () => void;
+  onMarkDone: () => void;
+  onSetPriority: (p: number) => void;
+  onReassign: (userId: string, replace: boolean) => void;
+  onDelete: () => void;
+}) {
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  const [reassignOpen, setReassignOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
+  return (
+    <div className="flex items-center gap-2 border-t border-border bg-bg-1 px-3 py-2 text-xs">
+      <span className="font-mono text-text-2">{count} selected</span>
+      <button
+        onClick={onClear}
+        className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+        aria-label="Clear selection"
+        title="Clear selection (Esc)"
+      >
+        <X className="h-3 w-3" />
+      </button>
+      <span className="ml-2 h-4 w-px bg-border" aria-hidden="true" />
+      <button
+        onClick={onMarkDone}
+        className="flex items-center gap-1 rounded-sm px-2 py-1 text-text-2 hover:bg-bg-2 hover:text-text-0"
+      >
+        <Check className="h-3 w-3" /> Mark done
+      </button>
+      <div className="relative">
+        <button
+          onClick={() => {
+            setPriorityOpen((s) => !s);
+            setReassignOpen(false);
+          }}
+          className="flex items-center gap-1 rounded-sm px-2 py-1 text-text-2 hover:bg-bg-2 hover:text-text-0"
+        >
+          <Flag className="h-3 w-3" /> Priority
+        </button>
+        {priorityOpen ? (
+          <div className="absolute bottom-full left-0 mb-1 w-32 rounded border border-border bg-bg-1 py-1 shadow-lg">
+            {[
+              { p: 1, label: "Urgent" },
+              { p: 2, label: "High" },
+              { p: 3, label: "Medium" },
+              { p: 4, label: "Low" },
+            ].map(({ p, label }) => (
+              <button
+                key={p}
+                onClick={() => {
+                  onSetPriority(p);
+                  setPriorityOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1 text-left hover:bg-bg-2"
+              >
+                <PriorityDots priority={p} />
+                <span className="text-text-1">{label}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="relative">
+        <button
+          onClick={() => {
+            setReassignOpen((s) => !s);
+            setPriorityOpen(false);
+          }}
+          className="flex items-center gap-1 rounded-sm px-2 py-1 text-text-2 hover:bg-bg-2 hover:text-text-0"
+        >
+          <UserPlus className="h-3 w-3" /> Reassign
+        </button>
+        {reassignOpen ? (
+          <div className="absolute bottom-full left-0 mb-1 max-h-56 w-56 overflow-y-auto rounded border border-border bg-bg-1 py-1 shadow-lg">
+            {members.length === 0 ? (
+              <span className="block px-3 py-1 text-text-3">No members.</span>
+            ) : (
+              members.map((m) => (
+                <div
+                  key={m.user_id}
+                  className="flex items-center justify-between gap-2 px-3 py-1 hover:bg-bg-2"
+                >
+                  <span className="flex flex-1 items-center gap-2 truncate">
+                    <Avatar name={m.full_name} size="xs" />
+                    <span className="truncate text-text-1">
+                      {m.full_name ?? "someone"}
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => {
+                      onReassign(m.user_id, false);
+                      setReassignOpen(false);
+                    }}
+                    className="text-[10px] text-text-3 hover:text-text-0"
+                    title="Add as assignee"
+                  >
+                    + add
+                  </button>
+                  <button
+                    onClick={() => {
+                      onReassign(m.user_id, true);
+                      setReassignOpen(false);
+                    }}
+                    className="text-[10px] text-text-3 hover:text-accent"
+                    title="Replace existing assignees"
+                  >
+                    set
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        ) : null}
+      </div>
+      <span className="ml-auto" />
+      {confirmDelete ? (
+        <div className="flex items-center gap-2">
+          <span className="text-text-3">Delete {count}?</span>
+          <button
+            onClick={() => setConfirmDelete(false)}
+            className="rounded-sm px-2 py-1 text-text-3 hover:text-text-1"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => {
+              onDelete();
+              setConfirmDelete(false);
+            }}
+            className="rounded-sm bg-danger px-2 py-1 text-bg-0 hover:opacity-90"
+          >
+            Confirm
+          </button>
+        </div>
+      ) : (
+        <button
+          onClick={() => setConfirmDelete(true)}
+          className="flex items-center gap-1 rounded-sm px-2 py-1 text-danger hover:bg-danger-subtle"
+        >
+          <Trash2 className="h-3 w-3" /> Delete
+        </button>
+      )}
+    </div>
+  );
+}

@@ -84,11 +84,14 @@ export function CardSection({
   count,
   children,
   className,
+  action,
 }: {
   title: string;
   count?: number;
   children: ReactNode;
   className?: string;
+  /** Optional trailing element in the section header (e.g. "see all →"). */
+  action?: ReactNode;
 }) {
   return (
     <section className={cn("flex flex-col", className)}>
@@ -99,6 +102,7 @@ export function CardSection({
         {typeof count === "number" ? (
           <span className="font-mono text-[10px] text-text-3">{count}</span>
         ) : null}
+        {action ? <span className="ml-auto">{action}</span> : null}
       </header>
       {children}
     </section>

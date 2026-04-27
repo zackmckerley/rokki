@@ -22,6 +22,9 @@ export default async function DelegatedTasksPage() {
     loadDashTerminals(supabase),
   ]);
   const tickerById = Object.fromEntries(terminals.map((t) => [t.id, t.ticker]));
+  const terminalNameById = Object.fromEntries(
+    terminals.map((t) => [t.id, t.name]),
+  );
 
   return (
     <div className="flex min-h-screen flex-col bg-bg-0">
@@ -30,7 +33,7 @@ export default async function DelegatedTasksPage() {
           ← Dashboard
         </Link>
         <span className="text-text-3">·</span>
-        <span className="text-text-0">Delegated</span>
+        <span className="text-text-0">I assigned to others</span>
       </TopBar>
       <main className="mx-auto w-full max-w-4xl flex-1 p-6">
         <div className="h-[80vh]">
@@ -38,6 +41,7 @@ export default async function DelegatedTasksPage() {
             assigned={assigned}
             delegated={delegated}
             tickerById={tickerById}
+            terminalNameById={terminalNameById}
           />
         </div>
       </main>

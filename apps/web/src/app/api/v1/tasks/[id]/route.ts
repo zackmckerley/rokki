@@ -26,7 +26,7 @@ async function handleGet(_request: NextRequest, { params }: Props) {
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, metadata, recurrence_rule, recurrence_parent_id, created_at, created_by, updated_at, completed_at",
+      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, position, metadata, recurrence_rule, recurrence_parent_id, created_at, created_by, updated_at, completed_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -54,6 +54,8 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     /** Spec also calls these "tags"; we accept either name and map to labels. */
     tags?: string[];
     recurrence_rule?: TaskRecurrenceRule | null;
+    /** Manual ordering position (sparse INT — clients pick midpoints). */
+    position?: number | null;
   };
 
   const patch: Record<string, unknown> = {};
@@ -70,6 +72,11 @@ async function handlePatch(request: NextRequest, { params }: Props) {
   if (body.due_date !== undefined) patch.due_date = body.due_date;
   if (body.labels !== undefined) patch.labels = body.labels;
   if (body.tags !== undefined) patch.labels = body.tags;
+  if (body.position !== undefined) {
+    if (body.position !== null && !Number.isInteger(body.position))
+      return bad("position must be an integer or null");
+    patch.position = body.position;
+  }
   if (body.recurrence_rule !== undefined) {
     const rule = validateRecurrenceRule(body.recurrence_rule);
     if (rule === "invalid") return bad("recurrence_rule shape is invalid");
@@ -88,7 +95,7 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     .update(patch)
     .eq("id", id)
     .select(
-      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
+      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, position, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
     )
     .single();
 
