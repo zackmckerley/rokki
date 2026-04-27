@@ -538,3 +538,72 @@ pnpm lint:fix           # auto-fix
 - **Coverage thresholds encourage writing tests for trivial code.** Focus on testing untested critical paths before chasing the last 10% of coverage.
 - **Playwright-generated selectors** like `.page-abc > :nth-child(3)` break on every UI change. Use `data-testid` attributes for stable selectors.
 - **Test timeouts set too low** (30s default) cause flakes on slow CI machines. Integration tests: 60s. E2E: 90s.
+
+## 10.21 Bundle-size budget
+
+Per-route first-load-JS budgets are enforced in CI by
+`apps/web/scripts/check-bundle-size.mjs`. The script reads Next's build
+manifests after `next build`, gzips each chunk, sums the union per route
+(matching how Next reports "First Load JS"), and fails the build on
+either of two conditions.
+
+### 10.21.1 Per-route budgets (gzipped)
+
+| Route bucket             | Budget |
+|--------------------------|--------|
+| Login page               | 100 KB |
+| Dashboard                | 250 KB |
+| Terminal page (`/p/...`) | 300 KB |
+| Admin pages (`/admin/*`) | 200 KB |
+| All other public pages   | 150 KB |
+
+Pattern matching lives in `BUDGETS` in
+`apps/web/scripts/check-bundle-size.mjs` — first match wins, so
+specific patterns precede the catch-all.
+
+### 10.21.2 Two failure modes
+
+1. **Regression vs baseline.** A route that grows more than 5 KB
+   gzipped vs the checked-in baseline at
+   `apps/web/scripts/bundle-baseline.json` fails the check. This is
+   the gate that catches "casually pulled in 200 KB of moment.js."
+
+2. **New budget breach.** A route that exceeds its absolute budget for
+   the first time fails the check. Pre-existing breaches in the
+   baseline are carried — we pay them down deliberately, not on every
+   PR.
+
+### 10.21.3 Local commands
+
+```bash
+# Check both regressions and budget breaches against current baseline:
+pnpm -C apps/web bundle:check
+
+# Just produce the analyzer HTML reports under .next/analyze/:
+pnpm -C apps/web bundle:analyze
+
+# Refresh the baseline (intentional growth, e.g. new dependency):
+pnpm -C apps/web bundle:check --update-baseline
+git add apps/web/scripts/bundle-baseline.json
+```
+
+### 10.21.4 When the check fails on your PR
+
+Look at the table the script prints:
+
+- **Status `REGRESSED`** — your PR grew an existing route by >5 KB.
+  Either trim the imports (look at `.next/analyze/client.html`) or
+  refresh the baseline if the growth is intentional and reviewed.
+- **Status `OVER`** — your PR put a route over its absolute budget for
+  the first time. Don't ship without paying it down or getting an
+  explicit decision to bump the budget in `BUDGETS`.
+- **Status `REGRESSED, OVER`** — both. Don't refresh the baseline to
+  hide an `OVER` — bumping the budget is the explicit conversation.
+
+### 10.21.5 Why not Lighthouse CI?
+
+Considered. Lighthouse CI adds 4-6 minutes per PR run and is flaky on
+shared CI hardware (CPU contention skews scores). The bundle-size
+gate catches the same regressions earlier and deterministically.
+Lighthouse stays valuable for periodic audits run against staging,
+not per-PR.

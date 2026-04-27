@@ -14,6 +14,8 @@
     "test:rls": "vitest run --config ./vitest.rls.config.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "bundle:analyze": "node scripts/run-with-analyze.mjs",
+    "bundle:check": "node scripts/run-with-analyze.mjs && node scripts/check-bundle-size.mjs",
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
@@ -42,6 +44,7 @@
     "tailwind-merge": "^2.5.4"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.4",
     "@playwright/test": "^1.48.0",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^20.14.0",

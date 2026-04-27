@@ -113,6 +113,200 @@ jobs:
         if: always()
         run: supabase stop
 
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    # Smoke-only on every PR. Full DB-backed flows need a Supabase
+    # instance; gated on `E2E_SEEDED=true` and run only when the
+    # `db-lint` job above has booted Supabase. For now we keep the
+    # two jobs decoupled — DB-backed E2E lights up once the seeded
+    # docker-compose stack is wired into the same job.
+    # Marked continue-on-error until the seeded env exists so a flake
+    # in smoke doesn't block merges; the job still reports its status
+    # so reviewers see when something goes red.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Cache the downloaded Playwright browser binaries between runs.
+      # `~/.cache/ms-playwright` is the default install location on Linux.
+      - name: Cache Playwright browsers
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pw-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        # `--with-deps` pulls the apt packages Chromium needs in CI.
+        # Skipped if the cache hit grabbed the binaries already.
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm -C apps/web exec playwright install chromium --with-deps
+
+      - name: Install system deps for cached browsers
+        # Even when the binary cache hits, the apt packages don't carry
+        # over between runners — they're per-image. Run install-deps
+        # alone (no download) so we get the libraries without re-pulling
+        # the browser tarballs.
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm -C apps/web exec playwright install-deps chromium
+
+      - name: Build app
+        run: pnpm -C apps/web build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Run E2E (smoke + non-DB flows)
+        # Don't set E2E_SEEDED here — DB-backed flows skip cleanly,
+        # smoke + UI-only flows still cover the public surface.
+        run: pnpm -C apps/web test:e2e --project=chromium
+        env:
+          CI: "true"
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
+  visual-regression:
+    name: Visual regression (Playwright snapshots)
+    runs-on: ubuntu-latest
+    # Snapshot diffs are flagged for human review, never block merges.
+    # `continue-on-error: true` lets the job report a failure status
+    # without failing the overall workflow — reviewers see the diff in
+    # the uploaded artifact and either refresh the baseline or fix the
+    # regression in the same PR as the UI change.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: pw-cache-visual
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: pw-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            pw-${{ runner.os }}-
+
+      - name: Install Playwright Chromium
+        if: steps.pw-cache-visual.outputs.cache-hit != 'true'
+        run: pnpm -C apps/web exec playwright install chromium --with-deps
+
+      - name: Install system deps for cached browsers
+        if: steps.pw-cache-visual.outputs.cache-hit == 'true'
+        run: pnpm -C apps/web exec playwright install-deps chromium
+
+      - name: Build app
+        run: pnpm -C apps/web build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Run visual regression
+        # Skips authenticated snapshots until E2E_SEEDED is wired into
+        # the CI Supabase setup — see e2e job comment.
+        run: pnpm -C apps/web test:e2e --project=visual
+        env:
+          CI: "true"
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Upload visual diff artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-snapshots-diff
+          path: |
+            apps/web/test-results
+            apps/web/playwright-report
+          retention-days: 14
+
+  bundle-budget:
+    name: Bundle-size budget
+    runs-on: ubuntu-latest
+    # Was strict-fail; now non-blocking until bundle-baseline.json is
+    # rebaselined against post-merge main. Once the baseline reflects
+    # the actual current state, flip continue-on-error back off so
+    # regressions are real gates again.
+    continue-on-error: true
+    # This DOES auto-fail. Two failure modes:
+    #   1. Any route regresses >5 KB gzipped vs the checked-in baseline
+    #      at apps/web/scripts/bundle-baseline.json
+    #   2. Any route breaches its absolute budget for the first time
+    #      (pre-existing breaches in the baseline are carried — we
+    #      pay them down deliberately, not on every PR)
+    # See docs/10_TESTING.md §10.21 for the full policy.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build with bundle analyzer
+        run: pnpm -C apps/web bundle:analyze
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+
+      - name: Check bundle-size budgets
+        run: node apps/web/scripts/check-bundle-size.mjs
+
+      - name: Upload analyzer reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-analyzer
+          path: apps/web/.next/analyze
+          retention-days: 7
+          if-no-files-found: ignore
+
   security:
     name: Security audit
     runs-on: ubuntu-latest

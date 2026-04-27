@@ -1,6 +1,16 @@
 import { withSentryConfig } from "@sentry/nextjs";
+import bundleAnalyzer from "@next/bundle-analyzer";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+
+// Bundle analyzer wrap. Activates when `ANALYZE=true` is set on the
+// build (e.g. `pnpm bundle:check`) — emits HTML reports under
+// `.next/analyze/` and writes machine-readable JSON the budget
+// checker reads. Off by default so production builds aren't slowed.
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+  openAnalyzer: false,
+});
 
 // Resolve apps/web absolutely so the @/* alias works regardless of the
 // CWD next is launched from. Vercel was failing to resolve `@/lib/*`
@@ -49,4 +59,4 @@ const sentryBuildOptions = {
   disableClientWebpackPlugin: !process.env.SENTRY_AUTH_TOKEN,
 };
 
-export default withSentryConfig(nextConfig, sentryBuildOptions);
+export default withSentryConfig(withBundleAnalyzer(nextConfig), sentryBuildOptions);
