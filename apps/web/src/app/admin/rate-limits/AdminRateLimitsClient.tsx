@@ -1,18 +1,18 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Trash2, Search, AlertCircle, Check } from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
   AdminEmpty,
-  AdminFilterInput,
+  AdminMobileCard,
+  AdminMobileField,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
-import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Row {
   bucket: string;
@@ -35,7 +35,6 @@ export function AdminRateLimitsClient() {
   const [bucketFilter, setBucketFilter] = useState("");
   const [tokenFilter, setTokenFilter] = useState("");
   const [rangeMins, setRangeMins] = useState("60");
-  const [tableFilter, setTableFilter] = useState("");
 
   const load = useCallback(() => {
     const params = new URLSearchParams();
@@ -85,31 +84,6 @@ export function AdminRateLimitsClient() {
     }
   }
 
-  const fuzzy = useMemo(
-    () =>
-      makeFuzzyFilter<Row>(tableFilter, (r) => [r.bucket, r.token]),
-    [tableFilter],
-  );
-
-  const { sorted, onSortClick, arrow } = useTableSort<Row>({
-    rows,
-    filter: fuzzy,
-    defaultSort: { key: "count", dir: "desc" },
-    getValue: (r, key) => {
-      switch (key) {
-        case "bucket":
-          return r.bucket;
-        case "token":
-          return r.token;
-        case "count":
-          return r.count;
-        case "latest":
-        default:
-          return r.latest;
-      }
-    },
-  });
-
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-bg-1 p-2">
@@ -146,13 +120,8 @@ export function AdminRateLimitsClient() {
             </button>
           ))}
         </div>
-        <AdminFilterInput
-          value={tableFilter}
-          onChange={setTableFilter}
-          placeholder="Filter visible rows…"
-        />
         <span className="ml-auto text-xs text-text-3">
-          {tableFilter ? `${sorted.length} / ${rows.length}` : rows.length} buckets
+          {rows.length} buckets
         </span>
       </div>
 
@@ -167,74 +136,88 @@ export function AdminRateLimitsClient() {
         </p>
       ) : null}
 
-      {sorted.length === 0 ? (
-        <AdminEmpty>
-          {tableFilter
-            ? "No rows match the filter."
-            : "No hits in the selected window."}
+      {rows.length === 0 ? (
+        <AdminEmpty
+          panel
+          body="No 429 responses or near-cap warnings recorded in the selected window."
+        >
+          No rate-limit hits.
         </AdminEmpty>
       ) : (
-        <AdminPanel>
-          <AdminTable className="border-0">
-            <thead>
-              <tr className="border-b border-border bg-bg-2">
-                <AdminTh
-                  sortKey="bucket"
-                  sortDir={arrow("bucket")}
-                  onSort={onSortClick}
-                >
-                  Bucket
-                </AdminTh>
-                <AdminTh sortKey="token" sortDir={arrow("token")} onSort={onSortClick}>
-                  Token
-                </AdminTh>
-                <AdminTh
-                  align="right"
-                  sortKey="count"
-                  sortDir={arrow("count")}
-                  onSort={onSortClick}
-                >
-                  Count
-                </AdminTh>
-                <AdminTh
-                  sortKey="latest"
-                  sortDir={arrow("latest")}
-                  onSort={onSortClick}
-                >
-                  Latest
-                </AdminTh>
-                <AdminTh align="right">Actions</AdminTh>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {sorted.map((r) => (
-                <tr key={`${r.bucket}|${r.token}`}>
-                  <AdminTd>
-                    <AdminBadge>{r.bucket}</AdminBadge>
-                  </AdminTd>
-                  <AdminTd mono>{r.token}</AdminTd>
-                  <AdminTd align="right" mono>
-                    {r.count}
-                  </AdminTd>
-                  <AdminTd>
-                    <span className="text-xs text-text-3">
-                      {new Date(r.latest).toLocaleString()}
-                    </span>
-                  </AdminTd>
-                  <AdminTd align="right">
-                    <AdminButton
-                      variant="danger"
-                      onClick={() => void flush(r.bucket, r.token)}
-                      disabled={busy === `${r.bucket}|${r.token}`}
-                    >
-                      <Trash2 className="h-3 w-3" /> Flush
-                    </AdminButton>
-                  </AdminTd>
-                </tr>
-              ))}
-            </tbody>
-          </AdminTable>
-        </AdminPanel>
+        <>
+          <div className="hidden sm:block">
+            <AdminPanel>
+              <AdminTable className="border-0">
+                <thead>
+                  <tr className="border-b border-border bg-bg-2">
+                    <AdminTh>Bucket</AdminTh>
+                    <AdminTh>Token</AdminTh>
+                    <AdminTh align="right">Count</AdminTh>
+                    <AdminTh>Latest</AdminTh>
+                    <AdminTh align="right">Actions</AdminTh>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {rows.map((r) => (
+                    <tr key={`${r.bucket}|${r.token}`}>
+                      <AdminTd>
+                        <AdminBadge>{r.bucket}</AdminBadge>
+                      </AdminTd>
+                      <AdminTd mono>{r.token}</AdminTd>
+                      <AdminTd align="right" mono>
+                        {r.count}
+                      </AdminTd>
+                      <AdminTd>
+                        <span className="text-xs text-text-3">
+                          {new Date(r.latest).toLocaleString()}
+                        </span>
+                      </AdminTd>
+                      <AdminTd align="right">
+                        <AdminButton
+                          variant="danger"
+                          onClick={() => void flush(r.bucket, r.token)}
+                          disabled={busy === `${r.bucket}|${r.token}`}
+                        >
+                          <Trash2 className="h-3 w-3" /> Flush
+                        </AdminButton>
+                      </AdminTd>
+                    </tr>
+                  ))}
+                </tbody>
+              </AdminTable>
+            </AdminPanel>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:hidden">
+            {rows.map((r) => (
+              <AdminMobileCard key={`${r.bucket}|${r.token}`}>
+                <AdminMobileField label="Bucket">
+                  <AdminBadge>{r.bucket}</AdminBadge>
+                </AdminMobileField>
+                <AdminMobileField label="Token" mono>
+                  <span className="break-all">{r.token}</span>
+                </AdminMobileField>
+                <AdminMobileField label="Count" mono>
+                  {r.count}
+                </AdminMobileField>
+                <AdminMobileField label="Latest">
+                  <span className="text-xs text-text-3">
+                    {new Date(r.latest).toLocaleString()}
+                  </span>
+                </AdminMobileField>
+                <div className="mt-1 flex justify-end">
+                  <AdminButton
+                    variant="danger"
+                    onClick={() => void flush(r.bucket, r.token)}
+                    disabled={busy === `${r.bucket}|${r.token}`}
+                  >
+                    <Trash2 className="h-3 w-3" /> Flush
+                  </AdminButton>
+                </div>
+              </AdminMobileCard>
+            ))}
+          </div>
+        </>
       )}
     </>
   );

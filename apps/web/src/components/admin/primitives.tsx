@@ -257,12 +257,15 @@ export function AdminEmpty({
   children,
   body,
   panel,
+  action: _action,
 }: {
   children: React.ReactNode;
   /** Optional additional copy under the title (children). */
   body?: React.ReactNode;
   /** When true, render with no border (assumes already inside an AdminPanel). */
   panel?: boolean;
+  /** Optional CTA. Accepted but not rendered yet — see follow-up to wire. */
+  action?: { label: string; href: string; variant?: string };
 }) {
   return (
     <div
@@ -320,5 +323,56 @@ export function AdminButton({
     >
       {children}
     </button>
+  );
+}
+
+/**
+ * Stacked label/value card for sm-and-below admin layouts. Re-added here
+ * because the merge between this branch and feat/admin-tables resolved
+ * primitives.tsx by taking main's version, which doesn't include the
+ * mobile primitives.
+ */
+export function AdminMobileCard({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col gap-1 rounded border border-border bg-bg-1 px-3 py-2 text-sm",
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
+}
+
+export function AdminMobileField({
+  label,
+  children,
+  mono = false,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+        {label}
+      </span>
+      <div
+        className={cn(
+          "min-w-0 flex-1 text-right",
+          mono ? "font-mono text-xs text-text-2" : "text-text-1",
+        )}
+      >
+        {children}
+      </div>
+    </div>
   );
 }

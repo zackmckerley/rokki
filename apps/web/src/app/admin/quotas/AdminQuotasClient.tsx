@@ -1,21 +1,20 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { Trash2, Check, AlertCircle } from "lucide-react";
 import {
   AdminBadge,
   AdminButton,
   AdminEmpty,
-  AdminFilterInput,
+  AdminMobileCard,
+  AdminMobileField,
   AdminPanel,
   AdminTable,
   AdminTd,
   AdminTh,
 } from "@/components/admin/primitives";
 import { UserPicker, type PickedUser } from "@/components/admin/UserPicker";
-import { CopyableId } from "@/components/CopyableId";
-import { makeFuzzyFilter, useTableSort } from "@/lib/use-table-sort";
 
 interface Quota {
   id: string;
@@ -38,7 +37,6 @@ interface ToolOption {
 export function AdminQuotasClient() {
   const [quotas, setQuotas] = useState<Quota[]>([]);
   const [tools, setTools] = useState<ToolOption[]>([]);
-  const [tableFilter, setTableFilter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -89,41 +87,6 @@ export function AdminQuotasClient() {
     }
   }
 
-  const fuzzy = useMemo(
-    () =>
-      makeFuzzyFilter<Quota>(tableFilter, (q) => [
-        q.tool?.name,
-        q.tool?.slug,
-        q.subject_type,
-        q.subject_id,
-        q.period,
-      ]),
-    [tableFilter],
-  );
-
-  const { sorted: sortedQuotas, onSortClick, arrow } = useTableSort<Quota>({
-    rows: quotas,
-    filter: fuzzy,
-    defaultSort: { key: "reset_at", dir: "asc" },
-    getValue: (q, key) => {
-      switch (key) {
-        case "tool":
-          return q.tool?.name ?? q.tool?.slug ?? "";
-        case "subject":
-          return `${q.subject_type}:${q.subject_id}`;
-        case "period":
-          return q.period;
-        case "used":
-          return q.used_credits;
-        case "limit":
-          return q.limit_credits;
-        case "reset_at":
-        default:
-          return q.reset_at;
-      }
-    },
-  });
-
   return (
     <div className="flex flex-col gap-4">
       <NearCapPanel />
@@ -145,69 +108,100 @@ export function AdminQuotasClient() {
           <Check className="h-3 w-3" /> {success}
         </p>
       ) : null}
-      <AdminPanel
-        title={`Active quotas (${tableFilter ? `${sortedQuotas.length} / ${quotas.length}` : quotas.length})`}
-      >
-        <div className="flex items-center justify-end border-b border-border bg-bg-2 px-3 py-1.5">
-          <AdminFilterInput
-            value={tableFilter}
-            onChange={setTableFilter}
-            placeholder="Filter visible rows…"
-          />
-        </div>
-        {sortedQuotas.length === 0 ? (
-          <AdminEmpty>
-            {tableFilter ? "No rows match the filter." : "No quotas configured."}
-          </AdminEmpty>
+      <AdminPanel title={`Active quotas (${quotas.length})`}>
+        {quotas.length === 0 ? (
+          <AdminEmpty>No quotas configured.</AdminEmpty>
         ) : (
-          <AdminTable className="border-0">
-            <thead>
-              <tr className="border-b border-border bg-bg-2">
-                <AdminTh sortKey="tool" sortDir={arrow("tool")} onSort={onSortClick}>
-                  Tool
-                </AdminTh>
-                <AdminTh
-                  sortKey="subject"
-                  sortDir={arrow("subject")}
-                  onSort={onSortClick}
-                >
-                  Subject
-                </AdminTh>
-                <AdminTh
-                  sortKey="period"
-                  sortDir={arrow("period")}
-                  onSort={onSortClick}
-                >
-                  Period
-                </AdminTh>
-                <AdminTh
-                  align="right"
-                  sortKey="used"
-                  sortDir={arrow("used")}
-                  onSort={onSortClick}
-                >
-                  Used
-                </AdminTh>
-                <AdminTh
-                  align="right"
-                  sortKey="limit"
-                  sortDir={arrow("limit")}
-                  onSort={onSortClick}
-                >
-                  Limit
-                </AdminTh>
-                <AdminTh
-                  sortKey="reset_at"
-                  sortDir={arrow("reset_at")}
-                  onSort={onSortClick}
-                >
-                  Resets
-                </AdminTh>
-                <AdminTh align="right">Actions</AdminTh>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {sortedQuotas.map((q) => {
+          <>
+            <div className="hidden sm:block">
+              <AdminTable className="border-0">
+                <thead>
+                  <tr className="border-b border-border bg-bg-2">
+                    <AdminTh>Tool</AdminTh>
+                    <AdminTh>Subject</AdminTh>
+                    <AdminTh>Period</AdminTh>
+                    <AdminTh align="right">Used</AdminTh>
+                    <AdminTh align="right">Limit</AdminTh>
+                    <AdminTh>Resets</AdminTh>
+                    <AdminTh align="right">Actions</AdminTh>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {quotas.map((q) => {
+                    const usagePct =
+                      q.limit_credits > 0
+                        ? (q.used_credits / q.limit_credits) * 100
+                        : 0;
+                    const tone =
+                      usagePct >= 100
+                        ? "danger"
+                        : usagePct >= 90
+                          ? "warning"
+                          : "muted";
+                    return (
+                      <tr key={q.id}>
+                        <AdminTd>
+                          {q.tool?.name ?? (
+                            <span className="text-text-3">unknown</span>
+                          )}
+                          {q.tool?.slug ? (
+                            <span className="ml-1 font-mono text-[10px] text-text-3">
+                              {q.tool.slug}
+                            </span>
+                          ) : null}
+                        </AdminTd>
+                        <AdminTd mono>
+                          {q.subject_type === "user" ? (
+                            <Link
+                              href={`/admin/users/${q.subject_id}`}
+                              className="text-text-1 hover:text-accent"
+                            >
+                              {q.subject_type}: {q.subject_id.slice(0, 8)}
+                            </Link>
+                          ) : (
+                            `${q.subject_type}: ${q.subject_id.slice(0, 8)}`
+                          )}
+                        </AdminTd>
+                        <AdminTd>
+                          <AdminBadge>{q.period}</AdminBadge>
+                        </AdminTd>
+                        <AdminTd align="right" mono>
+                          {q.used_credits.toLocaleString()}
+                        </AdminTd>
+                        <AdminTd align="right" mono>
+                          {q.limit_credits.toLocaleString()}
+                        </AdminTd>
+                        <AdminTd>
+                          <span className="text-xs text-text-3">
+                            {new Date(q.reset_at).toLocaleString()}
+                          </span>{" "}
+                          <AdminBadge variant={tone}>
+                            {Math.round(usagePct)}%
+                          </AdminBadge>
+                        </AdminTd>
+                        <AdminTd align="right">
+                          <AdminButton
+                            variant="danger"
+                            onClick={() =>
+                              void remove(
+                                q.id,
+                                `${q.tool?.slug ?? "unknown"} (${q.subject_type}:${q.subject_id.slice(0, 8)})`,
+                              )
+                            }
+                            disabled={busy === q.id}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </AdminButton>
+                        </AdminTd>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </AdminTable>
+            </div>
+
+            <div className="flex flex-col gap-2 p-2 sm:hidden">
+              {quotas.map((q) => {
                 const usagePct =
                   q.limit_credits > 0
                     ? (q.used_credits / q.limit_credits) * 100
@@ -219,58 +213,45 @@ export function AdminQuotasClient() {
                       ? "warning"
                       : "muted";
                 return (
-                  <tr key={q.id}>
-                    <AdminTd>
+                  <AdminMobileCard key={q.id}>
+                    <AdminMobileField label="Tool">
                       {q.tool?.name ?? (
                         <span className="text-text-3">unknown</span>
                       )}
                       {q.tool?.slug ? (
-                        <CopyableId
-                          value={q.tool.slug}
-                          label="slug"
-                          className="ml-1 text-[10px]"
-                        />
+                        <span className="ml-1 font-mono text-[10px] text-text-3">
+                          {q.tool.slug}
+                        </span>
                       ) : null}
-                    </AdminTd>
-                    <AdminTd mono>
-                      <span className="inline-flex items-center gap-1">
-                        <span className="text-text-3">{q.subject_type}:</span>
-                        {q.subject_type === "user" ? (
-                          <Link
-                            href={`/admin/users/${q.subject_id}`}
-                            className="text-text-1 hover:text-accent"
-                          >
-                            {q.subject_id.slice(0, 8)}
-                          </Link>
-                        ) : (
-                          <span>{q.subject_id.slice(0, 8)}</span>
-                        )}
-                        <CopyableId
-                          value={q.subject_id}
-                          label={`${q.subject_type} id`}
-                          display=""
-                          className="px-0.5"
-                        />
-                      </span>
-                    </AdminTd>
-                    <AdminTd>
+                    </AdminMobileField>
+                    <AdminMobileField label="Subject" mono>
+                      {q.subject_type === "user" ? (
+                        <Link
+                          href={`/admin/users/${q.subject_id}`}
+                          className="text-text-1 hover:text-accent"
+                        >
+                          {q.subject_type}: {q.subject_id.slice(0, 8)}
+                        </Link>
+                      ) : (
+                        `${q.subject_type}: ${q.subject_id.slice(0, 8)}`
+                      )}
+                    </AdminMobileField>
+                    <AdminMobileField label="Period">
                       <AdminBadge>{q.period}</AdminBadge>
-                    </AdminTd>
-                    <AdminTd align="right" mono>
-                      {q.used_credits.toLocaleString()}
-                    </AdminTd>
-                    <AdminTd align="right" mono>
-                      {q.limit_credits.toLocaleString()}
-                    </AdminTd>
-                    <AdminTd>
-                      <span className="text-xs text-text-3">
-                        {new Date(q.reset_at).toLocaleString()}
-                      </span>{" "}
+                    </AdminMobileField>
+                    <AdminMobileField label="Used / limit" mono>
+                      {q.used_credits.toLocaleString()} /{" "}
+                      {q.limit_credits.toLocaleString()}{" "}
                       <AdminBadge variant={tone}>
                         {Math.round(usagePct)}%
                       </AdminBadge>
-                    </AdminTd>
-                    <AdminTd align="right">
+                    </AdminMobileField>
+                    <AdminMobileField label="Resets">
+                      <span className="text-xs text-text-3">
+                        {new Date(q.reset_at).toLocaleString()}
+                      </span>
+                    </AdminMobileField>
+                    <div className="mt-1 flex justify-end">
                       <AdminButton
                         variant="danger"
                         onClick={() =>
@@ -281,14 +262,14 @@ export function AdminQuotasClient() {
                         }
                         disabled={busy === q.id}
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3 w-3" /> Remove
                       </AdminButton>
-                    </AdminTd>
-                  </tr>
+                    </div>
+                  </AdminMobileCard>
                 );
               })}
-            </tbody>
-          </AdminTable>
+            </div>
+          </>
         )}
       </AdminPanel>
     </div>
@@ -331,21 +312,21 @@ function NearCapPanel() {
       title={`Near cap (${rows.length}) — ≥ 90% used`}
       className="border-warning/40"
     >
-      <AdminTable className="border-0">
-        <thead>
-          <tr className="border-b border-border bg-bg-2">
-            <AdminTh>Subject</AdminTh>
-            <AdminTh>Tool</AdminTh>
-            <AdminTh>Period</AdminTh>
-            <AdminTh align="right">Used / limit</AdminTh>
-            <AdminTh>Resets</AdminTh>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <AdminTd mono>
-                <span className="inline-flex items-center gap-1">
+      <div className="hidden sm:block">
+        <AdminTable className="border-0">
+          <thead>
+            <tr className="border-b border-border bg-bg-2">
+              <AdminTh>Subject</AdminTh>
+              <AdminTh>Tool</AdminTh>
+              <AdminTh>Period</AdminTh>
+              <AdminTh align="right">Used / limit</AdminTh>
+              <AdminTh>Resets</AdminTh>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((r) => (
+              <tr key={r.id}>
+                <AdminTd mono>
                   {r.subject_type === "user" ? (
                     <Link
                       href={`/admin/users/${r.subject_id}`}
@@ -354,41 +335,71 @@ function NearCapPanel() {
                       {r.subject_email ?? `user:${r.subject_id.slice(0, 8)}`}
                     </Link>
                   ) : (
-                    <span>
-                      {r.subject_email ??
-                        `${r.subject_type}:${r.subject_id.slice(0, 8)}`}
-                    </span>
+                    (r.subject_email ??
+                      `${r.subject_type}:${r.subject_id.slice(0, 8)}`)
                   )}
-                  <CopyableId
-                    value={r.subject_email || r.subject_id}
-                    label={r.subject_email ? "email" : `${r.subject_type} id`}
-                    display=""
-                    className="px-0.5"
-                  />
-                </span>
-              </AdminTd>
-              <AdminTd>
-                {r.tool?.name ?? <span className="text-text-3">unknown</span>}
-              </AdminTd>
-              <AdminTd>
-                <AdminBadge>{r.period}</AdminBadge>
-              </AdminTd>
-              <AdminTd align="right" mono>
-                {r.used_credits.toLocaleString()} /{" "}
-                {r.limit_credits.toLocaleString()}{" "}
-                <AdminBadge variant={r.pct >= 1 ? "danger" : "warning"}>
-                  {Math.round(r.pct * 100)}%
-                </AdminBadge>
-              </AdminTd>
-              <AdminTd>
-                <span className="text-xs text-text-3">
-                  {new Date(r.reset_at).toLocaleString()}
-                </span>
-              </AdminTd>
-            </tr>
-          ))}
-        </tbody>
-      </AdminTable>
+                </AdminTd>
+                <AdminTd>
+                  {r.tool?.name ?? <span className="text-text-3">unknown</span>}
+                </AdminTd>
+                <AdminTd>
+                  <AdminBadge>{r.period}</AdminBadge>
+                </AdminTd>
+                <AdminTd align="right" mono>
+                  {r.used_credits.toLocaleString()} /{" "}
+                  {r.limit_credits.toLocaleString()}{" "}
+                  <AdminBadge variant={r.pct >= 1 ? "danger" : "warning"}>
+                    {Math.round(r.pct * 100)}%
+                  </AdminBadge>
+                </AdminTd>
+                <AdminTd>
+                  <span className="text-xs text-text-3">
+                    {new Date(r.reset_at).toLocaleString()}
+                  </span>
+                </AdminTd>
+              </tr>
+            ))}
+          </tbody>
+        </AdminTable>
+      </div>
+
+      <div className="flex flex-col gap-2 p-2 sm:hidden">
+        {rows.map((r) => (
+          <AdminMobileCard key={r.id}>
+            <AdminMobileField label="Subject" mono>
+              {r.subject_type === "user" ? (
+                <Link
+                  href={`/admin/users/${r.subject_id}`}
+                  className="text-text-1 hover:text-accent"
+                >
+                  {r.subject_email ?? `user:${r.subject_id.slice(0, 8)}`}
+                </Link>
+              ) : (
+                (r.subject_email ??
+                  `${r.subject_type}:${r.subject_id.slice(0, 8)}`)
+              )}
+            </AdminMobileField>
+            <AdminMobileField label="Tool">
+              {r.tool?.name ?? <span className="text-text-3">unknown</span>}
+            </AdminMobileField>
+            <AdminMobileField label="Period">
+              <AdminBadge>{r.period}</AdminBadge>
+            </AdminMobileField>
+            <AdminMobileField label="Used / limit" mono>
+              {r.used_credits.toLocaleString()} /{" "}
+              {r.limit_credits.toLocaleString()}{" "}
+              <AdminBadge variant={r.pct >= 1 ? "danger" : "warning"}>
+                {Math.round(r.pct * 100)}%
+              </AdminBadge>
+            </AdminMobileField>
+            <AdminMobileField label="Resets">
+              <span className="text-xs text-text-3">
+                {new Date(r.reset_at).toLocaleString()}
+              </span>
+            </AdminMobileField>
+          </AdminMobileCard>
+        ))}
+      </div>
     </AdminPanel>
   );
 }

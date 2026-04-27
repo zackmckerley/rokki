@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database, ProjectStatus } from "@rokki/db";
-import {
-  AdminTerminalsClient,
-  type TerminalRow,
-} from "./AdminTerminalsClient";
 
 export const metadata = { title: "Terminals — Admin" };
 export const dynamic = "force-dynamic";
 
-interface DbRow {
+interface TerminalRow {
   id: string;
   ticker: string;
   name: string;
@@ -22,8 +18,6 @@ interface DbRow {
 
 /**
  * Admin list of every terminal — archived included, filterable by status.
- * Status filter lives in URL params (`?status=`); rendered table sort/filter
- * lives in `AdminTerminalsClient` and uses `?sort=&dir=`.
  */
 export default async function AdminTerminalsPage({
   searchParams,
@@ -53,22 +47,11 @@ export default async function AdminTerminalsPage({
   else query = query.is("archived_at", null);
 
   const { data } = await query;
-  const dbRows = (data ?? []) as unknown as DbRow[];
-
-  const rows: TerminalRow[] = dbRows.map((t) => ({
-    id: t.id,
-    ticker: t.ticker,
-    name: t.name,
-    status: t.status,
-    archived_at: t.archived_at,
-    created_at: t.created_at,
-    space_slug: t.spaces?.slug ?? null,
-    space_name: t.spaces?.name ?? null,
-  }));
+  const rows = (data ?? []) as unknown as TerminalRow[];
 
   return (
     <div className="flex flex-col gap-4">
-      <header className="flex items-end justify-between gap-3">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-0">Terminals</h1>
           <p className="mt-1 text-xs text-text-3">
@@ -91,7 +74,140 @@ export default async function AdminTerminalsPage({
         </nav>
       </header>
 
-      <AdminTerminalsClient rows={rows} />
+      <div className="hidden overflow-hidden rounded border border-border bg-bg-1 sm:block">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-border bg-bg-2 text-[10px] uppercase tracking-wide text-text-3">
+              <th className="px-3 py-2 text-left font-semibold">Ticker</th>
+              <th className="px-3 py-2 text-left font-semibold">Name</th>
+              <th className="px-3 py-2 text-left font-semibold">Space</th>
+              <th className="px-3 py-2 text-left font-semibold">Status</th>
+              <th className="px-3 py-2 text-left font-semibold">Created</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {rows.map((t) => (
+              <tr key={t.id} className="hover:bg-bg-2">
+                <td className="px-3 py-2 font-mono text-xs text-accent">
+                  <Link
+                    href={`/admin/terminals/${t.ticker}`}
+                    className="hover:underline"
+                  >
+                    {t.ticker}
+                  </Link>
+                </td>
+                <td className="px-3 py-2 text-text-0">
+                  <Link
+                    href={`/admin/terminals/${t.ticker}`}
+                    className="text-text-0 hover:text-accent"
+                  >
+                    {t.name}
+                  </Link>
+                </td>
+                <td className="px-3 py-2 text-xs text-text-2">
+                  {t.spaces ? (
+                    <Link
+                      href={`/admin/spaces/${t.spaces.slug}`}
+                      className="text-text-2 hover:text-accent"
+                    >
+                      {t.spaces.name}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </td>
+                <td className="px-3 py-2 font-mono text-[10px] uppercase text-text-3">
+                  {t.archived_at ? "archived" : t.status}
+                </td>
+                <td className="px-3 py-2 text-xs text-text-3">
+                  {new Date(t.created_at).toLocaleDateString()}
+                </td>
+              </tr>
+            ))}
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={5}
+                  className="px-3 py-6 text-center text-xs text-text-3"
+                >
+                  No terminals match this filter.
+                </td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="rounded border border-dashed border-border bg-bg-1 p-6 text-center text-xs text-text-3 sm:hidden">
+          No terminals match this filter.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2 sm:hidden">
+          {rows.map((t) => (
+            <div
+              key={t.id}
+              className="flex flex-col gap-1 rounded border border-border bg-bg-1 px-3 py-2 text-sm"
+            >
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Ticker
+                </span>
+                <Link
+                  href={`/admin/terminals/${t.ticker}`}
+                  className="font-mono text-xs text-accent hover:underline"
+                >
+                  {t.ticker}
+                </Link>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Name
+                </span>
+                <Link
+                  href={`/admin/terminals/${t.ticker}`}
+                  className="min-w-0 flex-1 text-right text-text-0 hover:text-accent"
+                >
+                  {t.name}
+                </Link>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Space
+                </span>
+                <span className="min-w-0 flex-1 text-right text-xs text-text-2">
+                  {t.spaces ? (
+                    <Link
+                      href={`/admin/spaces/${t.spaces.slug}`}
+                      className="hover:text-accent"
+                    >
+                      {t.spaces.name}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Status
+                </span>
+                <span className="font-mono text-[10px] uppercase text-text-3">
+                  {t.archived_at ? "archived" : t.status}
+                </span>
+              </div>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="flex-shrink-0 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+                  Created
+                </span>
+                <span className="text-xs text-text-3">
+                  {new Date(t.created_at).toLocaleDateString()}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
