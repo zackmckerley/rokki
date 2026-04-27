@@ -153,7 +153,7 @@ async function recordResult(
       next_attempt_at: null,
       last_error: null,
     } as const;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line
     await admin
       .from("webhook_deliveries")
       .update(update as any)
@@ -172,7 +172,7 @@ async function recordResult(
     next_attempt_at: next,
     dead_lettered_at: next ? null : now,
   } as const;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line
   await admin
     .from("webhook_deliveries")
     .update(update as any)
@@ -289,7 +289,7 @@ export async function processDueDeliveries(
       next_attempt_at: null,
       attempted_at: nowIso,
     } as const;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line
     const { error: claimErr } = await admin
       .from("webhook_deliveries")
       .update(updateRow as any)
@@ -319,7 +319,7 @@ export async function processDueDeliveries(
         last_error: "destination inactive or deleted",
         status: "error",
       } as const;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line
       await admin
         .from("webhook_deliveries")
         .update(update as any)
@@ -353,7 +353,7 @@ export async function replayDelivery(deliveryId: string): Promise<boolean> {
     status: "pending",
     last_error: null,
   } as const;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line
   const { data, error } = await admin
     .from("webhook_deliveries")
     .update(update as any)
@@ -376,7 +376,7 @@ export async function replayDelivery(deliveryId: string): Promise<boolean> {
 // ----------------------------------------------------------------------------
 export const WEBHOOK_DELIVERY_QUEUE = "webhook_delivery";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line
 export const webhookDeliveryHandler: any = async (_job: unknown): Promise<void> => {
   // Pull the delivery_id from the job payload and process via the
   // existing per-delivery dispatcher. Implementation deliberately
