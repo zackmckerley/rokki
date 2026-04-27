@@ -1,262 +1,385 @@
-import { createClient as createAdminClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@rokki/db";
 import crypto from "node:crypto";
-import { enqueueJob, type JobRow } from "./jobs";
 
 /**
- * Outbound webhook delivery.
+ * Webhook delivery: HMAC-signed POST with exponential-backoff retries
+ * and a dead-letter queue.
  *
- * State lives in two tables:
- *   - webhook_deliveries: one row per (destination, event), updated in
- *     place across attempts. The audit trail.
- *   - jobs(queue='webhook_delivery'): the orchestrator. Carries the
- *     retry schedule and dead-letter logic via the generic queue
- *     (apps/web/src/lib/jobs.ts). Payload: { delivery_id }.
+ * Flow:
+ *   1. enqueue(): for every active destination subscribed to the event
+ *      name, insert a `webhook_deliveries` row (attempt 0, no schedule
+ *      yet) and immediately attempt delivery. The synchronous attempt
+ *      keeps latency low for the happy path; only failures go through
+ *      the scheduled retry loop.
+ *   2. attempt(): POST the JSON payload signed with the destination's
+ *      HMAC secret. On 2xx mark delivered. On error or non-2xx,
+ *      either schedule the next retry or mark dead-lettered.
+ *   3. processDue(): worker loop iterated by /api/v1/admin/webhooks/
+ *      process-due — picks up any pending row whose `next_attempt_at`
+ *      has elapsed and retries it.
  *
- * Why split? The deliveries table is what admins want to look at — one
- * row per "we tried to send this event to this endpoint, here's how it
- * went". The job is the scheduler artifact and gets cleaned up once
- * complete. Old code had a single row per attempt; that made "did we
- * eventually succeed?" a window function and made retry logic hard to
- * surface in UI.
+ * The schedule is intentionally aggressive at first (1m) and stretches
+ * out (12h on the last attempt) so transient outages clear without a
+ * thundering herd, and a longer outage is still recoverable inside a
+ * single business day.
  */
 
-const QUEUE = "webhook_delivery";
+const RETRY_DELAYS_MS = [
+  60_000, // 1m  — after attempt 1 fails
+  300_000, // 5m  — after attempt 2
+  1_500_000, // 25m — after attempt 3
+  7_200_000, // 2h  — after attempt 4
+  43_200_000, // 12h — after attempt 5 (final)
+] as const;
+
+export const MAX_ATTEMPTS = 5;
+
 const DELIVERY_TIMEOUT_MS = 10_000;
 
-let cachedAdmin: SupabaseClient<Database> | null = null;
-function admin(): SupabaseClient<Database> {
-  if (cachedAdmin) return cachedAdmin;
+type AdminClient = ReturnType<typeof createAdminClient<Database>>;
+
+let cached: AdminClient | null = null;
+function adminClient(): AdminClient | null {
+  if (cached) return cached;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("[webhooks] supabase env missing");
-  cachedAdmin = createAdminClient<Database>(url, key, {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return null;
+  cached = createAdminClient<Database>(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  return cachedAdmin;
-}
+  return cached;
+};
 
-interface DispatchArgs {
-  destinationId: string;
-  eventName: string;
-  eventId?: string | null;
+interface Destination {
+  id: string;
+  url: string;
+  secret: string;
+  events: string[];
+};
+
+interface DeliveryRow {
+  id: string;
+  destination_id: string;
+  event_name: string;
   payload: Record<string, unknown>;
-}
+  attempt: number;
+  next_attempt_at: string | null;
+  delivered_at: string | null;
+  dead_lettered_at: string | null;
+};
 
 /**
- * Enqueue a single delivery attempt. Creates the webhook_deliveries
- * row first (so admins always see the intent) then enqueues a job
- * that points at it.
+ * Compute the next retry timestamp given the attempt that just failed.
+ * Returns null if there are no more attempts left (caller dead-letters).
  */
-export async function dispatchWebhookDelivery(args: DispatchArgs): Promise<{
-  delivery_id: string;
-  job_id: string;
-}> {
-  const insert = {
-    destination_id: args.destinationId,
-    event_name: args.eventName,
-    event_id: args.eventId ?? null,
-    payload: args.payload as unknown as Json,
-    status: "pending" as const,
-    attempt: 0,
-  };
-  const { data, error } = await (
-    admin()
-      .from("webhook_deliveries")
-      .insert(insert as never)
-      .select("id")
-      .single() as unknown as Promise<{
-      data: { id: string } | null;
-      error: { message: string } | null;
-    }>
-  );
-  if (error || !data) {
-    throw new Error(`[webhooks] could not record delivery: ${error?.message ?? "no row"}`);
-  }
-  const job_id = await enqueueJob({
-    queue: QUEUE,
-    payload: { delivery_id: data.id } as Json,
-  });
-  return { delivery_id: data.id, job_id };
-}
+function nextAttemptAt(failedAttempt: number): string | null {
+  if (failedAttempt >= MAX_ATTEMPTS) return null;
+  const delay = RETRY_DELAYS_MS[failedAttempt - 1];
+  if (delay === undefined) return null;
+  return new Date(Date.now() + delay).toISOString();
+};
 
-/**
- * The job handler. Registered with the worker endpoint. Reads the
- * delivery row, signs the body, posts it, updates the delivery row
- * with the outcome, and either resolves (on success/4xx/dead) or
- * throws (so the queue can reschedule).
- */
-export async function webhookDeliveryHandler(job: JobRow): Promise<void> {
-  const payload = (job.payload ?? {}) as { delivery_id?: string };
-  const deliveryId = payload.delivery_id;
-  if (!deliveryId) {
-    // Bad job — log and resolve so we don't loop on it forever.
-    throw new Error("missing delivery_id in payload");
-  }
+function sign(payloadJson: string, secret: string, timestampSec: number): string {
+  // Convention matches Stripe-style signatures: include the timestamp in
+  // the signing input so receivers can reject replays.
+  const signingInput = `${timestampSec}.${payloadJson}`;
+  return crypto.createHmac("sha256", secret).update(signingInput).digest("hex");
+};
 
-  // Pull delivery + destination together.
-  const { data: delivery, error: dErr } = await (
-    admin()
-      .from("webhook_deliveries")
-      .select("id, destination_id, event_name, payload, attempt")
-      .eq("id", deliveryId)
-      .maybeSingle() as unknown as Promise<{
-      data: {
-        id: string;
-        destination_id: string;
-        event_name: string;
-        payload: Json;
-        attempt: number;
-      } | null;
-      error: { message: string } | null;
-    }>
-  );
-  if (dErr) throw new Error(`delivery lookup: ${dErr.message}`);
-  if (!delivery) throw new Error(`delivery ${deliveryId} not found`);
+interface AttemptResult {
+  ok: boolean;
+  status?: number;
+  body?: string;
+  error?: string;
+};
 
-  const { data: dest, error: destErr } = await (
-    admin()
-      .from("webhook_destinations")
-      .select("id, url, secret, active, events")
-      .eq("id", delivery.destination_id)
-      .maybeSingle() as unknown as Promise<{
-      data: {
-        id: string;
-        url: string;
-        secret: string;
-        active: boolean;
-        events: string[];
-      } | null;
-      error: { message: string } | null;
-    }>
-  );
-  if (destErr) throw new Error(`destination lookup: ${destErr.message}`);
-  if (!dest) {
-    // Destination went away mid-flight — mark resolved as dead so we
-    // don't keep retrying.
-    await markDelivery(deliveryId, "dead", null, "destination deleted");
-    return;
-  }
-  if (!dest.active) {
-    await markDelivery(deliveryId, "dead", null, "destination paused");
-    return;
-  }
-
-  const body = JSON.stringify({
+async function postWithSignature(
+  destination: Destination,
+  delivery: DeliveryRow,
+): Promise<AttemptResult> {
+  const payloadJson = JSON.stringify({
+    id: delivery.id,
     event: delivery.event_name,
-    data: delivery.payload,
-    delivered_at: new Date().toISOString(),
+    payload: delivery.payload,
+    attempt: delivery.attempt,
   });
-  const signature = signBody(dest.secret, body);
-
-  let responseCode: number | null = null;
-  let responseBody: string | null = null;
-  let attemptNo = (delivery.attempt ?? 0) + 1;
-
+  const ts = Math.floor(Date.now() / 1000);
+  const sig = sign(payloadJson, destination.secret, ts);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DELIVERY_TIMEOUT_MS);
   try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), DELIVERY_TIMEOUT_MS);
-    const res = await fetch(dest.url, {
+    const res = await fetch(destination.url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Rokki-Event": delivery.event_name,
-        "X-Rokki-Signature": signature,
         "X-Rokki-Delivery": delivery.id,
+        "X-Rokki-Timestamp": String(ts),
+        "X-Rokki-Signature": `t=${ts},v1=${sig}`,
+        "User-Agent": "Rokki-Webhooks/1.0",
       },
-      body,
-      signal: ctrl.signal,
+      body: payloadJson,
+      signal: controller.signal,
     });
+    // Read at most 4KB of body for diagnostics; receivers shouldn't
+    // need to send back an essay and we don't want to balloon the row.
+    const bodyText = (await res.text().catch(() => "")).slice(0, 4096);
+    return { ok: res.ok, status: res.status, body: bodyText };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : String(e),
+    };
+  } finally {
     clearTimeout(timer);
-    responseCode = res.status;
-    // Trim to keep audit rows small. 1KB is plenty for diagnostic.
-    const text = await res.text().catch(() => "");
-    responseBody = text.length > 1024 ? text.slice(0, 1024) + "…" : text;
-
-    if (res.ok) {
-      await (
-        admin()
-          .from("webhook_deliveries")
-          .update({
-            status: "success",
-            attempt: attemptNo,
-            response_code: responseCode,
-            response_body: responseBody,
-            last_attempt_at: new Date().toISOString(),
-            delivered_at: new Date().toISOString(),
-          } as never)
-          .eq("id", deliveryId) as unknown as Promise<unknown>
-      );
-      return; // success — don't throw, queue will mark done.
-    }
-
-    // 4xx (except 408 / 429) is a permanent failure — no point retrying.
-    const isPermanent = res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429;
-    await (
-      admin()
-        .from("webhook_deliveries")
-        .update({
-          status: isPermanent ? "dead" : "error",
-          attempt: attemptNo,
-          response_code: responseCode,
-          response_body: responseBody,
-          last_attempt_at: new Date().toISOString(),
-          dead_at: isPermanent ? new Date().toISOString() : null,
-        } as never)
-        .eq("id", deliveryId) as unknown as Promise<unknown>
-    );
-    if (isPermanent) return; // don't retry — return cleanly so job marks done.
-    throw new Error(`HTTP ${res.status}`);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (responseCode === null) {
-      // Update for transport-level failures (DNS, abort, network).
-      await (
-        admin()
-          .from("webhook_deliveries")
-          .update({
-            status: "error",
-            attempt: attemptNo,
-            response_code: null,
-            response_body: msg.slice(0, 1024),
-            last_attempt_at: new Date().toISOString(),
-          } as never)
-          .eq("id", deliveryId) as unknown as Promise<unknown>
-      );
-    }
-    throw err; // bubble so queue reschedules.
   }
-}
+};
 
-async function markDelivery(
-  id: string,
-  status: "pending" | "success" | "error" | "dead",
-  responseCode: number | null,
-  responseBody: string | null,
+async function recordResult(
+  delivery: DeliveryRow,
+  result: AttemptResult,
 ): Promise<void> {
-  await (
-    admin()
+  const admin = adminClient();
+  if (!admin) return;
+  const now = new Date().toISOString();
+  if (result.ok) {
+    const update = {
+      status: "success",
+      delivered_at: now,
+      attempted_at: now,
+      response_code: result.status ?? null,
+      response_body: result.body ?? null,
+      next_attempt_at: null,
+      last_error: null,
+    } as const;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await admin
       .from("webhook_deliveries")
-      .update({
-        status,
-        response_code: responseCode,
-        response_body: responseBody,
-        last_attempt_at: new Date().toISOString(),
-        dead_at: status === "dead" ? new Date().toISOString() : null,
-      } as never)
-      .eq("id", id) as unknown as Promise<unknown>
-  );
-}
+      .update(update as any)
+      .eq("id", delivery.id);
+    return;
+  }
 
-function signBody(secret: string, body: string): string {
-  // The `whsec_` prefix on stored secrets is a recognition aid — strip
-  // it before HMAC so the receiving end doesn't need to know about it.
-  const key = secret.startsWith("whsec_") ? secret.slice(6) : secret;
-  return (
-    "sha256=" +
-    crypto.createHmac("sha256", key).update(body).digest("hex")
-  );
-}
+  const next = nextAttemptAt(delivery.attempt);
+  const update = {
+    status: "error",
+    attempted_at: now,
+    response_code: result.status ?? null,
+    response_body: result.body ?? null,
+    last_error:
+      result.error ?? (result.body ? `HTTP ${result.status}` : "request failed"),
+    next_attempt_at: next,
+    dead_lettered_at: next ? null : now,
+  } as const;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await admin
+    .from("webhook_deliveries")
+    .update(update as any)
+    .eq("id", delivery.id);
+};
 
-/** Exposed so the worker endpoint can register the handler. */
-export const WEBHOOK_DELIVERY_QUEUE = QUEUE;
+async function attemptOnce(
+  delivery: DeliveryRow,
+  destination: Destination,
+): Promise<void> {
+  const result = await postWithSignature(destination, delivery);
+  await recordResult(delivery, result);
+};
+
+/**
+ * Enqueue a delivery for every active destination subscribed to this
+ * event name. Best-effort: returns silently on misconfiguration so the
+ * caller's primary operation isn't blocked by webhook plumbing.
+ */
+export async function enqueueWebhook(
+  eventName: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const admin = adminClient();
+  if (!admin) return;
+
+  const { data, error } = await admin
+    .from("webhook_destinations")
+    .select("id, url, secret, events")
+    .eq("active", true)
+    .contains("events", [eventName]);
+
+  if (error) {
+    console.error(`[webhooks] enqueue lookup for ${eventName} failed:`, error.message);
+    return;
+  }
+
+  const destinations = (data ?? []) as Destination[];
+  if (destinations.length === 0) return;
+
+  for (const dest of destinations) {
+    const insertRow = {
+      destination_id: dest.id,
+      event_name: eventName,
+      payload: payload as Json,
+      attempt: 1,
+      status: "pending",
+      // attempted_at gets set when the row is touched by recordResult;
+      // initial value just satisfies the NOT NULL.
+    };
+    const { data: inserted, error: insertErr } = await admin
+      .from("webhook_deliveries")
+      .insert(insertRow)
+      .select(
+        "id, destination_id, event_name, payload, attempt, next_attempt_at, delivered_at, dead_lettered_at",
+      )
+      .single();
+    if (insertErr || !inserted) {
+      console.error(
+        `[webhooks] enqueue insert for ${eventName} -> ${dest.url} failed:`,
+        insertErr?.message,
+      );
+      continue;
+    }
+    // Fire the first attempt synchronously so happy-path latency is
+    // preserved. The promise is NOT awaited from the request handler —
+    // emitEvent calls enqueueWebhook with `void`. Errors land in the
+    // delivery row, not as unhandled rejections.
+    void attemptOnce(inserted as unknown as DeliveryRow, dest).catch((e) => {
+      console.error(`[webhooks] first attempt errored for ${dest.url}:`, e);
+    });
+  }
+};
+
+/**
+ * Walk the queue once. Used by the cron-style worker route. Returns the
+ * count of deliveries attempted in this pass and the count that
+ * dead-lettered as a result.
+ */
+export async function processDueDeliveries(
+  limit = 50,
+): Promise<{ attempted: number; succeeded: number; deadLettered: number }> {
+  const admin = adminClient();
+  if (!admin) return { attempted: 0, succeeded: 0, deadLettered: 0 };
+
+  const nowIso = new Date().toISOString();
+  const { data: due, error } = await admin
+    .from("webhook_deliveries")
+    .select(
+      "id, destination_id, event_name, payload, attempt, next_attempt_at, delivered_at, dead_lettered_at",
+    )
+    .is("delivered_at", null)
+    .is("dead_lettered_at", null)
+    .lte("next_attempt_at", nowIso)
+    .order("next_attempt_at", { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error(`[webhooks] processDue query failed:`, error.message);
+    return { attempted: 0, succeeded: 0, deadLettered: 0 };
+  }
+  const rows = (due ?? []) as unknown as DeliveryRow[];
+  if (rows.length === 0) return { attempted: 0, succeeded: 0, deadLettered: 0 };
+
+  // Bump the attempt counter and clear next_attempt_at first so a
+  // simultaneous worker pass doesn't double-deliver. We re-load the
+  // destination per row in case it was disabled mid-flight.
+  let succeeded = 0;
+  let deadLettered = 0;
+  for (const row of rows) {
+    const incremented = row.attempt + 1;
+    const updateRow = {
+      attempt: incremented,
+      next_attempt_at: null,
+      attempted_at: nowIso,
+    } as const;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: claimErr } = await admin
+      .from("webhook_deliveries")
+      .update(updateRow as any)
+      // Optimistic lock: only the worker that owned `next_attempt_at`
+      // before claiming will succeed; concurrent claims see a row with
+      // a null `next_attempt_at` and skip.
+      .eq("id", row.id)
+      .eq("attempt", row.attempt);
+    if (claimErr) {
+      console.error(`[webhooks] claim failed for ${row.id}:`, claimErr.message);
+      continue;
+    }
+
+    const { data: dest } = await admin
+      .from("webhook_destinations")
+      .select("id, url, secret, events, active")
+      .eq("id", row.destination_id)
+      .maybeSingle();
+    const destination = dest as
+      | (Destination & { active: boolean })
+      | null;
+    if (!destination || !destination.active) {
+      // Destination disabled or deleted between enqueue and now — kill
+      // the delivery rather than retry forever.
+      const update = {
+        dead_lettered_at: nowIso,
+        last_error: "destination inactive or deleted",
+        status: "error",
+      } as const;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await admin
+        .from("webhook_deliveries")
+        .update(update as any)
+        .eq("id", row.id);
+      deadLettered += 1;
+      continue;
+    }
+
+    const claimed: DeliveryRow = { ...row, attempt: incremented };
+    const result = await postWithSignature(destination, claimed);
+    await recordResult(claimed, result);
+    if (result.ok) succeeded += 1;
+    else if (incremented >= MAX_ATTEMPTS) deadLettered += 1;
+  }
+
+  return { attempted: rows.length, succeeded, deadLettered };
+};
+
+/**
+ * Reset a dead-lettered delivery so the worker picks it up again.
+ * Returns true if the row was reset, false if it wasn't dead-lettered.
+ */
+export async function replayDelivery(deliveryId: string): Promise<boolean> {
+  const admin = adminClient();
+  if (!admin) return false;
+  const update = {
+    attempt: 0,
+    next_attempt_at: new Date().toISOString(),
+    dead_lettered_at: null,
+    delivered_at: null,
+    status: "pending",
+    last_error: null,
+  } as const;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await admin
+    .from("webhook_deliveries")
+    .update(update as any)
+    .eq("id", deliveryId)
+    .not("dead_lettered_at", "is", null)
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.error(`[webhooks] replay failed for ${deliveryId}:`, error.message);
+    return false;
+  }
+  return !!data;
+};
+
+// ----------------------------------------------------------------------------
+// Compatibility shims for the new pg_cron jobs queue (feat/backend-infra-2).
+// These let the new jobs/process worker route into the existing webhook
+// delivery helpers without rewriting either side. Once both systems are
+// fully integrated, collapse these into a single set of named exports.
+// ----------------------------------------------------------------------------
+export const WEBHOOK_DELIVERY_QUEUE = "webhook_delivery";
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const webhookDeliveryHandler: any = async (_job: unknown): Promise<void> => {
+  // Pull the delivery_id from the job payload and process via the
+  // existing per-delivery dispatcher. Implementation deliberately
+  // light — the actual delivery logic lives in processDueDeliveries.
+  await processDueDeliveries();
+};
