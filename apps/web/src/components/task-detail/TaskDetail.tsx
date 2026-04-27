@@ -31,6 +31,7 @@ import {
   TickerChip,
 } from "@/components/primitives";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import { offlineFetch } from "@/lib/offline-fetch";
 
 type TaskStatus = "todo" | "in_progress" | "blocked" | "review" | "done";
 
@@ -230,13 +231,21 @@ export function TaskDetail({
 
   async function patchTask(patch: Partial<Task>) {
     setTask((t) => ({ ...t, ...patch }));
-    const r = await fetch(`/api/v1/tasks/${task.id}`, {
+    const summary = describePatch(patch);
+    const r = await offlineFetch(`/api/v1/tasks/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(patch),
+      // Include the row we last saw so the server can detect concurrent
+      // edits and 409 us back. Wired conservatively to description edits
+      // for now — see commit 3.
+      body: JSON.stringify({ ...patch, expected_updated_at: task.updated_at }),
+      label: summary
+        ? `Update task: ${summary}`
+        : `Update ${terminal.ticker}-${task.ticker_seq}`,
     });
-    if (!r.ok) await loadBundle();
+    // 202 = queued offline; the optimistic UI already reflects the patch.
+    // Anything else non-OK is a hard fail; refetch to roll back.
+    if (!r.ok && r.status !== 202) await loadBundle();
   }
 
   async function saveTitle() {
@@ -1506,6 +1515,21 @@ function summarize(rule: TaskRecurrenceRule): string {
 /* ------------------------------------------------------------------- */
 /* Helpers                                                              */
 /* ------------------------------------------------------------------- */
+
+/**
+ * One-liner for the offline-queue panel describing a partial task patch.
+ * Returns null when nothing meaningful to show.
+ */
+function describePatch(patch: Partial<Task>): string | null {
+  if (patch.title !== undefined) return `title → "${patch.title}"`;
+  if (patch.description !== undefined) return "description";
+  if (patch.status !== undefined) return `status → ${patch.status}`;
+  if (patch.priority !== undefined) return `priority → ${patch.priority}`;
+  if (patch.due_date !== undefined) return `due → ${patch.due_date ?? "(none)"}`;
+  if (patch.labels !== undefined) return "labels";
+  if (patch.recurrence_rule !== undefined) return "recurrence";
+  return null;
+}
 
 function formatDate(iso: string): string {
   const d = new Date(iso);

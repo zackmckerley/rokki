@@ -26,7 +26,7 @@ async function handleGet(_request: NextRequest, { params }: Props) {
   const { data, error } = await supabase
     .from("tasks")
     .select(
-      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, position, metadata, recurrence_rule, recurrence_parent_id, created_at, created_by, updated_at, completed_at",
+      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, metadata, recurrence_rule, recurrence_parent_id, created_at, created_by, updated_at, completed_at",
     )
     .eq("id", id)
     .maybeSingle();
@@ -54,9 +54,16 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     /** Spec also calls these "tags"; we accept either name and map to labels. */
     tags?: string[];
     recurrence_rule?: TaskRecurrenceRule | null;
-    /** Manual ordering position (sparse INT — clients pick midpoints). */
-    position?: number | null;
+    /**
+     * Optimistic-concurrency token. If supplied (either via this field or
+     * the `If-Match` header) we 409 when the row's current `updated_at`
+     * doesn't match what the client thought it was editing.
+     */
+    expected_updated_at?: string;
   };
+
+  const expectedUpdatedAt =
+    body.expected_updated_at ?? request.headers.get("if-match") ?? null;
 
   const patch: Record<string, unknown> = {};
   if (body.title !== undefined) {
@@ -72,11 +79,6 @@ async function handlePatch(request: NextRequest, { params }: Props) {
   if (body.due_date !== undefined) patch.due_date = body.due_date;
   if (body.labels !== undefined) patch.labels = body.labels;
   if (body.tags !== undefined) patch.labels = body.tags;
-  if (body.position !== undefined) {
-    if (body.position !== null && !Number.isInteger(body.position))
-      return bad("position must be an integer or null");
-    patch.position = body.position;
-  }
   if (body.recurrence_rule !== undefined) {
     const rule = validateRecurrenceRule(body.recurrence_rule);
     if (rule === "invalid") return bad("recurrence_rule shape is invalid");
@@ -89,13 +91,44 @@ async function handlePatch(request: NextRequest, { params }: Props) {
 
   if (Object.keys(patch).length === 0) return bad("no fields to update");
 
+  // Concurrency check: if the caller supplied `expected_updated_at`, fetch
+  // the current row first and 409 if it has moved. Doing this in two
+  // round-trips is fine for the volume on this endpoint; a future
+  // optimisation could push the check into the UPDATE WHERE clause.
+  if (expectedUpdatedAt !== null) {
+    const { data: current } = await supabase
+      .from("tasks")
+      .select(
+        "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
+      )
+      .eq("id", id)
+      .maybeSingle();
+    const cur = current as { updated_at: string } | null;
+    if (!cur) return notFound();
+    if (cur.updated_at !== expectedUpdatedAt) {
+      return NextResponse.json(
+        {
+          errors: [
+            {
+              code: "conflict",
+              message: "Task changed since you started editing.",
+            },
+          ],
+          current,
+          attempted: patch,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
   const result = await supabase
     .from("tasks")
     // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .update(patch)
     .eq("id", id)
     .select(
-      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, position, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
+      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
     )
     .single();
 

@@ -18,10 +18,54 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) return unauth();
 
-  const body = (await request.json().catch(() => ({}))) as { body?: string };
+  const body = (await request.json().catch(() => ({}))) as {
+    body?: string;
+    /**
+     * Optimistic-concurrency token. We check against the comment's
+     * `edited_at` on the server (`null` is sent as the empty string from
+     * the client; both forms are accepted here). If supplied and the
+     * server has moved on, we return 409 with the current row plus what
+     * the user attempted, so the conflict dialog can mediate.
+     */
+    expected_edited_at?: string | null;
+  };
   const content = (body.body ?? "").trim();
   if (content.length < 1 || content.length > 20_000)
     return bad("body must be 1–20,000 chars");
+
+  const expected =
+    body.expected_edited_at ?? request.headers.get("if-match") ?? null;
+
+  if (expected !== null) {
+    const { data: cur } = await supabase
+      .from("comments")
+      .select(
+        "id, entity_type, entity_id, terminal_id, parent_id, body, mentions, created_at, edited_at, deleted_at, created_by",
+      )
+      .eq("id", id)
+      .eq("created_by", user.id)
+      .maybeSingle();
+    const row = cur as { edited_at: string | null } | null;
+    if (!row) return notFound();
+    // Treat "" and null interchangeably so the client can ship either.
+    const have = row.edited_at ?? "";
+    const want = expected ?? "";
+    if (have !== want) {
+      return NextResponse.json(
+        {
+          errors: [
+            {
+              code: "conflict",
+              message: "Comment changed since you started editing.",
+            },
+          ],
+          current: cur,
+          attempted: { body: content },
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   const mentions = mentionedUserIds(content);
   const { data, error } = await supabase
