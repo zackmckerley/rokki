@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { traceBreadcrumb } from "@/lib/observability";
 
 /**
  * Realtime session killer. Mounted once at layout root. When a row
@@ -60,6 +61,12 @@ export function SessionGuard() {
               "[SessionGuard] forced sign-out:",
               { userId, reason, payload: payload.new },
             );
+            traceBreadcrumb({
+              category: "auth",
+              message: "session.revoked",
+              level: "warning",
+              data: { user_id: userId, reason },
+            });
             try {
               await supabase.auth.signOut();
             } catch {}
@@ -70,7 +77,17 @@ export function SessionGuard() {
             setTimeout(() => window.location.reload(), 250);
           },
         )
-        .subscribe();
+        .subscribe((status: string) => {
+          traceBreadcrumb({
+            category: "realtime",
+            message: `session_guard.${status.toLowerCase()}`,
+            data: { user_id: userId, status },
+            level:
+              status === "CHANNEL_ERROR" || status === "TIMED_OUT"
+                ? "warning"
+                : "info",
+          });
+        });
 
       return () => {
         active = false;

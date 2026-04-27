@@ -7,6 +7,7 @@ import type {
   RealtimePostgresDeletePayload,
 } from "@supabase/supabase-js";
 import { createClient } from "./client";
+import { traceBreadcrumb } from "@/lib/observability";
 
 /**
  * useRealtimeTable — subscribe to INSERT/UPDATE/DELETE events on a single
@@ -95,9 +96,26 @@ export function useRealtimeTable<Row extends object = Record<string, unknown>>(
           handlersRef.current.onDelete?.(payload.old);
         },
       )
-      .subscribe();
+      .subscribe((status: string) => {
+        // Breadcrumb on every state change so a downstream error
+        // shows exactly which channel was up/down at the time.
+        traceBreadcrumb({
+          category: "realtime",
+          message: `channel.${status.toLowerCase()}`,
+          data: { table, filter, key, status },
+          level:
+            status === "CHANNEL_ERROR" || status === "TIMED_OUT"
+              ? "warning"
+              : "info",
+        });
+      });
 
     return () => {
+      traceBreadcrumb({
+        category: "realtime",
+        message: "channel.unsubscribe",
+        data: { table, filter, key },
+      });
       void supabase.removeChannel(channel);
     };
   }, [table, filter, enabled, channelKey]);
