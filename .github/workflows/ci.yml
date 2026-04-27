@@ -15,15 +15,15 @@ jobs:
     name: Lint, Typecheck, Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup pnpm
         # Version comes from `packageManager` in root package.json — passing
         # it again here triggers ERR_PNPM_BAD_PM_VERSION on action-setup@v4.
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
@@ -51,15 +51,15 @@ jobs:
     name: Database migrations + RLS tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup pnpm
         # Version comes from `packageManager` in root package.json — passing
         # it again here triggers ERR_PNPM_BAD_PM_VERSION on action-setup@v4.
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
@@ -68,7 +68,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v2
         with:
           version: latest
 
@@ -123,7 +123,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           # gitleaks scans full history on PRs. Default checkout depth is
           # 1, which makes it skip everything except the merge commit.
@@ -132,10 +132,10 @@ jobs:
       - name: Setup pnpm
         # Version comes from `packageManager` in root package.json — passing
         # it again here triggers ERR_PNPM_BAD_PM_VERSION on action-setup@v4.
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 20
           cache: pnpm
