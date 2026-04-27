@@ -31,6 +31,7 @@ import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { CopyableId } from "@/components/CopyableId";
 import { SpacePicker, type PickedSpace } from "@/components/admin/SpacePicker";
 import { cn } from "@/lib/utils";
+import { getUsernameForEmail } from "@/lib/usernames";
 
 type SpaceRole = "owner" | "admin" | "member";
 
@@ -97,8 +98,16 @@ export function AdminUserDetail({ data }: { data: AdminUserDetailData }) {
     setTimeout(() => setSuccess(null), 2500);
   }
 
+  const username = getUsernameForEmail(data.user.email);
+
   return (
     <>
+      <IdentityPanel
+        fullName={data.profile?.full_name ?? null}
+        username={username}
+        email={data.user.email}
+      />
+
       <div className="flex flex-wrap items-center gap-4 rounded border border-border bg-bg-1 p-3 text-sm">
         <div className="flex flex-wrap gap-1">
           {data.profile?.is_platform_admin ? (
@@ -190,6 +199,77 @@ export function AdminUserDetail({ data }: { data: AdminUserDetailData }) {
 }
 
 /* -------------------------------------------------------------------- */
+/* Identity                                                              */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Identity-at-a-glance panel pinned to the top of the user detail page.
+ * Shows the three labels admins reach for first: full name, username
+ * (only present for accounts in the password-login allow-list), and
+ * email. Read-only — actual editing happens in the Profile form below.
+ */
+function IdentityPanel({
+  fullName,
+  username,
+  email,
+}: {
+  fullName: string | null;
+  username: string | null;
+  email: string;
+}) {
+  return (
+    <section
+      aria-label="User identity"
+      className="overflow-hidden rounded border border-border bg-bg-1"
+    >
+      <header className="border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+        Identity
+      </header>
+      <dl className="grid grid-cols-1 divide-y divide-border md:grid-cols-3 md:divide-x md:divide-y-0">
+        <IdentityCell label="Full name" value={fullName} />
+        <IdentityCell
+          label="Username"
+          value={username}
+          mono
+          empty="(not assigned)"
+        />
+        <IdentityCell label="Email" value={email} mono />
+      </dl>
+    </section>
+  );
+}
+
+function IdentityCell({
+  label,
+  value,
+  mono = false,
+  empty = "—",
+}: {
+  label: string;
+  value: string | null;
+  mono?: boolean;
+  empty?: string;
+}) {
+  const isEmpty = value === null || value === "";
+  return (
+    <div className="px-4 py-2">
+      <dt className="text-[10px] uppercase tracking-wide text-text-3">
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "mt-0.5 text-sm",
+          mono && "font-mono text-[13px]",
+          isEmpty ? "text-text-3" : "text-text-0",
+        )}
+      >
+        {isEmpty ? empty : value}
+      </dd>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------- */
 /* Overview                                                              */
 /* -------------------------------------------------------------------- */
 
@@ -242,6 +322,8 @@ function OverviewTab({
     }
   }
 
+  const username = getUsernameForEmail(email);
+
   return (
     <AdminPanel title="Profile">
       <form onSubmit={save} className="flex flex-col gap-3 p-4">
@@ -254,6 +336,20 @@ function OverviewTab({
           />
           <p className="mt-1 text-[10px] text-text-3">
             Changing the email triggers re-verification by default.
+          </p>
+        </Field>
+        <Field label="Username">
+          <p
+            className={cn(
+              "rounded-sm border border-border bg-bg-2 px-2 py-1.5 font-mono text-sm",
+              username ? "text-text-0" : "text-text-3",
+            )}
+          >
+            {username ?? "(not assigned)"}
+          </p>
+          <p className="mt-1 text-[10px] text-text-3">
+            Allow-listed in <code>apps/web/src/lib/usernames.ts</code> —
+            edit the file to add or remove a username mapping.
           </p>
         </Field>
         <Field label="Full name">

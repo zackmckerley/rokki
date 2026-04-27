@@ -1,5 +1,11 @@
 import Link from "next/link";
-import { Keyboard, Terminal, BookOpen, MessageSquare } from "lucide-react";
+import {
+  Keyboard,
+  Terminal,
+  BookOpen,
+  MessageSquare,
+  Download,
+} from "lucide-react";
 import { TopBar } from "@/components/TopBar";
 import { KeyHint } from "@/components/ShortcutsOverlay";
 import { SHORTCUT_SECTIONS } from "@/lib/shortcuts";
@@ -71,6 +77,30 @@ export default function HelpPage() {
               body="Vim-style. Enter opens, C creates, ⌘↵ completes."
             />
           </ul>
+        </section>
+
+        {/* Install */}
+        <section
+          aria-labelledby="install-h"
+          className="mb-6 overflow-hidden rounded border border-border bg-bg-1"
+        >
+          <header className="flex items-center gap-1.5 border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+            <Download className="h-3 w-3" />
+            <span id="install-h">Install Rokki as a desktop / mobile app</span>
+          </header>
+          <div className="flex flex-col gap-2 p-4 text-sm text-text-1 md:flex-row md:items-center md:justify-between">
+            <p className="text-xs text-text-2">
+              Pin Rokki to your dock or home screen for faster cold starts and
+              its own window. Per-platform steps inside.
+            </p>
+            <Link
+              href="/help/install"
+              className="inline-flex items-center gap-1.5 self-start rounded-sm border border-accent bg-accent-subtle px-2 py-1 font-mono text-[11px] uppercase tracking-wide text-accent hover:bg-accent/20 md:self-auto"
+            >
+              <Download className="h-3 w-3" />
+              Install instructions
+            </Link>
+          </div>
         </section>
 
         {/* Concepts */}

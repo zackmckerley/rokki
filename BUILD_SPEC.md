@@ -324,7 +324,7 @@ The dashboard itself is terminal-styled: multi-pane, dense, keyboard-driven. But
 | `text-0` | `#F5F5F7` | Primary text |
 | `text-1` | `#C8C8CD` | Secondary text |
 | `text-2` | `#8A8A92` | Tertiary / metadata |
-| `text-3` | `#5A5A62` | Disabled / placeholders |
+| `text-3` | `#9099A4` | Subtle metadata, hints, placeholders (WCAG-AA on bg-0/bg-1) |
 | `accent` | `#F5A623` | Rokki amber (the homage) — use sparingly, only for "live" / "important" / focus |
 | `accent-subtle` | `#3D2E14` | Amber background tint |
 | `success` | `#3FB950` | Completed, approved, on-track |

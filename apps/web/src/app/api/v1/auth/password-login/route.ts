@@ -11,6 +11,7 @@ import {
 } from "@/lib/account-ring";
 import { cryptoEnabled } from "@/lib/token-crypto";
 import { withObservability } from "@/lib/observability";
+import { getEmailForUsername } from "@/lib/usernames";
 
 interface CookieToSet {
   name: string;
@@ -31,12 +32,11 @@ interface CookieToSet {
  * username → email map only accepts allow-listed usernames, so a
  * random "username" spam attempt can't brute-force arbitrary inboxes.
  *
+ * The allow-list itself lives in `@/lib/usernames` so the admin user
+ * page can do the reverse lookup without importing this route file.
+ *
  * Disable in production by setting DISABLE_PASSWORD_LOGIN=true.
  */
-
-const USERNAME_MAP: Record<string, string> = {
-  admin: "admin@rokki.local",
-};
 
 async function handlePost(request: NextRequest) {
   if (process.env.DISABLE_PASSWORD_LOGIN === "true") {
@@ -72,7 +72,7 @@ async function handlePost(request: NextRequest) {
     if (!rawUsername) {
       return bad("username or email required");
     }
-    email = USERNAME_MAP[rawUsername];
+    email = getEmailForUsername(rawUsername);
     if (!email) {
       return forbidden("That username doesn't have a password login.");
     }

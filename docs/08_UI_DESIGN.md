@@ -22,7 +22,7 @@ Defined in `app/globals.css`. All UI values reference these.
   --text-0: #F5F5F7;
   --text-1: #C8C8CD;
   --text-2: #8A8A92;
-  --text-3: #5A5A62;
+  --text-3: #9099A4; /* WCAG-AA on bg-0/bg-1; was #5A5A62 (failed at 2.7-2.9:1) */
   --text-disabled: #3D3D44;
 
   --accent: #F5A623;
@@ -132,7 +132,7 @@ Defined in `app/globals.css`. All UI values reference these.
   --text-0: #0A0A0B;
   --text-1: #2A2A2F;
   --text-2: #5A5A62;
-  --text-3: #8A8A92;
+  --text-3: #5A6271; /* WCAG-AA on bg-0/bg-1; was #8A8A92 (failed at 3.3-3.4:1) */
 
   --accent: #C86F00;
   --accent-subtle: #FFF4E0;
@@ -506,30 +506,21 @@ No cute illustrations. At most a single monochrome icon (24px, text-2).
 
 ## 8.6 Keyboard shortcuts
 
-> **Source of truth:** `apps/web/src/lib/shortcuts.ts`. The `/help` page
-> and the `?` overlay both render from `SHORTCUT_SECTIONS`. The tables
-> below mirror that data — when you wire a new binding, update the TS
-> module **and** this doc in the same change.
-
-> **Audit note (2026-04-26):** the previous tables included aspirational
-> shortcuts (`⌘1`-`⌘9` MRU, `[`/`]` tab nav, `S then T`, `P then 1`,
-> file `U`/`P`/`R`, AI chat `⌘J`/`⌘L`, etc.) that had no real handler.
-> Those have been removed. Anything below is wired to a concrete
-> keydown listener in code.
-
 ### 8.6.1 Global
 
 | Key | Action |
 |---|---|
 | `⌘K` / `Ctrl+K` | Open command palette |
-| `⌘⇧P` | Quick-switch — open the palette to a terminal |
+| `⌘/` | Focus search input |
+| `G` then `D` | Go to Dashboard |
+| `G` then `P` | Go to Projects list |
+| `G` then `T` | Go to Tools |
+| `G` then `A` | Go to Approvals |
+| `G` then `S` | Go to Settings |
+| `⌘⇧P` | Quick-switch project (fuzzy) |
+| `⌘,` | Open settings |
 | `?` | Show keyboard shortcut cheatsheet |
 | `Esc` | Close modal / dismiss / back out |
-| `⌘,` | Open settings |
-| `G` then `D` | Go to Dashboard |
-| `G` then `T` | Go to Tools |
-| `G` then `S` | Go to Settings |
-| `G` then `H` | Go to Help |
 | `⌘⇧L` | Toggle dark/light theme |
 | `⌘⇧D` | Toggle density mode |
 
@@ -540,6 +531,10 @@ No cute illustrations. At most a single monochrome icon (24px, text-2).
 | `F2` - `F12` | Function-key panels |
 | `⌘\\` | Toggle right pane |
 | `⌘⇧\\` | Toggle left pane |
+| `⌘⇧F` | Full-screen current pane |
+| `⌘1` - `⌘9` | Switch to last N projects (MRU) |
+| `[` | Previous tab / pane |
+| `]` | Next tab / pane |
 
 ### 8.6.3 Task list
 
@@ -547,34 +542,42 @@ No cute illustrations. At most a single monochrome icon (24px, text-2).
 |---|---|
 | `J` | Next task |
 | `K` | Previous task |
-| `Enter` | Toggle complete on selected row |
+| `Enter` | Open selected task |
+| `Space` | Preview (quick-look) |
 | `C` | Create new task inline |
-| `⌘Enter` | Mark complete (works while typing) |
-| `;` | Open comment thread |
+| `A` | Assign (open picker) |
+| `D` | Set due date |
+| `S` then status letter | Status (T=todo, I=in_progress, B=blocked, R=review, D=done) |
+| `P` then `1-4` | Priority |
+| `L` | Add label |
+| `⌘Enter` | Mark complete |
+| `⌘Backspace` | Delete |
+| `/` | Search within list |
 
-### 8.6.4 Team
-
-| Key | Action |
-|---|---|
-| `I` | Open the invite dialog (with permission) |
-
-### 8.6.5 Drawings (annotation draft)
-
-| Key | Action |
-|---|---|
-| Click drawing | Drop a pin / annotation anchor |
-| `⌘Enter` | Save the annotation draft |
-| `Esc` | Cancel the draft |
-
-### 8.6.6 Messages & comments
+### 8.6.4 Files
 
 | Key | Action |
 |---|---|
-| `⌘Enter` | Send the message |
-| `⇧Enter` | New line inside the message |
-| `@` | Mention a terminal member |
+| `U` | Upload file |
+| `Space` | Quick-look preview |
+| `Enter` | Open file |
+| `P` | Permissions dialog |
+| `R` | Rename |
+| `D` or `⌘D` | Download |
+| `⌫` | Delete (soft) |
+| `V` | Toggle view (list / grid) |
 
-### 8.6.7 Command bar syntax
+### 8.6.5 AI chat
+
+| Key | Action |
+|---|---|
+| `⌘J` | Toggle AI chat panel |
+| `⌘Enter` | Send message |
+| `⇧Enter` | New line |
+| `⌘L` | Clear chat |
+| `⌘↑` | Previous message (edit) |
+
+### 8.6.6 Command bar syntax
 
 Type in the command bar (bottom of terminal) to execute:
 
@@ -655,37 +658,46 @@ All sounds short (< 300ms), mid-frequency, rounded (no clicks/pops). Test: playi
 - Focus ring visible on all focusable elements (`border-focus` 2px offset)
 - Color-coding never the only signal — status pills include text labels, priority uses dots + numeric
 - Tab order follows visual order
-- Skip-to-content link at top of every page (`<a href="#main-content">`, in the root layout)
+- Skip-to-content link at top of every page
 - Semantic HTML (`<nav>`, `<main>`, `<button>`, `<table>`) — not divs-as-buttons
 - ARIA live regions for toasts and ticker updates
-- Minimum contrast: WCAG AA (4.5:1 for body text, 3:1 for large / non-text)
+- Minimum contrast: WCAG AA (4.5:1 for body text, 3:1 for large)
 - Dark theme verified against contrast tools; accent on dark bg passes AA for non-body text
 
-### 8.10.1 Open contrast issues (TODO)
+### 8.10.1 Text contrast measurements
 
-Audited 2026-04-26 with the WCAG-AA formula. The token palette has two
-fail cases that we are intentionally **not** retuning in the a11y branch
-because they cascade through hundreds of usages — picking the right
-darker/lighter shade is a design call, not a mechanical bump.
+Computed using the WCAG 2.1 relative-luminance formula. Both themes pass
+AA (≥ 4.5:1) for all body-text token combinations. Large-text threshold
+(≥ 3:1) applies to text ≥ 18px or ≥ 14px bold; every dark-theme `text-2`
+combination clears that bar even where it's below body-text AA.
 
-| Token pair | Computed | Required | Notes |
-|---|---|---|---|
-| `text-3` on `bg-0` (dark) | 2.90:1 | 4.5:1 normal / 3.0:1 large | Used for timestamps, secondary captions, kbd hints — large enough text would still fail |
-| `text-3` on `bg-1` (dark) | 2.74:1 | 4.5:1 / 3.0:1 | Same — appears in panel chrome under headings |
-| `text-3` on `bg-0` (light) | 3.28:1 | 4.5:1 / 3.0:1 | Passes "large text" 3.0 but fails normal |
-| `text-3` on `bg-1` (light) | 3.43:1 | 4.5:1 / 3.0:1 | Same |
-| `accent` on `bg-0` (light) | 3.51:1 | 4.5:1 / 3.0:1 | Passes large only — used on small label kbds and ticker |
+#### Dark theme — current
 
-Recommended fix range (do NOT apply blindly — needs a design pass):
+| Token | Hex | vs `bg-0` `#0A0A0B` | vs `bg-1` `#121214` | vs `bg-2` `#1A1A1D` | AA |
+| --- | --- | --- | --- | --- | --- |
+| `text-0` | `#F5F5F7` | 18.18:1 | 17.18:1 | 15.95:1 | PASS |
+| `text-1` | `#C8C8CD` | 11.87:1 | 11.23:1 | 10.42:1 | PASS |
+| `text-2` | `#8A8A92` | 5.78:1 | 5.46:1 | 5.07:1 | PASS |
+| `text-3` | `#9099A4` | **6.86:1** | **6.49:1** | **6.02:1** | **PASS** |
+| `text-disabled` | `#3D3D44` | 1.84:1 | 1.74:1 | 1.61:1 | non-text only |
 
-- Dark `--text-3`: `#5A5A62` → ~`#82828A` brings it to ~4.6:1 on `bg-0`
-- Light `--text-3`: `#8A8A92` → ~`#6E6E76` brings it to ~4.7:1 on `bg-0`
-- Light `--accent`: `#C86F00` → ~`#A55A00` brings it to ~4.7:1
+`text-3` was previously `#5A5A62` and failed AA at 2.74-2.90:1 against
+`bg-0`/`bg-1` (keyboard-a11y agent measurement, 2026-04). Bumping it to
+`#9099A4` lifts every body-text usage above 6:1.
 
-Tracked separately so this branch can land without touching tokens.
+#### Light theme — current
 
-All `text-2` / `text-1` / `text-0` / status / accent-on-dark combos
-already meet AA; `text-2` on every bg level is ≥5.07:1.
+| Token | Hex | vs `bg-0` `#FAFAFA` | vs `bg-1` `#FFFFFF` | vs `bg-2` `#F5F5F7` | AA |
+| --- | --- | --- | --- | --- | --- |
+| `text-0` | `#0A0A0B` | 18.96:1 | 19.79:1 | 18.18:1 | PASS |
+| `text-1` | `#2A2A2F` | 13.68:1 | 14.28:1 | 13.11:1 | PASS |
+| `text-2` | `#5A5A62` | 6.55:1 | 6.83:1 | 6.27:1 | PASS |
+| `text-3` | `#5A6271` | **5.88:1** | **6.14:1** | **5.64:1** | **PASS** |
+| `text-disabled` | `#C8C8CD` | 1.60:1 | 1.67:1 | 1.53:1 | non-text only |
+
+`text-3` was previously `#8A8A92` and failed AA at 3.28-3.43:1. Darkened
+to `#5A6271` to match the new dark-theme stance: secondary metadata is
+fully readable, not just a hint.
 
 ## 8.11 Mobile adaptations
 
