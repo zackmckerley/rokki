@@ -124,13 +124,6 @@ export default async function CalendarsPage({ searchParams }: Props) {
                         : "awaiting first sync…"}
                   </div>
                 </div>
-                <form
-                  action={`/api/v1/calendar/connections/${c.id}`}
-                  method="post"
-                  onSubmit={() => {
-                    /* intercept in client island; progressive enhancement fine for now */
-                  }}
-                />
                 <DisconnectButton id={c.id} />
               </li>
             ))}
