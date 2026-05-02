@@ -25,6 +25,7 @@ import { SessionGuard } from "@/components/SessionGuard";
 import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { MaintenanceBanner } from "@/components/MaintenanceBanner";
 import { EscapeProbe } from "@/components/EscapeProbe";
+import { ClickProbe } from "@/components/ClickProbe";
 import { Toaster } from "@/components/Toaster";
 import "./globals.css";
 
@@ -141,6 +142,7 @@ export default function RootLayout({
         <ShortcutsOverlay />
         <SessionGuard />
         <EscapeProbe />
+        <ClickProbe />
         <ServiceWorkerRegister />
         <Toaster />
       </body>
