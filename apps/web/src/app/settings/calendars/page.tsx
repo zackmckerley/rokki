@@ -3,7 +3,6 @@ import Link from "next/link";
 import {
   Calendar,
   AlertTriangle,
-  Trash2,
   CheckCircle2,
   CalendarOff,
 } from "lucide-react";
@@ -11,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 import { EmptyState } from "@/components/EmptyState";
 import { providerConfig } from "@/lib/calendar-oauth";
+import { DisconnectButton } from "./DisconnectButton";
 
 interface Props {
   searchParams: Promise<{ connected?: string; error?: string; provider?: string }>;
@@ -166,27 +166,6 @@ export default async function CalendarsPage({ searchParams }: Props) {
         ) : null}
       </main>
     </div>
-  );
-}
-
-function DisconnectButton({ id }: { id: string }) {
-  // Progressive-enhancement button: the form posts to the DELETE endpoint
-  // when JS is disabled, and the client hydrates a fetch-based handler.
-  return (
-    <form
-      action={`/api/v1/calendar/connections/${id}`}
-      method="POST"
-      className="contents"
-    >
-      <input type="hidden" name="_method" value="delete" />
-      <button
-        formAction={`/api/v1/calendar/connections/${id}`}
-        formMethod="DELETE"
-        className="flex items-center gap-1 rounded-sm border border-border px-2 py-1 text-xs text-danger hover:bg-danger-subtle"
-      >
-        <Trash2 className="h-3 w-3" /> Disconnect
-      </button>
-    </form>
   );
 }
 
