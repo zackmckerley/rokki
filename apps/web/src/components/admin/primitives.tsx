@@ -43,7 +43,12 @@ export function AdminPanel({
   children,
   className,
 }: {
-  title?: string;
+  /**
+   * Panel header. Accepts plain string (the common case) or arbitrary
+   * ReactNode for cases where the header carries extra controls (e.g.
+   * a count badge, a "detail →" link, a filter affordance).
+   */
+  title?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {

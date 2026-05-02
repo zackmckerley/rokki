@@ -75,18 +75,45 @@ export interface TickResult {
 export async function runCalendarSyncTick(
   batchSize = BATCH_SIZE,
 ): Promise<TickResult> {
+  return runSync({ batchSize });
+}
+
+/**
+ * Sync only the connections owned by `userId`. Used by the user-facing
+ * "Sync now" button on /settings/calendars so a user can verify their
+ * connection without waiting for the next 15-min cron tick. Bypasses
+ * `last_sync_at` ordering — we want every connection the user owns.
+ */
+export async function runCalendarSyncForUser(
+  userId: string,
+): Promise<TickResult> {
+  return runSync({ userId });
+}
+
+interface SyncOptions {
+  userId?: string;
+  batchSize?: number;
+}
+
+async function runSync(opts: SyncOptions): Promise<TickResult> {
   const result: TickResult = { attempted: 0, succeeded: 0, failed: 0, events: 0 };
   const a = admin();
   if (!a) return result;
 
-  const { data, error } = await a
+  let q = a
     .from("calendar_connections")
     .select(
       "id, user_id, provider, account_email, access_token_ciphertext, access_token_iv, access_token_tag, access_token_expires_at, refresh_token_ciphertext, refresh_token_iv, refresh_token_tag",
     )
-    .is("revoked_at", null)
-    .order("last_sync_at", { ascending: true, nullsFirst: true })
-    .limit(batchSize);
+    .is("revoked_at", null);
+  if (opts.userId) {
+    q = q.eq("user_id", opts.userId);
+  } else {
+    q = q
+      .order("last_sync_at", { ascending: true, nullsFirst: true })
+      .limit(opts.batchSize ?? BATCH_SIZE);
+  }
+  const { data, error } = await q;
   if (error) {
     console.error("[calendar-sync] connection lookup failed:", error.message);
     return result;
