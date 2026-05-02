@@ -1,0 +1,50 @@
+name: Calendar sync tick
+
+# Vercel's Hobby tier only allows daily cron, so we drive the calendar
+# sync from GitHub Actions instead. Every 15 minutes, POST to the cron
+# endpoint with the shared secret. The endpoint refreshes any expired
+# Microsoft/Google access tokens, fetches the next 14 days of events
+# for each connected calendar, and upserts them into calendar_events.
+#
+# Secrets required:
+#   ROKKI_CRON_SECRET — must match the CRON_SECRET env var on Vercel.
+#
+# Manual run: Actions tab → "Calendar sync tick" → Run workflow.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# Limit to one in-flight run at a time. If a tick is slow we'd rather
+# skip the next one than stack them up.
+concurrency:
+  group: calendar-sync
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    name: POST /api/v1/cron/calendar-sync
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger sync
+        env:
+          CRON_SECRET: ${{ secrets.ROKKI_CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::ROKKI_CRON_SECRET not set; skipping tick"
+            exit 0
+          fi
+          STATUS=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            -X POST \
+            -H "x-cron-secret: $CRON_SECRET" \
+            -H "content-type: application/json" \
+            --max-time 90 \
+            https://rokki.ai/api/v1/cron/calendar-sync)
+          BODY=$(cat /tmp/body)
+          echo "HTTP $STATUS"
+          echo "$BODY"
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::sync tick failed with HTTP $STATUS: $BODY"
+            exit 1
+          fi
