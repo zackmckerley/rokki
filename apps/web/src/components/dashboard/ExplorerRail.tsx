@@ -231,8 +231,9 @@ export function ExplorerRail({
                 type="text"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter / press / to focus"
+                placeholder="Filter…"
                 aria-label="Filter explorer"
+                title="Press / to focus"
                 className="h-7 w-full rounded-sm border border-border bg-bg-1 pl-7 pr-7 text-xs text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
               />
               {filter ? (
@@ -307,12 +308,6 @@ export function ExplorerRail({
                   [];
                 const isCollapsed = isFiltering ? false : collapsed.has(s.id);
                 const canMakeTerminal = s.role === "owner" || s.role === "admin";
-                const roleAbbr =
-                  s.role === "owner"
-                    ? "OWN"
-                    : s.role === "admin"
-                      ? "ADM"
-                      : "MEM";
                 return (
                   <li key={s.id}>
                     <div className="group flex items-center gap-1 rounded-sm px-1 py-0.5 hover:bg-bg-2">
@@ -344,19 +339,6 @@ export function ExplorerRail({
                           empty
                         </span>
                       ) : null}
-                      <span
-                        className={`font-mono text-[9px] uppercase tracking-wide ${
-                          s.role === "owner"
-                            ? "text-accent"
-                            : s.role === "admin"
-                              ? "text-text-2"
-                              : "text-text-3"
-                        }`}
-                        aria-label={`Role: ${s.role}`}
-                        title={`Your role: ${s.role}`}
-                      >
-                        {roleAbbr}
-                      </span>
                       {canMakeTerminal ? (
                         <>
                           <Link
