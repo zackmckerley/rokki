@@ -347,17 +347,41 @@ async function upsertEvents(
     .upsert(rows as any, { onConflict: "connection_id,external_id" });
   if (error) throw new Error(`upsert: ${error.message}`);
 
-  // Soft-delete events we no longer see in the window (cancelled,
-  // moved out, deleted in the source). Quoting matters: external_id
-  // values can contain commas, so we wrap each in double quotes per
-  // PostgREST `not.in` syntax.
-  const ids = events.map((e) => `"${e.external_id.replace(/"/g, '\\"')}"`);
+  // Soft-delete events we no longer see in the window (cancelled, moved
+  // out, deleted in the source).
+  //
+  // Earlier revisions used PostgREST's `.not("external_id", "in", "(…)")`
+  // filter built from a comma-joined string, which required escaping
+  // every quote/backslash in the external_id (CodeQL flagged it as a
+  // string-escape sink). The two-step approach below is safer: query the
+  // current live IDs for this connection, diff them in JS against the
+  // events we just upserted, and soft-delete by primary key. Both reads
+  // and writes use parameterised filters, no manual string interpolation.
+  const { data: live, error: liveErr } = await a
+    .from("calendar_events")
+    .select("id, external_id")
+    .eq("connection_id", connectionId)
+    .is("deleted_at", null);
+  if (liveErr) {
+    console.warn("[calendar-sync] cleanup lookup failed:", liveErr.message);
+    return;
+  }
+  const seen = new Set(events.map((e) => e.external_id));
+  const stale = (live ?? [])
+    .filter((r): r is { id: string; external_id: string } =>
+      typeof r === "object" &&
+      r !== null &&
+      "external_id" in r &&
+      typeof (r as { external_id?: unknown }).external_id === "string",
+    )
+    .filter((r) => !seen.has(r.external_id))
+    .map((r) => r.id);
+  if (stale.length === 0) return;
   const { error: delErr } = await a
     .from("calendar_events")
     // eslint-disable-next-line
     .update({ deleted_at: new Date().toISOString() } as any)
-    .eq("connection_id", connectionId)
-    .is("deleted_at", null)
-    .not("external_id", "in", `(${ids.join(",")})`);
-  if (delErr) console.warn("[calendar-sync] cleanup delete failed:", delErr.message);
+    .in("id", stale);
+  if (delErr)
+    console.warn("[calendar-sync] cleanup delete failed:", delErr.message);
 }
