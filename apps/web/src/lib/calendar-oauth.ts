@@ -66,7 +66,15 @@ export function providerConfig(p: Provider): ProviderConfig | null {
 }
 
 /** Build the auth URL with a random state. Caller stores the state in a
- * short-lived cookie and verifies on callback. */
+ * short-lived cookie and verifies on callback.
+ *
+ * `prompt=select_account consent` — when a user is already signed into
+ * a Microsoft/Google account in their browser, the IDP would otherwise
+ * silently use that one. Forcing the account picker is critical for
+ * the reconnect flow (users replacing a stale connection) and for the
+ * second-account flow (e.g. work + personal Outlook). `consent` is
+ * still requested so refresh_token is returned even if the user
+ * previously consented and was about to skip the screen. */
 export function authorizeUrl(
   p: Provider,
   config: ProviderConfig,
@@ -78,7 +86,7 @@ export function authorizeUrl(
     response_type: "code",
     scope: config.scopes.join(" "),
     access_type: p === "google" ? "offline" : "",
-    prompt: "consent",
+    prompt: "select_account consent",
     state,
   });
   return `${config.authorizeUrl}?${params.toString()}`;
