@@ -16,20 +16,26 @@ import {
   Radio,
   Zap,
   ShieldCheck,
+  Inbox,
 } from "lucide-react";
 import type { Database } from "@rokki/db";
-import { AdminButton, AdminPanel } from "@/components/admin/primitives";
+import {
+  AdminButton,
+  AdminPanel,
+  AdminSectionHeader,
+} from "@/components/admin/primitives";
 import { EmptyState } from "@/components/EmptyState";
-import { Inbox } from "lucide-react";
+import { RecentEventsPanel } from "./RecentEventsPanel";
+import { RefreshButton } from "./RefreshButton";
 
 export const metadata = { title: "Admin — Rokki" };
 export const dynamic = "force-dynamic";
 
 /**
  * Operator console. Three areas:
- *   - Health strip (top)
+ *   - Header with as-of timestamp + manual refresh
  *   - KPI grid (left, 2/3 width on lg)
- *   - Quick actions + recent events (right column)
+ *   - Quick actions + recent events + system panel (right column)
  *
  * Counts are fetched in parallel; the page is rerendered every request
  * (force-dynamic) so admins always see fresh numbers.
@@ -42,6 +48,7 @@ export default async function AdminOverviewPage() {
   );
 
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const renderedAt = new Date().toISOString();
 
   const counts = await Promise.all([
     admin.from("profiles").select("user_id", { count: "exact", head: true }),
@@ -87,10 +94,6 @@ export default async function AdminOverviewPage() {
       .select("id", { count: "exact", head: true })
       .eq("virus_scan_status", "infected")
       .is("deleted_at", null),
-    // Count from `activity` (the table the /admin/activity page reads
-    // from), NOT `domain_events`. Counting domain_events here while the
-    // page reads activity meant the stat could say "4 events" while the
-    // page below it sat empty.
     admin
       .from("activity")
       .select("id", { count: "exact", head: true })
@@ -112,25 +115,41 @@ export default async function AdminOverviewPage() {
     { count: lastHourEvents },
   ] = counts;
 
-  // Recent events (right column). Reads from `activity` so this list stays
-  // in lock-step with /admin/activity and the "Activity / hour" stat above —
-  // earlier this panel read `domain_events` and could show 15 rows while
-  // the Activity page below it sat empty (PR #7 fixed the count mismatch).
+  // Pull recent events + the actor profile names in parallel so we can
+  // render "<actor> · <action>" instead of just the action verb.
   const { data: recent } = await admin
     .from("activity")
     .select("id, action, actor_id, created_at, metadata")
     .order("created_at", { ascending: false })
-    .limit(15);
-  const events = ((recent ?? []) as Array<{
+    .limit(30);
+  const eventRows = ((recent ?? []) as Array<{
     id: string;
     action: string;
     actor_id: string | null;
     created_at: string;
     metadata: Record<string, unknown> | null;
-  }>).map((r) => ({
+  }>);
+  const actorIds = Array.from(
+    new Set(eventRows.map((r) => r.actor_id).filter((id): id is string => !!id)),
+  );
+  const actorNamesById = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const { data: profiles } = await admin
+      .from("profiles")
+      .select("user_id, full_name")
+      .in("user_id", actorIds);
+    for (const p of (profiles ?? []) as Array<{
+      user_id: string;
+      full_name: string | null;
+    }>) {
+      if (p.full_name) actorNamesById.set(p.user_id, p.full_name);
+    }
+  }
+  const events = eventRows.map((r) => ({
     id: r.id,
     name: r.action,
     actor_id: r.actor_id,
+    actor_name: r.actor_id ? actorNamesById.get(r.actor_id) ?? null : null,
     occurred_at: r.created_at,
     payload: r.metadata ?? {},
   }));
@@ -159,16 +178,20 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Health strip removed — user feedback "no need for this information".
-          Same data still surfaces on the dedicated /admin/health page and in
-          the System panel on the right column below. */}
-
-      <header>
-        <h1 className="font-display text-3xl text-text-0">Operator console</h1>
-        <p className="mt-1 text-xs text-text-3">
-          Provision tenants, audit activity, and respond to ops alerts.
-        </p>
-      </header>
+      <AdminSectionHeader
+        title="Operator console"
+        description={
+          <>
+            Provision tenants, audit activity, and respond to ops alerts.
+            Refreshed{" "}
+            <time dateTime={renderedAt} title={renderedAt}>
+              {formatTime(renderedAt)}
+            </time>
+            .
+          </>
+        }
+        actions={<RefreshButton />}
+      />
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
         {/* KPIs (left, 2/3) */}
@@ -176,13 +199,13 @@ export default async function AdminOverviewPage() {
           <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
             <Stat
               href="/admin/users"
-              icon={<Users />}
+              icon={<Users className="h-4 w-4" />}
               label="Users"
               value={userCount ?? 0}
             />
             <Stat
               href="/admin/spaces"
-              icon={<Building2 />}
+              icon={<Building2 className="h-4 w-4" />}
               label="Spaces (active)"
               value={spaceActive ?? 0}
               subtitle={
@@ -193,7 +216,7 @@ export default async function AdminOverviewPage() {
             />
             <Stat
               href="/admin/terminals"
-              icon={<Terminal />}
+              icon={<Terminal className="h-4 w-4" />}
               label="Terminals"
               value={terminalActive ?? 0}
               subtitle={
@@ -204,26 +227,26 @@ export default async function AdminOverviewPage() {
             />
             <Stat
               href="/admin/storage"
-              icon={<FileText />}
+              icon={<FileText className="h-4 w-4" />}
               label="Files"
               value={fileCount ?? 0}
             />
             <Stat
               href="/admin/tools"
-              icon={<Sparkles />}
+              icon={<Sparkles className="h-4 w-4" />}
               label="Tools"
               value={toolCount ?? 0}
             />
             <Stat
               href="/admin/invitations"
-              icon={<Mail />}
+              icon={<Mail className="h-4 w-4" />}
               label="Invites pending"
               value={pendingInvites ?? 0}
               tone={pendingInvites && pendingInvites > 0 ? "accent" : "muted"}
             />
             <Stat
               href="/approvals"
-              icon={<ShieldCheck />}
+              icon={<ShieldCheck className="h-4 w-4" />}
               label="Approvals pending"
               value={pendingApprovals ?? 0}
               tone={
@@ -232,21 +255,25 @@ export default async function AdminOverviewPage() {
             />
             <Stat
               href="/admin/storage"
-              icon={<ShieldAlert />}
+              icon={<ShieldAlert className="h-4 w-4" />}
               label="Scans pending"
               value={pendingScans ?? 0}
               tone={pendingScans && pendingScans > 0 ? "warning" : "muted"}
             />
             <Stat
               href="/admin/infected"
-              icon={<AlertTriangle />}
+              icon={<AlertTriangle className="h-4 w-4" />}
               label="Infected files"
               value={infected ?? 0}
-              tone={infected && infected > 0 ? "danger" : "muted"}
+              // Infected count is sticky-danger: any positive number
+              // stays red until cleared, even if the page just re-rendered
+              // and the cell looks "fresh". Operators never want this to
+              // wash out into a muted color.
+              tone={(infected ?? 0) > 0 ? "danger" : "muted"}
             />
             <Stat
               href="/admin/activity"
-              icon={<Zap />}
+              icon={<Zap className="h-4 w-4" />}
               label="Activity / hour"
               value={lastHourEvents ?? 0}
             />
@@ -285,34 +312,21 @@ export default async function AdminOverviewPage() {
             </div>
           </AdminPanel>
 
-          <AdminPanel title="Recent events">
-            {events.length === 0 ? (
-              <EmptyState
-                icon={Inbox}
-                title="No recent events."
-                body="Activity from across the platform shows up here as it happens."
-                className="p-6"
-              />
-            ) : (
-              <ul className="divide-y divide-border text-xs">
-                {events.map((e) => (
-                  <li key={e.id} className="flex flex-col gap-0.5 px-3 py-1.5">
-                    <span className="flex items-center gap-2">
-                      <span className="font-mono text-accent">{e.name}</span>
-                      <span className="ml-auto text-[10px] text-text-3">
-                        {relativeTime(e.occurred_at)}
-                      </span>
-                    </span>
-                    <span className="truncate text-[10px] text-text-3">
-                      {summarize(e.payload)}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </AdminPanel>
+          <RecentEventsPanel events={events} />
 
-          <AdminPanel title="System">
+          <AdminPanel
+            title={
+              <span className="flex items-center justify-between">
+                <span>System</span>
+                <Link
+                  href="/admin/health"
+                  className="font-mono text-[9px] uppercase tracking-wide text-text-3 hover:text-text-1"
+                >
+                  detail →
+                </Link>
+              </span>
+            }
+          >
             <div className="flex flex-col gap-2 p-3 text-xs">
               <div className="flex items-center gap-2">
                 <DatabaseIcon className="h-3 w-3 text-text-3" />
@@ -327,14 +341,20 @@ export default async function AdminOverviewPage() {
               <div className="flex items-center gap-2">
                 <Activity className="h-3 w-3 text-text-3" />
                 <span className="flex-1 text-text-2">Indexer</span>
-                <span className="text-[10px] text-text-3">
+                <span
+                  className="text-[10px] text-text-3"
+                  title={indexedAt ?? undefined}
+                >
                   {indexedAt ? relativeTime(indexedAt) : "idle"}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <ShieldAlert className="h-3 w-3 text-text-3" />
                 <span className="flex-1 text-text-2">Scanner</span>
-                <span className="text-[10px] text-text-3">
+                <span
+                  className="text-[10px] text-text-3"
+                  title={scannedAt ?? undefined}
+                >
                   {scannedAt ? relativeTime(scannedAt) : "idle"}
                 </span>
               </div>
@@ -346,6 +366,13 @@ export default async function AdminOverviewPage() {
   );
 }
 
+/**
+ * Stat tile with a tone-coded left border. Tone tints are deliberately
+ * stronger than they were before — the previous bg-tone-subtle/20
+ * background was so faint that warning/danger tiles looked like every
+ * other tile. The 2px tone-colored left border is the primary signal;
+ * the tinted background is secondary support.
+ */
 function Stat({
   href,
   icon,
@@ -363,21 +390,30 @@ function Stat({
 }) {
   const toneClasses: Record<string, string> = {
     muted: "border-border",
-    accent: "border-accent/40 bg-accent-subtle/20",
-    warning: "border-warning/40 bg-warning-subtle/20",
-    danger: "border-danger/40 bg-danger-subtle/20",
+    accent:
+      "border-l-2 border-l-accent border-y border-r border-border bg-accent-subtle/30",
+    warning:
+      "border-l-2 border-l-warning border-y border-r border-border bg-warning-subtle/30",
+    danger:
+      "border-l-2 border-l-danger border-y border-r border-border bg-danger-subtle/40",
+  };
+  const iconTone: Record<string, string> = {
+    muted: "text-text-3",
+    accent: "text-accent",
+    warning: "text-warning",
+    danger: "text-danger",
   };
   const content = (
     <div
-      className={`flex items-start gap-3 rounded border bg-bg-1 p-3 hover:bg-bg-2 ${
-        toneClasses[tone] ?? toneClasses.muted
-      }`}
+      className={`flex items-start gap-3 rounded ${
+        tone === "muted" ? "border" : ""
+      } bg-bg-1 p-3 hover:bg-bg-2 ${toneClasses[tone] ?? toneClasses.muted}`}
     >
-      <span className="mt-1 text-text-3" aria-hidden="true">
+      <span className={`mt-0.5 ${iconTone[tone] ?? iconTone.muted}`} aria-hidden="true">
         {icon}
       </span>
       <span className="flex flex-col">
-        <span className="font-mono text-2xl tabular-nums text-text-0">
+        <span className="font-mono text-xl tabular-nums text-text-0">
           {value.toLocaleString()}
         </span>
         <span className="text-[10px] uppercase tracking-wide text-text-3">
@@ -389,16 +425,16 @@ function Stat({
       </span>
     </div>
   );
-  return href ? <Link href={href}>{content}</Link> : content;
-}
-
-function summarize(payload: Record<string, unknown>): string {
-  if (!payload || typeof payload !== "object") return "";
-  const s = Object.entries(payload)
-    .filter(([k]) => k !== "fields")
-    .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
-    .join(" ");
-  return s.length > 100 ? s.slice(0, 100) + "…" : s;
+  return href ? (
+    <Link
+      href={href}
+      className="rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+    >
+      {content}
+    </Link>
+  ) : (
+    content
+  );
 }
 
 function relativeTime(iso: string): string {
@@ -410,4 +446,15 @@ function relativeTime(iso: string): string {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.round(hrs / 24);
   return `${days}d ago`;
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso)
+    .toLocaleTimeString(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+    .toLowerCase()
+    .replace(/\s/g, "");
 }
