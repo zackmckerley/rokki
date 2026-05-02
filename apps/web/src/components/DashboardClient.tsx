@@ -99,6 +99,16 @@ export function DashboardClient({
           <TopBar>
             <span className="text-text-3">/</span>
             <span className="text-text-1">{greeting(userName)}</span>
+            {/* Subtle Cmd+K hint — replaces nothing, just adds a
+                discoverable shortcut for power users. The palette
+                itself is wired up in <CommandPalette> and triggered
+                by the global keydown handler. */}
+            <span className="ml-auto hidden items-center gap-1 text-[10px] text-text-3 sm:flex">
+              <kbd className="rounded-sm border border-border bg-bg-2 px-1 font-mono text-text-2">
+                ⌘K
+              </kbd>
+              <span>to search</span>
+            </span>
           </TopBar>
         }
         ticker={<TickerTape items={tickerItems} />}

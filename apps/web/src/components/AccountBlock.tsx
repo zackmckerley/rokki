@@ -197,7 +197,12 @@ export function AccountBlock({
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-1.5">
-            <span className="block truncate text-xs text-text-0">{name}</span>
+            <span
+              className="block truncate text-xs text-text-0"
+              title={name}
+            >
+              {name}
+            </span>
             {isPlatformAdmin ? (
               <ShieldCheck
                 className="h-3 w-3 flex-shrink-0 text-accent"
@@ -205,7 +210,10 @@ export function AccountBlock({
               />
             ) : null}
           </span>
-          <span className="block truncate font-mono text-[10px] text-text-3">
+          <span
+            className="block truncate font-mono text-[10px] text-text-3"
+            title={email}
+          >
             {email}
           </span>
         </span>
