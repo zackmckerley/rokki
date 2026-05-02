@@ -134,3 +134,39 @@ export async function fetchProfileEmail(
   };
   return body.email ?? body.mail ?? body.userPrincipalName ?? "unknown";
 }
+
+/**
+ * Pull the user's email from an OIDC id_token.
+ *
+ * Both Google and Microsoft return id_tokens alongside access tokens
+ * when `openid email profile` are in the requested scopes (which we
+ * always request). The id_token is a JWT — we don't need to verify the
+ * signature here because we just received it directly from the token
+ * endpoint over TLS, so the issuer chain is implicit. We only ever use
+ * the email claim for display, not for authorization.
+ *
+ * Microsoft puts the email in different claims depending on the
+ * account type: work/school accounts use `preferred_username` (which is
+ * the UPN, almost always an email), personal MSA accounts use `email`.
+ * Google uses `email`.
+ */
+export function emailFromIdToken(idToken: string): string | null {
+  const parts = idToken.split(".");
+  if (parts.length < 2) return null;
+  try {
+    const payloadJson = Buffer.from(parts[1], "base64url").toString("utf8");
+    const payload = JSON.parse(payloadJson) as {
+      email?: string;
+      preferred_username?: string;
+      upn?: string;
+    };
+    const candidate =
+      payload.email ?? payload.preferred_username ?? payload.upn ?? null;
+    // Sanity-check: only return strings that look like emails. UPNs in
+    // some tenants aren't email-shaped (rare, but cheap to guard).
+    if (candidate && /.+@.+\..+/.test(candidate)) return candidate;
+    return null;
+  } catch {
+    return null;
+  }
+}

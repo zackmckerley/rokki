@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import {
+  emailFromIdToken,
   exchangeCode,
   fetchProfileEmail,
   providerConfig,
@@ -71,12 +72,22 @@ export async function GET(request: NextRequest, { params }: Props) {
     return settings("error", "token_exchange_failed");
   }
 
-  let email: string;
-  try {
-    email = await fetchProfileEmail(config, tokens.access_token);
-  } catch (e) {
-    console.error("[calendar] profile fetch failed:", e);
-    email = "(unknown)";
+  // Prefer the id_token claim — it's returned alongside the access
+  // token by both Google and Microsoft when `openid email profile`
+  // scopes are requested, and avoids an extra network call. Falls back
+  // to the provider's profile endpoint if no id_token was returned or
+  // the claim was missing/malformed.
+  let email: string | null = null;
+  if (tokens.id_token) {
+    email = emailFromIdToken(tokens.id_token);
+  }
+  if (!email) {
+    try {
+      email = await fetchProfileEmail(config, tokens.access_token);
+    } catch (e) {
+      console.error("[calendar] profile fetch failed:", e);
+      email = "(unknown)";
+    }
   }
 
   const accessEnc = encryptToken(tokens.access_token);

@@ -61,6 +61,7 @@ export async function updateSession(request: NextRequest) {
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/api/v1/auth/") ||
     pathname.startsWith("/api/v1/health") ||
+    pathname.startsWith("/api/v1/cron/") ||
     pathname.startsWith("/api/v1/share/") ||
     pathname.startsWith("/r/") ||
     pathname === "/help" ||
