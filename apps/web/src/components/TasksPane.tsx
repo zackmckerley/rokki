@@ -35,8 +35,23 @@ interface Task {
   priority: number;
   due_date: string | null;
   labels: string[];
+  /**
+   * Sparse-integer manual-sort position. May be null for legacy rows
+   * created before the column existed; the GET endpoint coerces NULLs
+   * to the end of the list when sorting by position.
+   */
+  position: number | null;
+  /** Subtask aggregate from the list endpoint — count without fetch. */
+  subtask_total?: number;
+  subtask_done?: number;
   created_at: string;
   completed_at: string | null;
+}
+
+type SortMode = "auto" | "manual";
+
+function sortStorageKey(projectId: string): string {
+  return `rokki_tasks_sort:${projectId}`;
 }
 
 interface TasksPaneProps {
@@ -69,6 +84,34 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   const [creating, setCreating] = useState(false);
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
+  const [sortMode, setSortMode] = useState<SortMode>("auto");
+  /**
+   * The id of the row currently being dragged (in Manual mode). Used
+   * to skip drop highlighting on the source row and to look up its
+   * neighbours when computing the new sparse position on drop.
+   */
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+
+  // Hydrate the per-project sort preference from localStorage on mount.
+  // Per-project so a user can keep "Manual" on one terminal and "Auto"
+  // on another without having to remember which is which.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(sortStorageKey(projectId));
+      if (saved === "manual" || saved === "auto") setSortMode(saved);
+    } catch {
+      /* ignore */
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(sortStorageKey(projectId), sortMode);
+    } catch {
+      /* ignore */
+    }
+  }, [projectId, sortMode]);
 
   // Subtasks: lazily-loaded per parent. `null` = not yet fetched,
   // `[]` = fetched and empty. The expand toggle drives both
@@ -120,10 +163,16 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const r = await fetch(`/api/v1/projects/${ticker}/tasks`, {
-        credentials: "include",
-      });
-      const body = (await r.json()) as { data?: Task[]; errors?: { message: string }[] };
+      const url = new URL(
+        `/api/v1/projects/${ticker}/tasks`,
+        window.location.origin,
+      );
+      if (sortMode === "manual") url.searchParams.set("sort", "position");
+      const r = await fetch(url.toString(), { credentials: "include" });
+      const body = (await r.json()) as {
+        data?: Task[];
+        errors?: { message: string }[];
+      };
       if (!r.ok) {
         setError(body.errors?.[0]?.message ?? "Failed to load tasks");
         return;
@@ -135,7 +184,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     } finally {
       setLoading(false);
     }
-  }, [ticker]);
+  }, [ticker, sortMode]);
 
   useEffect(() => {
     void load();
@@ -218,11 +267,16 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     {
       onInsert: (row) =>
         setTasks((prev) =>
-          prev.some((t) => t.id === row.id) ? prev : sortTasks([row, ...prev]),
+          prev.some((t) => t.id === row.id)
+            ? prev
+            : sortTasks([row, ...prev], sortMode),
         ),
       onUpdate: (row) =>
         setTasks((prev) =>
-          sortTasks(prev.map((t) => (t.id === row.id ? { ...t, ...row } : t))),
+          sortTasks(
+            prev.map((t) => (t.id === row.id ? { ...t, ...row } : t)),
+            sortMode,
+          ),
         ),
       onDelete: (row) =>
         setTasks((prev) => prev.filter((t) => t.id !== row.id)),
@@ -267,6 +321,70 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tasks, selectedIdx]);
+
+  /**
+   * Handle a row drop in Manual mode. We compute a sparse-integer
+   * position halfway between the destination's neighbour and the
+   * destination itself — same trick the subtask reorder uses
+   * (`(prev + next) / 2`). PATCH the new position, optimistic-update
+   * the local list, and let the realtime channel reconcile.
+   */
+  async function handleRowDrop(targetId: string, sourceId: string) {
+    if (targetId === sourceId) return;
+    const idxs = new Map(tasks.map((t, i) => [t.id, i]));
+    const fromIdx = idxs.get(sourceId);
+    const toIdx = idxs.get(targetId);
+    if (fromIdx === undefined || toIdx === undefined) return;
+
+    // Build the new visual order so we can pick neighbours from it,
+    // not from the unmoved list.
+    const next = [...tasks];
+    const [moved] = next.splice(fromIdx, 1);
+    // Inserting after `toIdx`: drop AT the target's position when the
+    // user dragged downward, BEFORE the target when dragging upward.
+    // Visual convention: dropping ON a row places the source ABOVE
+    // it (matches the way the highlight reads as "I'm landing here").
+    const insertAt = fromIdx < toIdx ? toIdx : toIdx;
+    next.splice(insertAt, 0, moved);
+
+    const movedIdx = next.findIndex((t) => t.id === sourceId);
+    const before = movedIdx > 0 ? next[movedIdx - 1].position : null;
+    const after =
+      movedIdx < next.length - 1 ? next[movedIdx + 1].position : null;
+
+    let newPos: number;
+    if (before == null && after == null) {
+      newPos = 1000;
+    } else if (before == null && after != null) {
+      newPos = after - 1000;
+    } else if (after == null && before != null) {
+      newPos = before + 1000;
+    } else {
+      newPos = ((before as number) + (after as number)) / 2;
+    }
+
+    // Optimistic — apply the new order locally with the new position
+    // baked in. Mismatch on the network is reconciled by `load()`.
+    setTasks(
+      next.map((t) => (t.id === sourceId ? { ...t, position: newPos } : t)),
+    );
+
+    try {
+      const r = await fetch(`/api/v1/tasks/${sourceId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ position: newPos }),
+      });
+      if (!r.ok) {
+        setError(`Reorder failed (HTTP ${r.status})`);
+        await load();
+      }
+    } catch {
+      setError("Network error during reorder");
+      await load();
+    }
+  }
 
   async function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "done" ? "todo" : "done";
@@ -349,6 +467,45 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
           <span className="font-mono text-xs text-text-3">{tasks.length}</span>
+          {/* Sort toggle. "Auto" is the natural triage order
+              (incomplete first, then priority, due, created).
+              "Manual" loads `?sort=position` so drag-to-reorder
+              writes back to the position column. The current mode
+              persists per-project in localStorage. */}
+          <span
+            role="tablist"
+            aria-label="Task sort order"
+            className="flex items-center gap-0 overflow-hidden rounded-sm border border-border text-[10px]"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sortMode === "auto"}
+              onClick={() => setSortMode("auto")}
+              className={cn(
+                "px-2 py-0.5 font-mono uppercase tracking-wide",
+                sortMode === "auto"
+                  ? "bg-bg-3 text-text-0"
+                  : "text-text-3 hover:bg-bg-2 hover:text-text-1",
+              )}
+            >
+              Auto
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sortMode === "manual"}
+              onClick={() => setSortMode("manual")}
+              className={cn(
+                "px-2 py-0.5 font-mono uppercase tracking-wide",
+                sortMode === "manual"
+                  ? "bg-bg-3 text-text-0"
+                  : "text-text-3 hover:bg-bg-2 hover:text-text-1",
+              )}
+            >
+              Manual
+            </button>
+          </span>
         </div>
         <button
           onClick={() => setCreating(true)}
@@ -373,13 +530,71 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           <ul className="divide-y divide-border">
             {tasks.map((t, i) => {
               const expanded = expandedTaskIds.has(t.id);
+              const draggable = sortMode === "manual";
+              const isDragOver = dragOverId === t.id && dragId !== t.id;
               return (
-                <li key={t.id}>
+                <li
+                  key={t.id}
+                  draggable={draggable}
+                  onDragStart={
+                    draggable
+                      ? (e) => {
+                          e.dataTransfer.effectAllowed = "move";
+                          e.dataTransfer.setData("text/plain", t.id);
+                          setDragId(t.id);
+                        }
+                      : undefined
+                  }
+                  onDragOver={
+                    draggable
+                      ? (e) => {
+                          if (!dragId || dragId === t.id) return;
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "move";
+                          if (dragOverId !== t.id) setDragOverId(t.id);
+                        }
+                      : undefined
+                  }
+                  onDragLeave={
+                    draggable
+                      ? () => {
+                          if (dragOverId === t.id) setDragOverId(null);
+                        }
+                      : undefined
+                  }
+                  onDrop={
+                    draggable
+                      ? (e) => {
+                          e.preventDefault();
+                          const sourceId =
+                            e.dataTransfer.getData("text/plain") || dragId;
+                          setDragOverId(null);
+                          setDragId(null);
+                          if (sourceId)
+                            void handleRowDrop(t.id, sourceId);
+                        }
+                      : undefined
+                  }
+                  onDragEnd={
+                    draggable
+                      ? () => {
+                          setDragId(null);
+                          setDragOverId(null);
+                        }
+                      : undefined
+                  }
+                  className={cn(
+                    isDragOver &&
+                      "outline outline-2 -outline-offset-2 outline-accent",
+                    dragId === t.id && "opacity-50",
+                  )}
+                >
                   <TaskRow
                     task={t}
                     ticker={ticker}
                     selected={i === selectedIdx}
                     expanded={expanded}
+                    draggable={draggable}
                     onClick={() => setSelectedIdx(i)}
                     onToggle={() => toggleComplete(t)}
                     onOpenComments={() =>
@@ -438,6 +653,7 @@ function TaskRow({
   ticker,
   selected,
   expanded,
+  draggable,
   onClick,
   onToggle,
   onOpenComments,
@@ -447,12 +663,15 @@ function TaskRow({
   ticker: string;
   selected: boolean;
   expanded: boolean;
+  draggable: boolean;
   onClick: () => void;
   onToggle: () => void;
   onOpenComments: () => void;
   onToggleExpand: () => void;
 }) {
   const done = task.status === "done";
+  const subtaskTotal = task.subtask_total ?? 0;
+  const subtaskDone = task.subtask_done ?? 0;
 
   return (
     <div
@@ -463,6 +682,25 @@ function TaskRow({
         selected && "border-l-2 border-l-border-focus pl-[6px]",
       )}
     >
+      {/* Drag handle. Only rendered when the parent is in Manual sort
+          mode (the actual draggable attribute is on the <li>); the
+          handle is a hint that the row CAN be dragged. */}
+      {draggable ? (
+        <span
+          aria-hidden="true"
+          title="Drag to reorder"
+          className="flex h-4 w-3 flex-shrink-0 cursor-grab items-center justify-center text-text-3 group-hover:text-text-1 active:cursor-grabbing"
+        >
+          <span className="grid h-3 w-1.5 grid-cols-2 grid-rows-3 gap-[1px]">
+            {[0, 1, 2, 3, 4, 5].map((n) => (
+              <span
+                key={n}
+                className="block h-[2px] w-[2px] rounded-full bg-current"
+              />
+            ))}
+          </span>
+        </span>
+      ) : null}
       <button
         type="button"
         onClick={(e) => {
@@ -502,6 +740,17 @@ function TaskRow({
       >
         {task.title}
       </span>
+      {/* Subtask roll-up — surfaces the count without expanding. The
+          list endpoint already returns subtask_total/subtask_done
+          aggregates, so this is free. */}
+      {subtaskTotal > 0 ? (
+        <span
+          className="flex-shrink-0 rounded-sm bg-bg-3 px-1 font-mono text-[10px] text-text-2"
+          title={`${subtaskDone} of ${subtaskTotal} subtasks done`}
+        >
+          {subtaskDone}/{subtaskTotal}
+        </span>
+      ) : null}
       <Link
         href={`/p/${ticker}/task/${task.ticker_seq}`}
         onClick={(e) => e.stopPropagation()}
@@ -559,11 +808,24 @@ function Empty({ onCreate }: { onCreate: () => void }) {
 }
 
 /**
- * Stable sort mirroring the server's ORDER BY (status → priority → due →
- * created). Realtime inserts can arrive in any order; sorting client-side
- * keeps the visible list stable.
+ * Stable sort mirroring the server's ORDER BY. In "auto" mode this is
+ * status → priority → due → created (matches the GET endpoint). In
+ * "manual" mode it sorts by `position ASC` with NULL positions last
+ * (newly-created rows haven't picked up a position yet) — matches
+ * the server's `?sort=position` order.
+ *
+ * Realtime inserts/updates arrive out of order; running the same
+ * comparison the server uses keeps the visible list deterministic.
  */
-function sortTasks(tasks: Task[]): Task[] {
+function sortTasks(tasks: Task[], mode: SortMode = "auto"): Task[] {
+  if (mode === "manual") {
+    return [...tasks].sort((a, b) => {
+      const ap = a.position ?? Number.POSITIVE_INFINITY;
+      const bp = b.position ?? Number.POSITIVE_INFINITY;
+      if (ap !== bp) return ap - bp;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }
   const rank: Record<TaskStatus, number> = {
     todo: 0,
     in_progress: 1,

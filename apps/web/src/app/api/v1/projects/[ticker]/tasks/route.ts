@@ -29,6 +29,18 @@ async function handleGet(request: NextRequest, { params }: Props) {
 
   const url = new URL(request.url);
   const status = url.searchParams.get("status") as TaskStatus | null;
+  /**
+   * Sort modes:
+   *   - "auto" (default): the natural triage order — incomplete first
+   *     (completed_at NULLs first), then priority asc, due_date asc,
+   *     created_at desc.
+   *   - "position": the user-controlled drag-to-reorder order. Falls
+   *     back to created_at as a tiebreaker for rows whose `position`
+   *     is still NULL (legacy or freshly inserted before the
+   *     trigger backfilled).
+   */
+  const sortMode =
+    url.searchParams.get("sort") === "position" ? "position" : "auto";
 
   let query = supabase
     .from("tasks")
@@ -39,11 +51,19 @@ async function handleGet(request: NextRequest, { params }: Props) {
 
   if (status) query = query.eq("status", status);
 
-  const { data: taskRows, error } = await query
-    .order("completed_at", { ascending: true, nullsFirst: true })
-    .order("priority", { ascending: true })
-    .order("due_date", { ascending: true, nullsFirst: false })
-    .order("created_at", { ascending: false });
+  if (sortMode === "position") {
+    query = query
+      .order("position", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+  } else {
+    query = query
+      .order("completed_at", { ascending: true, nullsFirst: true })
+      .order("priority", { ascending: true })
+      .order("due_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false });
+  }
+
+  const { data: taskRows, error } = await query;
 
   if (error) return internal(error.message);
 
