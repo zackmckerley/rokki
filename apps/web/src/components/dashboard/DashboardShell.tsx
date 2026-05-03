@@ -81,7 +81,7 @@ export function DashboardShell({
         <div className="hidden lg:block">
           <ResizeHandle
             ariaLabel="Resize explorer"
-            onPointerDown={(e) =>
+            onMouseDown={(e) =>
               leftRail.startDrag(e, { side: "before" })
             }
           />
@@ -100,7 +100,7 @@ export function DashboardShell({
         <div className="hidden lg:block">
           <ResizeHandle
             ariaLabel="Resize messages"
-            onPointerDown={(e) =>
+            onMouseDown={(e) =>
               rightRail.startDrag(e, { side: "after" })
             }
           />

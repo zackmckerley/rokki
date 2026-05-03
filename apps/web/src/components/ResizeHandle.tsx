@@ -71,10 +71,17 @@ export function useResizable({
    *
    * For vertical resizers (top/bottom panels) use `axis="y"`; the
    * deltas are read from clientY instead of clientX.
+   *
+   * Uses mouse events (not pointer events) on purpose. Some
+   * automated browser-control surfaces (Chrome's CDP, the in-app
+   * driver) dispatch only `mousedown/mousemove/mouseup` and skip
+   * the pointer-event family — every real user gets both, but
+   * standardising on mouse means the handle stays drivable from
+   * scripts and tests too.
    */
   const startDrag = useCallback(
     (
-      e: React.PointerEvent,
+      e: React.MouseEvent,
       opts: { side: "before" | "after"; axis?: "x" | "y" } = {
         side: "before",
         axis: "x",
@@ -85,7 +92,7 @@ export function useResizable({
       const startCoord = axis === "x" ? e.clientX : e.clientY;
       const startSize = size;
 
-      const onMove = (ev: PointerEvent) => {
+      const onMove = (ev: MouseEvent) => {
         const cur = axis === "x" ? ev.clientX : ev.clientY;
         const delta = cur - startCoord;
         const next =
@@ -93,15 +100,13 @@ export function useResizable({
         setSize(Math.min(max, Math.max(min, next)));
       };
       const onUp = () => {
-        window.removeEventListener("pointermove", onMove);
-        window.removeEventListener("pointerup", onUp);
-        window.removeEventListener("pointercancel", onUp);
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
         document.body.style.cursor = "";
         document.body.style.userSelect = "";
       };
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
-      window.addEventListener("pointercancel", onUp);
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
       // Dim everything else and lock the cursor while dragging so the
       // user gets unambiguous "I am resizing" feedback even if the
       // mouse leaves the handle.
@@ -123,8 +128,8 @@ interface ResizeHandleProps {
    *                     (drag vertically to resize)
    */
   orientation?: "vertical" | "horizontal";
-  /** Pointer-down handler. Wire to `useResizable().startDrag`. */
-  onPointerDown: (e: React.PointerEvent) => void;
+  /** Mouse-down handler. Wire to `useResizable().startDrag`. */
+  onMouseDown: (e: React.MouseEvent) => void;
   /** Optional aria-label override. */
   ariaLabel?: string;
   className?: string;
@@ -149,7 +154,7 @@ interface ResizeHandleProps {
  */
 export function ResizeHandle({
   orientation = "vertical",
-  onPointerDown,
+  onMouseDown,
   ariaLabel,
   className,
 }: ResizeHandleProps) {
@@ -158,7 +163,7 @@ export function ResizeHandle({
       role="separator"
       aria-orientation={orientation}
       aria-label={ariaLabel ?? "Resize"}
-      onPointerDown={onPointerDown}
+      onMouseDown={onMouseDown}
       className={cn(
         "group relative flex-shrink-0 transition-colors",
         orientation === "vertical"
