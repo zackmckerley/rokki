@@ -19,7 +19,11 @@
 //
 // Cache version bumps on schema changes. Bump CACHE_VERSION to invalidate.
 
-const CACHE_VERSION = "v2";
+// Bumped to v3 (2026-05-03) to invalidate v2 page caches that were
+// serving stale Next.js RSC payloads from cacheFirstWithRefresh, which
+// silently broke client-side navigation inside the terminal layout.
+// See the RSC short-circuit below.
+const CACHE_VERSION = "v3";
 const SHELL_CACHE = `rokki-shell-${CACHE_VERSION}`;
 const API_CACHE = "rokki-api-v1";
 const PAGES_CACHE = `rokki-pages-${CACHE_VERSION}`;
@@ -81,6 +85,28 @@ self.addEventListener("fetch", (event) => {
   // Anything that asks not to be cached, isn't.
   if (req.headers.get("cache-control") === "no-store") return;
 
+  // Next.js App Router — RSC payload requests for client-side
+  // navigation MUST go straight to the network. They're GETs to page
+  // URLs (looks like a normal page hit at the URL level) but carry an
+  // `RSC: 1` header and `accept: text/x-component`. If the SW caches
+  // them, the router receives stale tree fragments and silently
+  // refuses to navigate — including to URLs you've never visited.
+  // Symptom: clicks on Links do nothing.
+  //
+  // Bail on any of:
+  //   - explicit RSC header
+  //   - text/x-component accept
+  //   - server-action POSTs (already excluded above by method != GET,
+  //     but listed here for completeness)
+  const accept = req.headers.get("accept") ?? "";
+  if (
+    req.headers.get("RSC") === "1" ||
+    req.headers.get("Next-Router-State-Tree") ||
+    accept.includes("text/x-component")
+  ) {
+    return;
+  }
+
   if (url.pathname.startsWith("/api/v1/")) {
     event.respondWith(staleWhileRevalidateApi(req));
     return;
@@ -91,11 +117,9 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Page navigations: network-first with cache fallback. Detect both real
-  // navigations (`mode === "navigate"`) and HTML accept headers — Next.js
-  // sometimes prefetches RSC payloads with the same accept that aren't
-  // navigations themselves; those go through staleWhileRevalidate below.
-  const accept = req.headers.get("accept") ?? "";
+  // Page navigations: network-first with cache fallback. RSC requests
+  // already short-circuited above; this branch only handles real
+  // browser-initiated navigations and html document fetches.
   if (req.mode === "navigate" || accept.includes("text/html")) {
     event.respondWith(networkFirstPage(req));
     return;
