@@ -29,7 +29,11 @@ if (dsn) {
   });
 }
 
-// Required by @sentry/nextjs to instrument client-side navigation
-// transitions. Without this the browser SDK can't link route changes
-// to error events.
-export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+// DIAGNOSTIC: temporarily NOT exporting Sentry.captureRouterTransitionStart
+// to test whether it's the cause of router.push silently no-op'ing on
+// terminal pages. If router.push works after this deploys, Sentry's
+// transition-start hook is interfering with Next.js's App Router
+// transition queue and we need to either upgrade @sentry/nextjs, drop
+// the hook permanently, or wrap it. Re-add once confirmed.
+//
+// export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
