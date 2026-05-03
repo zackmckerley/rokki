@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { MobileTabBar } from "./MobileTabBar";
+import { ResizeHandle, useResizable } from "@/components/ResizeHandle";
 
 /**
  * Three-rail dashboard shell, responsive.
@@ -33,6 +34,10 @@ import { MobileTabBar } from "./MobileTabBar";
  * tree, tools, account) are reachable through the tab bar and command
  * palette. The right rail (messages) is appended under the center on
  * mobile so nothing is lost.
+ *
+ * Both rails are user-resizable on desktop via the thin `ResizeHandle`
+ * thumbs that flank the center column. Sizes persist in localStorage
+ * so a user's preferred ratio sticks across reloads.
  */
 export function DashboardShell({
   topBar,
@@ -47,6 +52,18 @@ export function DashboardShell({
   center: ReactNode;
   right: ReactNode;
 }) {
+  const leftRail = useResizable({
+    storageKey: "rokki:dash-left-width",
+    defaultSize: 260,
+    min: 200,
+    max: 480,
+  });
+  const rightRail = useResizable({
+    storageKey: "rokki:dash-right-width",
+    defaultSize: 320,
+    min: 240,
+    max: 560,
+  });
   return (
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg-0">
       {/* Skip link is now in the root layout (app/layout.tsx) so every page
@@ -56,10 +73,19 @@ export function DashboardShell({
       <div className="flex flex-1 min-h-0 flex-col overflow-hidden lg:flex-row">
         <aside
           aria-label="Explorer"
-          className="hidden flex-shrink-0 border-r border-border lg:flex lg:w-[260px] lg:flex-col"
+          style={{ width: leftRail.size }}
+          className="hidden flex-shrink-0 border-r border-border lg:flex lg:flex-col"
         >
           {left}
         </aside>
+        <div className="hidden lg:block">
+          <ResizeHandle
+            ariaLabel="Resize explorer"
+            onPointerDown={(e) =>
+              leftRail.startDrag(e, { side: "before" })
+            }
+          />
+        </div>
         <main
           id="main-content"
           tabIndex={-1}
@@ -71,9 +97,18 @@ export function DashboardShell({
             {right}
           </div>
         </main>
+        <div className="hidden lg:block">
+          <ResizeHandle
+            ariaLabel="Resize messages"
+            onPointerDown={(e) =>
+              rightRail.startDrag(e, { side: "after" })
+            }
+          />
+        </div>
         <aside
           aria-label="Messages"
-          className="hidden flex-shrink-0 border-l border-border lg:flex lg:w-[320px] lg:flex-col"
+          style={{ width: rightRail.size }}
+          className="hidden flex-shrink-0 border-l border-border lg:flex lg:flex-col"
         >
           {right}
         </aside>
