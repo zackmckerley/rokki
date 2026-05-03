@@ -104,14 +104,19 @@ export function ClickProbe() {
           console.warn("[ClickProbe] anchor click without navigation:", ev);
         }
         // POST to the diagnostic sink AFTER the 250ms verdict so the
-        // recorded event includes both the click context (target,
-        // anchor href, defaultPrevented) and whether navigation
-        // actually succeeded. Single POST per click, no spam.
+        // recorded event includes both the click context AND the
+        // service-worker / router state at click time. Helps us tell
+        // "old SW still controlling page" apart from "Next router
+        // itself broken".
+        const swInfo = swSnapshot();
         try {
           void fetch("/api/v1/health/click-log", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ url: ev.urlBefore, payload: ev }),
+            body: JSON.stringify({
+              url: ev.urlBefore,
+              payload: { ...ev, sw: swInfo, ua: navigator.userAgent },
+            }),
             keepalive: true,
           });
         } catch {
@@ -243,5 +248,25 @@ function shortUrl(u: string): string {
     return parsed.pathname + parsed.search;
   } catch {
     return u.slice(0, 40);
+  }
+}
+
+function swSnapshot(): Record<string, unknown> {
+  try {
+    if (!("serviceWorker" in navigator)) {
+      return { available: false };
+    }
+    const controller = navigator.serviceWorker.controller;
+    return {
+      available: true,
+      hasController: !!controller,
+      controllerState: controller?.state ?? null,
+      controllerScriptUrl: controller?.scriptURL ?? null,
+    };
+  } catch (e) {
+    return {
+      available: true,
+      error: e instanceof Error ? e.message : String(e),
+    };
   }
 }
