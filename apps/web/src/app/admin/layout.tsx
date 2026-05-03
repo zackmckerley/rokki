@@ -28,6 +28,7 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 import { AccountBlock } from "@/components/AccountBlock";
 import { AdminBackLink } from "./AdminBackLink";
+import { DensityProvider, type Density } from "@/lib/density";
 
 /**
  * Platform admin shell.
@@ -50,12 +51,16 @@ export default async function AdminLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("full_name, is_platform_admin")
+    .select("full_name, is_platform_admin, settings")
     .eq("user_id", user.id)
     .maybeSingle();
 
   const typedProfile = profile as
-    | { full_name?: string | null; is_platform_admin?: boolean }
+    | {
+        full_name?: string | null;
+        is_platform_admin?: boolean;
+        settings?: { density?: string } | null;
+      }
     | null;
 
   if (!typedProfile?.is_platform_admin) {
@@ -64,8 +69,11 @@ export default async function AdminLayout({
 
   const accountName = typedProfile.full_name?.trim() || user.email || "Admin";
   const accountEmail = user.email ?? "";
+  const initialDensity: Density =
+    typedProfile.settings?.density === "compact" ? "compact" : "cozy";
 
   return (
+    <DensityProvider initial={initialDensity}>
     <div className="flex min-h-screen flex-col bg-bg-0">
       <TopBar>
         <AdminBackLink />
@@ -242,6 +250,7 @@ export default async function AdminLayout({
         </main>
       </div>
     </div>
+    </DensityProvider>
   );
 }
 
