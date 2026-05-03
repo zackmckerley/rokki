@@ -1,14 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, Circle, MessageSquare, Maximize2, ListTodo } from "lucide-react";
+import { Plus, Check, MessageSquare, Maximize2, ListTodo } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./EmptyState";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { CommentThread } from "./CommentThread";
+import { TaskComposer, type TaskComposerMember } from "./TaskComposer";
 import {
   PriorityDots,
   StatusPill,
@@ -57,11 +58,8 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   const [error, setError] = useState<string | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [creating, setCreating] = useState(false);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
-  const createRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -175,10 +173,6 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     },
   );
 
-  useEffect(() => {
-    if (creating) createRef.current?.focus();
-  }, [creating]);
-
   // Keyboard shortcuts (scoped — only fire when focus isn't in an input)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -247,37 +241,47 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
     }
   }
 
-  async function createTask(e?: React.FormEvent) {
-    e?.preventDefault();
-    if (!draftTitle.trim() || submitting) return;
-    setSubmitting(true);
-    try {
-      const r = await offlineFetch(`/api/v1/projects/${ticker}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: draftTitle.trim() }),
-        label: `Create task: ${draftTitle.trim()}`,
-      });
-      if (!r.ok && r.status !== 202) {
-        const body = (await r.json().catch(() => ({}))) as {
-          errors?: { message: string }[];
-        };
-        setError(body.errors?.[0]?.message ?? "Failed to create");
-        return;
-      }
-      setDraftTitle("");
-      // Queued mutations won't appear in the list until they sync; the
-      // realtime channel handles the post-sync insert. Reload only when
-      // the request actually landed.
-      if (r.status !== 202) await load();
-    } finally {
-      setSubmitting(false);
+  /**
+   * POST a fully-formed task (title + chips) to the project's tasks
+   * endpoint. The TaskComposer hands us the structured payload; we
+   * just translate it into the API's body shape and reload on
+   * success. Throws on failure so the composer can surface the error
+   * inline.
+   */
+  async function createTask(input: {
+    title: string;
+    priority: number;
+    due_date: string | null;
+    labels: string[];
+    assignee_ids: string[];
+  }) {
+    const r = await offlineFetch(`/api/v1/projects/${ticker}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: input.title,
+        priority: input.priority,
+        due_date: input.due_date,
+        labels: input.labels,
+        assignee_ids:
+          input.assignee_ids.length > 0 ? input.assignee_ids : undefined,
+      }),
+      label: `Create task: ${input.title}`,
+    });
+    if (!r.ok && r.status !== 202) {
+      const body = (await r.json().catch(() => ({}))) as {
+        errors?: { message: string }[];
+      };
+      throw new Error(
+        body.errors?.[0]?.message ?? `Failed to create (HTTP ${r.status})`,
+      );
     }
+    setCreating(false);
+    if (r.status !== 202) await load();
   }
 
   function cancelCreate() {
     setCreating(false);
-    setDraftTitle("");
   }
 
   const commentTask = tasks.find((t) => t.id === commentTaskId) ?? null;
@@ -328,31 +332,12 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
         )}
 
         {creating ? (
-          <form onSubmit={createTask} className="flex items-center gap-3 border-t border-border bg-bg-1 px-4 py-2.5">
-            <Circle className="h-3.5 w-3.5 flex-shrink-0 text-text-3" aria-hidden="true" />
-            <input
-              ref={createRef}
-              value={draftTitle}
-              onChange={(e) => setDraftTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  e.preventDefault();
-                  cancelCreate();
-                }
-              }}
-              placeholder="New task… Enter to save, Esc to cancel"
-              aria-label="New task title"
-              className="flex-1 bg-transparent text-sm text-text-0 placeholder:text-text-3 outline-none"
-              disabled={submitting}
-            />
-            <button
-              type="button"
-              onClick={cancelCreate}
-              className="text-xs text-text-3 hover:text-text-1"
-            >
-              Esc
-            </button>
-          </form>
+          <TaskComposer
+            members={mentionables as TaskComposerMember[]}
+            onSubmit={createTask}
+            onCancel={cancelCreate}
+            submitLabel="Create"
+          />
         ) : null}
       </div>
       </div>

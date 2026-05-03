@@ -1,0 +1,574 @@
+"use client";
+
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
+import {
+  AlertCircle,
+  Calendar,
+  Circle,
+  Flag,
+  Tag,
+  UserPlus,
+  X,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import {
+  formatDueLabel,
+  parseDueDate,
+} from "@/lib/parse-due-date";
+
+export interface TaskComposerMember {
+  user_id: string;
+  full_name: string | null;
+}
+
+export interface TaskComposerSubmit {
+  title: string;
+  priority: number;
+  due_date: string | null;
+  labels: string[];
+  assignee_ids: string[];
+}
+
+interface TaskComposerProps {
+  /** Members available for assignee selection. Empty = no picker. */
+  members?: TaskComposerMember[];
+  /** Pre-fill the priority chip. Defaults to 3 (the API default). */
+  initialPriority?: number;
+  /** Pre-fill assignees. */
+  initialAssigneeIds?: string[];
+  /** Pre-fill labels. */
+  initialLabels?: string[];
+  /**
+   * Render variant. `inline` uses a tight horizontal layout suited to
+   * the task list itself; `dialog` uses a roomier vertical layout.
+   */
+  variant?: "inline" | "dialog";
+  /** Auto-focus the title input on mount. Default true. */
+  autoFocus?: boolean;
+  /** Optional placeholder for the title input. */
+  placeholder?: string;
+  /** Async submit handler. Throws to surface an error in the composer. */
+  onSubmit: (input: TaskComposerSubmit) => Promise<void>;
+  /** Cancel handler — closes the composer / clears the dialog. */
+  onCancel?: () => void;
+  /**
+   * Optional extra slot rendered between the chips and the action
+   * buttons. The dashboard quick-create uses this for the terminal
+   * picker, which has no equivalent in the inline variant.
+   */
+  prefixSlot?: React.ReactNode;
+  /**
+   * Disable submission — useful when the prefix slot has a required
+   * value that hasn't been filled yet (e.g. terminal not picked).
+   */
+  submitDisabled?: boolean;
+  /** Custom label for the submit button. Defaults to "Create". */
+  submitLabel?: string;
+}
+
+/**
+ * Reusable rich task composer.
+ *
+ * Renders a single-line title input plus four chips — priority, due
+ * date, assignees, labels — that can be edited inline without leaving
+ * the composer. Submitting the form posts a single `TaskComposerSubmit`
+ * to `onSubmit`; the parent decides which terminal it lands in.
+ *
+ * Used in two places (so far):
+ *   - `TasksPane` inline composer (replaces the title-only form)
+ *   - `QuickTaskDialog` dashboard pop-up (with a prefixSlot for the
+ *     terminal picker)
+ *
+ * Keyboard:
+ *   - Enter — submit
+ *   - Esc — cancel
+ *   - Tab — cycle through title → chips → submit
+ */
+export function TaskComposer({
+  members = [],
+  initialPriority = 3,
+  initialAssigneeIds = [],
+  initialLabels = [],
+  variant = "inline",
+  autoFocus = true,
+  placeholder = "New task… Enter to save, Esc to cancel",
+  onSubmit,
+  onCancel,
+  prefixSlot,
+  submitDisabled = false,
+  submitLabel = "Create",
+}: TaskComposerProps) {
+  const [title, setTitle] = useState("");
+  const [priority, setPriority] = useState(initialPriority);
+  const [dueRaw, setDueRaw] = useState("");
+  const [dueIso, setDueIso] = useState<string | null>(null);
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(initialAssigneeIds);
+  const [labels, setLabels] = useState<string[]>(initialLabels);
+  const [labelDraft, setLabelDraft] = useState("");
+  const [showAssignees, setShowAssignees] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (autoFocus) titleRef.current?.focus();
+  }, [autoFocus]);
+
+  // Parse the due-date input as the user finishes typing it. We tolerate
+  // anything in the field while focused but commit the parsed value on
+  // blur or Enter so the chip text reflects what'll actually be saved.
+  function commitDue() {
+    if (!dueRaw.trim()) {
+      setDueIso(null);
+      return;
+    }
+    const parsed = parseDueDate(dueRaw);
+    if (parsed) {
+      setDueIso(parsed);
+      setDueRaw(formatDueLabel(parsed));
+    }
+  }
+
+  function commitLabel() {
+    const next = labelDraft.trim().replace(/^#/, "");
+    if (!next) return;
+    setLabels((prev) => (prev.includes(next) ? prev : [...prev, next]));
+    setLabelDraft("");
+  }
+
+  async function handleSubmit(e?: FormEvent) {
+    e?.preventDefault();
+    if (submitting || submitDisabled) return;
+    if (!title.trim()) {
+      setError("Title is required");
+      titleRef.current?.focus();
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+
+    // Make sure any pending label/due input gets committed before submit.
+    let dueFinal = dueIso;
+    if (dueRaw.trim() && !dueFinal) {
+      dueFinal = parseDueDate(dueRaw);
+    }
+    const labelsFinal = labelDraft.trim()
+      ? Array.from(
+          new Set([...labels, labelDraft.trim().replace(/^#/, "")]),
+        )
+      : labels;
+
+    try {
+      await onSubmit({
+        title: title.trim(),
+        priority,
+        due_date: dueFinal,
+        labels: labelsFinal,
+        assignee_ids: assigneeIds,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const isInline = variant === "inline";
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className={cn(
+        "flex flex-col gap-2 border-border bg-bg-1",
+        isInline ? "border-t px-4 py-2.5" : "rounded-md p-3",
+      )}
+      aria-label="New task"
+    >
+      {prefixSlot}
+
+      {/* Row 1: status icon + title */}
+      <div className="flex items-center gap-3">
+        <Circle
+          className="h-3.5 w-3.5 flex-shrink-0 text-text-3"
+          aria-hidden="true"
+        />
+        <input
+          ref={titleRef}
+          value={title}
+          onChange={(e) => {
+            setTitle(e.target.value);
+            if (error) setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              onCancel?.();
+            }
+          }}
+          placeholder={placeholder}
+          aria-label="Task title"
+          className="flex-1 bg-transparent text-sm text-text-0 placeholder:text-text-3 outline-none"
+          disabled={submitting}
+        />
+      </div>
+
+      {/* Row 2: chips */}
+      <div className="flex flex-wrap items-center gap-1.5 pl-7">
+        <PriorityChip
+          priority={priority}
+          onChange={setPriority}
+          disabled={submitting}
+        />
+        <DueChipInput
+          raw={dueRaw}
+          iso={dueIso}
+          onRawChange={setDueRaw}
+          onCommit={commitDue}
+          onClear={() => {
+            setDueRaw("");
+            setDueIso(null);
+          }}
+          disabled={submitting}
+        />
+        {members.length > 0 ? (
+          <AssigneeChip
+            members={members}
+            selected={assigneeIds}
+            open={showAssignees}
+            onToggleOpen={() => setShowAssignees((v) => !v)}
+            onChange={setAssigneeIds}
+            disabled={submitting}
+          />
+        ) : null}
+        <LabelsChip
+          labels={labels}
+          draft={labelDraft}
+          onDraftChange={setLabelDraft}
+          onCommit={commitLabel}
+          onRemove={(l) =>
+            setLabels((prev) => prev.filter((x) => x !== l))
+          }
+          disabled={submitting}
+        />
+
+        {/* Action buttons pin to the right on inline; stack on dialog. */}
+        <div className="ml-auto flex items-center gap-2">
+          {onCancel ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-xs text-text-3 hover:text-text-1"
+              disabled={submitting}
+            >
+              Esc
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            disabled={submitting || submitDisabled || !title.trim()}
+            className={cn(
+              "rounded-sm border px-2.5 py-1 text-xs font-semibold uppercase tracking-wide",
+              submitting || submitDisabled || !title.trim()
+                ? "cursor-not-allowed border-border bg-bg-2 text-text-3"
+                : "border-accent bg-accent text-bg-0 hover:bg-accent-hover",
+            )}
+          >
+            {submitting ? "…" : submitLabel}
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <p className="flex items-center gap-1 pl-7 text-xs text-danger">
+          <AlertCircle className="h-3 w-3" aria-hidden="true" />
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+/* --------------------------------------------------------------- */
+/* Chip primitives                                                  */
+/* --------------------------------------------------------------- */
+
+const PRIORITY_LABEL: Record<number, string> = {
+  1: "P1 · Critical",
+  2: "P2 · High",
+  3: "P3 · Normal",
+  4: "P4 · Low",
+};
+
+function PriorityChip({
+  priority,
+  onChange,
+  disabled,
+}: {
+  priority: number;
+  onChange: (p: number) => void;
+  disabled: boolean;
+}) {
+  const cycle = () => onChange(priority === 4 ? 1 : priority + 1);
+  return (
+    <button
+      type="button"
+      onClick={cycle}
+      disabled={disabled}
+      title={`${PRIORITY_LABEL[priority]} (click to cycle)`}
+      aria-label={`Priority ${priority} of 4 — click to change`}
+      className="flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-1 hover:bg-bg-3"
+    >
+      <Flag className="h-3 w-3 text-text-3" aria-hidden="true" />
+      <span className="font-mono">P{priority}</span>
+    </button>
+  );
+}
+
+function DueChipInput({
+  raw,
+  iso,
+  onRawChange,
+  onCommit,
+  onClear,
+  disabled,
+}: {
+  raw: string;
+  iso: string | null;
+  onRawChange: (v: string) => void;
+  onCommit: () => void;
+  onClear: () => void;
+  disabled: boolean;
+}) {
+  const id = useId();
+  return (
+    <span
+      className={cn(
+        "flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-1",
+        iso && "border-accent/40",
+      )}
+    >
+      <label htmlFor={id} className="contents">
+        <Calendar className="h-3 w-3 text-text-3" aria-hidden="true" />
+      </label>
+      <input
+        id={id}
+        value={raw}
+        onChange={(e) => onRawChange(e.target.value)}
+        onBlur={onCommit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            onCommit();
+            // Don't bubble — we don't want Enter in this field to
+            // submit the outer form until the user explicitly hits
+            // submit / re-tabs back to the title.
+          }
+        }}
+        placeholder="due"
+        aria-label="Due date — accepts today, tomorrow, fri, in 3d, 5/14"
+        title="today · tomorrow · fri · next mon · in 3d · 5/14 · 2026-05-14"
+        className="w-20 bg-transparent text-[11px] outline-none placeholder:text-text-3"
+        disabled={disabled}
+      />
+      {iso ? (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear due date"
+          className="rounded-sm text-text-3 hover:text-text-0"
+          disabled={disabled}
+        >
+          <X className="h-3 w-3" aria-hidden="true" />
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
+function AssigneeChip({
+  members,
+  selected,
+  open,
+  onToggleOpen,
+  onChange,
+  disabled,
+}: {
+  members: TaskComposerMember[];
+  selected: string[];
+  open: boolean;
+  onToggleOpen: () => void;
+  onChange: (ids: string[]) => void;
+  disabled: boolean;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Click outside to close.
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        onToggleOpen();
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open, onToggleOpen]);
+
+  const selectedNames = useMemo(() => {
+    return selected
+      .map((id) => members.find((m) => m.user_id === id))
+      .filter((m): m is TaskComposerMember => Boolean(m))
+      .map((m) => m.full_name ?? "—");
+  }, [selected, members]);
+
+  function toggle(id: string) {
+    onChange(
+      selected.includes(id)
+        ? selected.filter((x) => x !== id)
+        : [...selected, id],
+    );
+  }
+
+  const label =
+    selected.length === 0
+      ? "Assign"
+      : selected.length === 1
+        ? (selectedNames[0] ?? "1 assigned")
+        : `${selected.length} assigned`;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={onToggleOpen}
+        disabled={disabled}
+        title="Assignees"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={cn(
+          "flex items-center gap-1 rounded-sm border bg-bg-2 px-2 py-1 text-[11px] text-text-1 hover:bg-bg-3",
+          selected.length > 0 ? "border-accent/40" : "border-border",
+        )}
+      >
+        <UserPlus className="h-3 w-3 text-text-3" aria-hidden="true" />
+        <span className="max-w-[120px] truncate">{label}</span>
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-50 mt-1 max-h-60 w-56 overflow-y-auto rounded-sm border border-border bg-bg-1 py-1 shadow-lg"
+        >
+          {members.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-text-3">No members yet.</p>
+          ) : (
+            members.map((m) => {
+              const checked = selected.includes(m.user_id);
+              return (
+                <button
+                  key={m.user_id}
+                  role="menuitem"
+                  type="button"
+                  onClick={() => toggle(m.user_id)}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-bg-2",
+                    checked && "bg-bg-2 text-text-0",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "h-3 w-3 flex-shrink-0 rounded-sm border",
+                      checked
+                        ? "border-accent bg-accent"
+                        : "border-border bg-bg-0",
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1 truncate text-text-1">
+                    {m.full_name ?? "—"}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LabelsChip({
+  labels,
+  draft,
+  onDraftChange,
+  onCommit,
+  onRemove,
+  disabled,
+}: {
+  labels: string[];
+  draft: string;
+  onDraftChange: (v: string) => void;
+  onCommit: () => void;
+  onRemove: (l: string) => void;
+  disabled: boolean;
+}) {
+  const id = useId();
+  return (
+    <span className="flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-1">
+      <label htmlFor={id} className="contents">
+        <Tag className="h-3 w-3 text-text-3" aria-hidden="true" />
+      </label>
+      {labels.map((l) => (
+        <span
+          key={l}
+          className="flex items-center gap-1 rounded-sm bg-bg-3 px-1 font-mono text-[10px] text-text-1"
+        >
+          {l}
+          <button
+            type="button"
+            onClick={() => onRemove(l)}
+            aria-label={`Remove ${l}`}
+            disabled={disabled}
+            className="text-text-3 hover:text-text-0"
+          >
+            <X className="h-2.5 w-2.5" aria-hidden="true" />
+          </button>
+        </span>
+      ))}
+      <input
+        id={id}
+        value={draft}
+        onChange={(e) => onDraftChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === ",") {
+            e.preventDefault();
+            onCommit();
+          } else if (
+            e.key === "Backspace" &&
+            draft === "" &&
+            labels.length > 0
+          ) {
+            // Backspace on an empty draft pops the most recent label —
+            // standard chip-input affordance.
+            e.preventDefault();
+            onRemove(labels[labels.length - 1]);
+          }
+        }}
+        onBlur={onCommit}
+        placeholder={labels.length === 0 ? "labels" : ""}
+        aria-label="Labels — comma or Enter to add"
+        className="w-16 bg-transparent text-[11px] outline-none placeholder:text-text-3"
+        disabled={disabled}
+      />
+    </span>
+  );
+}

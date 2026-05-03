@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Plus } from "lucide-react";
 import { CreateOrgDialog } from "./CreateOrgDialog";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { DashboardShell } from "./dashboard/DashboardShell";
@@ -14,6 +15,8 @@ import { TickerTape } from "./TickerTape";
 import { DensityProvider, type Density } from "@/lib/density";
 import { TimezoneProbe } from "./TimezoneProbe";
 import { BriefingCard } from "./dashboard/BriefingCard";
+import { QuickTaskDialog } from "./QuickTaskDialog";
+import { isEditableTarget } from "@/lib/shortcuts";
 import type {
   DashSpace,
   DashTerminal,
@@ -62,12 +65,13 @@ export function DashboardClient({
   const searchParams = useSearchParams();
   const [spaceDialog, setSpaceDialog] = useState(false);
   const [terminalDialog, setTerminalDialog] = useState(false);
+  const [taskDialog, setTaskDialog] = useState(false);
   const [preferredSpaceSlug, setPreferredSpaceSlug] = useState<string | null>(
     null,
   );
 
-  // Respect ?new=space / ?new=terminal&space=<slug> from the palette or
-  // explorer.
+  // Respect ?new=space / ?new=terminal&space=<slug> / ?new=task from the
+  // palette or explorer.
   useEffect(() => {
     const want = searchParams.get("new");
     const spaceHint = searchParams.get("space");
@@ -76,6 +80,7 @@ export function DashboardClient({
       setPreferredSpaceSlug(spaceHint);
       setTerminalDialog(true);
     }
+    if (want === "task" && terminals.length > 0) setTaskDialog(true);
     if (want) {
       const params = new URLSearchParams(searchParams.toString());
       params.delete("new");
@@ -84,6 +89,23 @@ export function DashboardClient({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  // ⌘N / Ctrl+N → open the quick-task dialog from anywhere on the
+  // dashboard. Skip when typing in an input/textarea/contenteditable
+  // so the shortcut doesn't fight a real keystroke.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.shiftKey || e.altKey) return;
+      if (e.key.toLowerCase() !== "n") return;
+      if (isEditableTarget(e.target)) return;
+      if (terminals.length === 0) return;
+      e.preventDefault();
+      setTaskDialog(true);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [terminals.length]);
 
   const tickerById: Record<string, string> = {};
   const terminalNameById: Record<string, string> = {};
@@ -115,11 +137,35 @@ export function DashboardClient({
                 discoverable shortcut for power users. The palette
                 itself is wired up in <CommandPalette> and triggered
                 by the global keydown handler. */}
-            <span className="ml-auto hidden items-center gap-1 text-[10px] text-text-3 sm:flex">
-              <kbd className="rounded-sm border border-border bg-bg-2 px-1 font-mono text-text-2">
-                ⌘K
-              </kbd>
-              <span>to search</span>
+            <span className="ml-auto flex items-center gap-2">
+              {/* "+ New task" — opens the quick-create dialog so the
+                  user can pick a terminal + chips without leaving the
+                  dashboard. ⌘N also works (see the keydown effect). */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (terminals.length > 0) setTaskDialog(true);
+                }}
+                disabled={terminals.length === 0}
+                title={
+                  terminals.length === 0
+                    ? "No terminals yet — create a terminal first"
+                    : "New task (⌘N)"
+                }
+                className="flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-1 hover:border-accent/40 hover:bg-bg-3 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus className="h-3 w-3" aria-hidden="true" />
+                <span>New task</span>
+                <kbd className="ml-1 hidden font-mono text-[9px] text-text-3 sm:inline">
+                  ⌘N
+                </kbd>
+              </button>
+              <span className="hidden items-center gap-1 text-[10px] text-text-3 sm:flex">
+                <kbd className="rounded-sm border border-border bg-bg-2 px-1 font-mono text-text-2">
+                  ⌘K
+                </kbd>
+                <span>to search</span>
+              </span>
             </span>
           </TopBar>
         }
@@ -167,6 +213,12 @@ export function DashboardClient({
         }}
         orgs={spaces}
         preferredSlug={preferredSpaceSlug ?? undefined}
+      />
+      <QuickTaskDialog
+        open={taskDialog}
+        onClose={() => setTaskDialog(false)}
+        terminals={terminals}
+        spaces={spaces}
       />
       <TimezoneProbe currentTimezone={savedTimezone} />
     </DensityProvider>

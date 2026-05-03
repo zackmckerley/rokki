@@ -182,6 +182,20 @@ export function CommandPalette({ children }: { children: ReactNode }) {
     }));
     const create: Command[] = [
       {
+        id: "create/task",
+        title: "New task",
+        subtitle: "Pick a terminal + chips inline",
+        category: "action",
+        shortcut: "⌘N",
+        icon: <Plus className="h-3.5 w-3.5" />,
+        // Route to the dashboard with ?new=task so DashboardClient
+        // opens the QuickTaskDialog. From a terminal page this means
+        // a one-hop nav back to dashboard, but keeps a single entry
+        // point for now — when terminal pages get an inline composer
+        // toggle we'll branch on pathname.
+        onRun: go("/?new=task"),
+      },
+      {
         id: "create/terminal",
         title: "New terminal",
         subtitle: "A working context — project, matter, goal, client",
