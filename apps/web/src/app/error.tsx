@@ -61,6 +61,7 @@ export default function ErrorBoundary({
             intercepted by the broken router that put us on the error
             page in the first place. Hard browser navigation always
             works as a last-resort escape hatch. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
           href="/"
           className="flex items-center gap-3 rounded px-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
@@ -106,6 +107,7 @@ export default function ErrorBoundary({
               >
                 <RotateCcw className="h-3 w-3" /> Try again
               </button>
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a
                 href="/"
                 className="inline-flex items-center gap-1.5 rounded-sm border border-border bg-bg-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-text-1 hover:bg-bg-3"
