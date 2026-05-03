@@ -13,6 +13,14 @@ interface ProjectTerminalProps {
   overviewLeft: ReactNode;
   overviewMain: ReactNode;
   rightPane: ReactNode;
+  /**
+   * Global ExplorerRail (spaces → terminals tree, recents, tools,
+   * AccountBlock). Rendered as the left column of the shell below the
+   * topbar. Pre-PR-#88 this lived in the route layout's aside which
+   * sat *next to* the topbar instead of below it; hoisting it here
+   * matches the dashboard's column-then-row shape.
+   */
+  leftRail: ReactNode;
   ticker: string;
   project: {
     id: string;
@@ -34,6 +42,7 @@ export function ProjectTerminal({
   overviewLeft,
   overviewMain,
   rightPane,
+  leftRail,
   ticker,
   project,
   tickerItems,
@@ -58,6 +67,7 @@ export function ProjectTerminal({
       onFunctionKey={setActiveKey}
       tickerItems={tickerItems}
       tickerProjectId={project.id}
+      leftRail={leftRail}
       leftPane={leftPane}
       mainPane={mainPane}
       rightPane={rightPane}

@@ -1,25 +1,23 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DensityProvider, type Density } from "@/lib/density";
-import { ExplorerRail } from "@/components/dashboard/ExplorerRail";
-import {
-  loadDashSpaces,
-  loadDashTerminals,
-} from "@/lib/dashboard-queries";
 
 /**
  * Layout for /p/[ticker]/* — terminal pages.
  *
- * Mounts the same left-rail Explorer that the dashboard uses, so the user
- * can jump between spaces/terminals or back to the dashboard without
- * having to click the wordmark. Spaces + terminals are fetched here (not
- * inside ExplorerRail) so the rail can render server-side.
+ * Thin wrapper now: just auth gate + DensityProvider. The ExplorerRail
+ * + topbar layout used to live here as a flex row (aside | children),
+ * which made the topbar (rendered inside children) sit *next to* the
+ * rail rather than spanning over it. Result: the rail visually started
+ * at the very top of the page, ahead of the topbar — inconsistent
+ * with the dashboard, where the topbar spans the full viewport width
+ * and the rail begins below it.
  *
- * The rail's bottom AccountBlock is the single home for account-level
- * actions (sign out, switch ring, settings, density, admin toggle).
- *
- * Each terminal page still renders its own TopBar and TerminalShell to the
- * right of the rail.
+ * To match the dashboard's shape, ExplorerRail mounting moved into
+ * TerminalShell (apps/web/src/components/TerminalShell.tsx) so the
+ * shell renders: topbar (full width) → ticker (full width) → flex
+ * row [ExplorerRail | center | right]. Same vertical alignment as
+ * DashboardShell.
  */
 export default async function TerminalLayout({
   children,
@@ -32,55 +30,16 @@ export default async function TerminalLayout({
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [spaces, terminals, toolsResult, profileResult] = await Promise.all([
-    loadDashSpaces(supabase, user.id),
-    loadDashTerminals(supabase),
-    supabase
-      .from("tools")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null),
-    supabase
-      .from("profiles")
-      .select("full_name, is_platform_admin, settings")
-      .eq("user_id", user.id)
-      .maybeSingle(),
-  ]);
-
-  const profile = profileResult.data as
-    | {
-        full_name: string | null;
-        is_platform_admin: boolean;
-        settings: Record<string, unknown> | null;
-      }
-    | null;
-  const userName =
-    profile?.full_name ?? user.email?.split("@")[0] ?? "there";
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("settings")
+    .eq("user_id", user.id)
+    .maybeSingle();
   const initialDensity: Density =
-    profile?.settings?.density === "compact" ? "compact" : "cozy";
-  const isPlatformAdmin = Boolean(profile?.is_platform_admin);
+    (profile as { settings?: { density?: string } } | null)?.settings
+      ?.density === "compact"
+      ? "compact"
+      : "cozy";
 
-  return (
-    <DensityProvider initial={initialDensity}>
-      <div className="flex h-[100dvh] overflow-hidden bg-bg-0">
-        <aside
-          aria-label="Explorer"
-          data-print-hide="true"
-          className="hidden h-full w-[260px] flex-shrink-0 border-r border-border lg:flex lg:flex-col print:hidden"
-        >
-          <ExplorerRail
-            spaces={spaces}
-            terminals={terminals}
-            toolCount={toolsResult.count ?? 0}
-            userName={userName}
-            userEmail={user.email ?? ""}
-            isPlatformAdmin={isPlatformAdmin}
-            canCreateSpace={isPlatformAdmin}
-          />
-        </aside>
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {children}
-        </div>
-      </div>
-    </DensityProvider>
-  );
+  return <DensityProvider initial={initialDensity}>{children}</DensityProvider>;
 }
