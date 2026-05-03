@@ -11,6 +11,7 @@ import {
 import {
   AlertCircle,
   Calendar,
+  ChevronDown,
   Circle,
   Flag,
   Tag,
@@ -107,7 +108,6 @@ export function TaskComposer({
 }: TaskComposerProps) {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState(initialPriority);
-  const [dueRaw, setDueRaw] = useState("");
   const [dueIso, setDueIso] = useState<string | null>(null);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(initialAssigneeIds);
   const [labels, setLabels] = useState<string[]>(initialLabels);
@@ -120,21 +120,6 @@ export function TaskComposer({
   useEffect(() => {
     if (autoFocus) titleRef.current?.focus();
   }, [autoFocus]);
-
-  // Parse the due-date input as the user finishes typing it. We tolerate
-  // anything in the field while focused but commit the parsed value on
-  // blur or Enter so the chip text reflects what'll actually be saved.
-  function commitDue() {
-    if (!dueRaw.trim()) {
-      setDueIso(null);
-      return;
-    }
-    const parsed = parseDueDate(dueRaw);
-    if (parsed) {
-      setDueIso(parsed);
-      setDueRaw(formatDueLabel(parsed));
-    }
-  }
 
   function commitLabel() {
     const next = labelDraft.trim().replace(/^#/, "");
@@ -154,11 +139,7 @@ export function TaskComposer({
     setSubmitting(true);
     setError(null);
 
-    // Make sure any pending label/due input gets committed before submit.
-    let dueFinal = dueIso;
-    if (dueRaw.trim() && !dueFinal) {
-      dueFinal = parseDueDate(dueRaw);
-    }
+    // Make sure any pending label input gets committed before submit.
     const labelsFinal = labelDraft.trim()
       ? Array.from(
           new Set([...labels, labelDraft.trim().replace(/^#/, "")]),
@@ -169,7 +150,7 @@ export function TaskComposer({
       await onSubmit({
         title: title.trim(),
         priority,
-        due_date: dueFinal,
+        due_date: dueIso,
         labels: labelsFinal,
         assignee_ids: assigneeIds,
       });
@@ -226,15 +207,9 @@ export function TaskComposer({
           onChange={setPriority}
           disabled={submitting}
         />
-        <DueChipInput
-          raw={dueRaw}
+        <DueChipPopover
           iso={dueIso}
-          onRawChange={setDueRaw}
-          onCommit={commitDue}
-          onClear={() => {
-            setDueRaw("");
-            setDueIso(null);
-          }}
+          onChange={setDueIso}
           disabled={submitting}
         />
         {members.length > 0 ? (
@@ -331,64 +306,205 @@ function PriorityChip({
   );
 }
 
-function DueChipInput({
-  raw,
+/**
+ * Quick presets shown above the calendar in the due-date popover.
+ * Each preset resolves to a YYYY-MM-DD via `parseDueDate` so the
+ * keyboard text-input shorthand and the click-list stay in sync.
+ */
+const DUE_PRESETS: { label: string; expr: string; hint?: string }[] = [
+  { label: "Today", expr: "today" },
+  { label: "Tomorrow", expr: "tomorrow" },
+  { label: "This Friday", expr: "fri" },
+  { label: "Next Monday", expr: "next mon" },
+  { label: "In 1 week", expr: "in 7d" },
+  { label: "End of month", expr: "eom" },
+];
+
+function DueChipPopover({
   iso,
-  onRawChange,
-  onCommit,
-  onClear,
+  onChange,
   disabled,
 }: {
-  raw: string;
   iso: string | null;
-  onRawChange: (v: string) => void;
-  onCommit: () => void;
-  onClear: () => void;
+  onChange: (next: string | null) => void;
   disabled: boolean;
 }) {
-  const id = useId();
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const customRef = useRef<HTMLInputElement>(null);
+  const datePickerId = useId();
+
+  // Click-outside to close.
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  // Esc closes.
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  // Focus the custom-text input when the popover opens — power users
+  // can just type "fri" and Enter without ever touching the mouse.
+  useEffect(() => {
+    if (open) {
+      // Defer one tick so the input has mounted.
+      setTimeout(() => customRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  function pick(expr: string) {
+    const parsed = parseDueDate(expr);
+    if (parsed) {
+      onChange(parsed);
+      setOpen(false);
+    }
+  }
+
+  function clear() {
+    onChange(null);
+    setOpen(false);
+  }
+
+  const label = iso ? formatDueLabel(iso) : "due";
+
   return (
-    <span
-      className={cn(
-        "flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-1",
-        iso && "border-accent/40",
-      )}
-    >
-      <label htmlFor={id} className="contents">
-        <Calendar className="h-3 w-3 text-text-3" aria-hidden="true" />
-      </label>
-      <input
-        id={id}
-        value={raw}
-        onChange={(e) => onRawChange(e.target.value)}
-        onBlur={onCommit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            onCommit();
-            // Don't bubble — we don't want Enter in this field to
-            // submit the outer form until the user explicitly hits
-            // submit / re-tabs back to the title.
-          }
-        }}
-        placeholder="due"
-        aria-label="Due date — accepts today, tomorrow, fri, in 3d, 5/14"
-        title="today · tomorrow · fri · next mon · in 3d · 5/14 · 2026-05-14"
-        className="w-20 bg-transparent text-[11px] outline-none placeholder:text-text-3"
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
         disabled={disabled}
-      />
-      {iso ? (
-        <button
-          type="button"
-          onClick={onClear}
-          aria-label="Clear due date"
-          className="rounded-sm text-text-3 hover:text-text-0"
-          disabled={disabled}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        title={iso ? `Due ${iso}` : "Set due date"}
+        className={cn(
+          "flex items-center gap-1 rounded-sm border bg-bg-2 px-2 py-1 text-[11px]",
+          iso
+            ? "border-accent/40 text-text-0"
+            : "border-border text-text-1 hover:bg-bg-3",
+        )}
+      >
+        <Calendar className="h-3 w-3 text-text-3" aria-hidden="true" />
+        <span>{label}</span>
+        {iso ? (
+          <span
+            role="button"
+            aria-label="Clear due date"
+            onClick={(e) => {
+              e.stopPropagation();
+              clear();
+            }}
+            className="rounded-sm text-text-3 hover:text-text-0"
+          >
+            <X className="h-3 w-3" aria-hidden="true" />
+          </span>
+        ) : (
+          <ChevronDown className="h-3 w-3 text-text-3" aria-hidden="true" />
+        )}
+      </button>
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Pick a due date"
+          className="absolute left-0 top-full z-50 mt-1 w-60 overflow-hidden rounded-sm border border-border bg-bg-1 py-1 shadow-lg"
         >
-          <X className="h-3 w-3" aria-hidden="true" />
-        </button>
+          {/* Custom input — accepts any natural-language form parsed
+              by `parseDueDate`, e.g. "tomorrow", "fri", "in 3d",
+              "5/14". Enter commits. */}
+          <div className="px-2 pb-1">
+            <input
+              ref={customRef}
+              type="text"
+              placeholder="Type: tomorrow · fri · in 3d"
+              aria-label="Custom due date"
+              className="h-7 w-full rounded-sm border border-border bg-bg-0 px-2 text-[11px] text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  const v = (e.target as HTMLInputElement).value.trim();
+                  if (v) pick(v);
+                }
+              }}
+            />
+          </div>
+          <ul role="none" className="border-t border-border py-1">
+            {DUE_PRESETS.map((p) => {
+              const resolved = parseDueDate(p.expr);
+              return (
+                <li key={p.label} role="none">
+                  <button
+                    type="button"
+                    onClick={() => pick(p.expr)}
+                    className="flex w-full items-center justify-between gap-2 px-3 py-1 text-left text-[11px] text-text-1 hover:bg-bg-2"
+                  >
+                    <span>{p.label}</span>
+                    <span className="font-mono text-[10px] text-text-3">
+                      {resolved ? formatDueLabel(resolved) : ""}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {/* Native calendar picker — hand-pick a specific date when
+              none of the presets match. We use the platform's date
+              input so users get whatever calendar widget their
+              browser/OS already knows. */}
+          <div className="border-t border-border px-2 py-1.5">
+            <label
+              htmlFor={datePickerId}
+              className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-3"
+            >
+              Pick a date
+            </label>
+            <input
+              id={datePickerId}
+              type="date"
+              value={iso ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v) {
+                  onChange(v);
+                  setOpen(false);
+                } else {
+                  onChange(null);
+                }
+              }}
+              className="h-7 w-full rounded-sm border border-border bg-bg-0 px-2 text-[11px] text-text-0 focus:border-border-focus focus:outline-none"
+            />
+          </div>
+          {iso ? (
+            <div className="border-t border-border px-2 py-1.5">
+              <button
+                type="button"
+                onClick={clear}
+                className="text-[11px] text-text-3 hover:text-text-1"
+              >
+                Clear due date
+              </button>
+            </div>
+          ) : null}
+        </div>
       ) : null}
-    </span>
+    </div>
   );
 }
 

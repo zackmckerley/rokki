@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
 import { CreateOrgDialog } from "./CreateOrgDialog";
 import { CreateProjectDialog } from "./CreateProjectDialog";
 import { DashboardShell } from "./dashboard/DashboardShell";
@@ -133,40 +132,12 @@ export function DashboardClient({
             <span className="text-text-1" suppressHydrationWarning>
               {greeting(userName)}
             </span>
-            {/* Subtle Cmd+K hint — replaces nothing, just adds a
-                discoverable shortcut for power users. The palette
-                itself is wired up in <CommandPalette> and triggered
-                by the global keydown handler. */}
-            <span className="ml-auto flex items-center gap-2">
-              {/* "+ New task" — opens the quick-create dialog so the
-                  user can pick a terminal + chips without leaving the
-                  dashboard. ⌘N also works (see the keydown effect). */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (terminals.length > 0) setTaskDialog(true);
-                }}
-                disabled={terminals.length === 0}
-                title={
-                  terminals.length === 0
-                    ? "No terminals yet — create a terminal first"
-                    : "New task (⌘N)"
-                }
-                className="flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-1 hover:border-accent/40 hover:bg-bg-3 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Plus className="h-3 w-3" aria-hidden="true" />
-                <span>New task</span>
-                <kbd className="ml-1 hidden font-mono text-[9px] text-text-3 sm:inline">
-                  ⌘N
-                </kbd>
-              </button>
-              <span className="hidden items-center gap-1 text-[10px] text-text-3 sm:flex">
-                <kbd className="rounded-sm border border-border bg-bg-2 px-1 font-mono text-text-2">
-                  ⌘K
-                </kbd>
-                <span>to search</span>
-              </span>
-            </span>
+            {/* Topbar right side stays empty here — the TopBarSearch
+                component (rendered by <TopBar />) already shows the
+                ⌘K hint inside the search button. The standalone
+                "+ New task" button moved into the TasksCard header,
+                where it reads as a tasks-affordance instead of
+                global chrome. ⌘N still works globally. */}
           </TopBar>
         }
         ticker={<TickerTape items={tickerItems} />}
@@ -192,6 +163,8 @@ export function DashboardClient({
               delegated={delegated}
               tickerById={tickerById}
               terminalNameById={terminalNameById}
+              onCreateTask={() => setTaskDialog(true)}
+              createDisabled={terminals.length === 0}
             />
           </div>
         }
