@@ -89,7 +89,17 @@ export function CommandBar({ label, onSubmit }: CommandBarProps) {
           <span className="truncate">{status.text}</span>
         </span>
       ) : (
-        <span className="text-text-3">{nowLabel()}</span>
+        // suppressHydrationWarning: nowLabel() returns HH:MM:SS computed
+        // at render time. Server and client render milliseconds apart, so
+        // the second value usually differs — without this attribute,
+        // React's hydration mismatch errors out the whole TerminalShell
+        // subtree. Symptom: Link clicks in the explorer rail (and
+        // anywhere else inside the terminal) silently no-op because
+        // event handlers never get attached after the failed hydration.
+        // Re: react.dev/errors/418
+        <span className="text-text-3" suppressHydrationWarning>
+          {nowLabel()}
+        </span>
       )}
     </form>
   );
