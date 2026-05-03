@@ -53,6 +53,13 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     labels?: string[];
     /** Spec also calls these "tags"; we accept either name and map to labels. */
     tags?: string[];
+    /**
+     * Manual sort order — sparse integer. Drag-to-reorder in the
+     * client picks midpoints between neighbouring positions to insert
+     * a row without rewriting the full list (e.g. drop between
+     * positions 1000 and 2000 → 1500).
+     */
+    position?: number;
     recurrence_rule?: TaskRecurrenceRule | null;
     /**
      * Optimistic-concurrency token. If supplied (either via this field or
@@ -79,6 +86,10 @@ async function handlePatch(request: NextRequest, { params }: Props) {
   if (body.due_date !== undefined) patch.due_date = body.due_date;
   if (body.labels !== undefined) patch.labels = body.labels;
   if (body.tags !== undefined) patch.labels = body.tags;
+  if (body.position !== undefined) {
+    if (!Number.isFinite(body.position)) return bad("position must be a number");
+    patch.position = body.position;
+  }
   if (body.recurrence_rule !== undefined) {
     const rule = validateRecurrenceRule(body.recurrence_rule);
     if (rule === "invalid") return bad("recurrence_rule shape is invalid");
