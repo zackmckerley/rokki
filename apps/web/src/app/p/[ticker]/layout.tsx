@@ -41,5 +41,14 @@ export default async function TerminalLayout({
       ? "compact"
       : "cozy";
 
-  return <DensityProvider initial={initialDensity}>{children}</DensityProvider>;
+  return (
+    <DensityProvider initial={initialDensity}>
+      {/* h-[100dvh] + overflow-hidden so TerminalShell's `h-full
+          min-h-0` flex column has a fixed height to size against.
+          Without this the shell collapses to content-height and the
+          page leaves a white block of viewport empty below the
+          command bar. */}
+      <div className="h-[100dvh] overflow-hidden bg-bg-0">{children}</div>
+    </DensityProvider>
+  );
 }
