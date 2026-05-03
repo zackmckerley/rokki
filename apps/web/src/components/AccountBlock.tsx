@@ -10,13 +10,10 @@ import {
   LogOut,
   Plus,
   RefreshCw,
-  Rows3,
-  Rows4,
   Settings,
   ShieldCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useDensity } from "@/lib/density";
 
 interface RingEntry {
   user_id: string;
@@ -49,7 +46,6 @@ export function AccountBlock({
   email: string;
   isPlatformAdmin: boolean;
 }) {
-  const { density, toggle: toggleDensity } = useDensity();
   const pathname = usePathname();
   const inAdmin = pathname?.startsWith("/admin") ?? false;
 
@@ -293,7 +289,9 @@ export function AccountBlock({
             </div>
           )}
 
-          {/* Preferences */}
+          {/* Preferences. Density toggle used to live here too;
+              moved to /settings/appearance per UX feedback ("there
+              is no point in having density in this side panel"). */}
           <div className="border-b border-border py-1">
             <Link
               href="/settings"
@@ -313,22 +311,6 @@ export function AccountBlock({
               <KeyRound className="h-3 w-3 flex-shrink-0 text-text-3" /> API
               tokens
             </Link>
-            <button
-              role="menuitem"
-              type="button"
-              onClick={() => {
-                toggleDensity();
-                setOpen(false);
-              }}
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-text-1 hover:bg-bg-2"
-            >
-              {density === "cozy" ? (
-                <Rows3 className="h-3 w-3 flex-shrink-0 text-text-3" />
-              ) : (
-                <Rows4 className="h-3 w-3 flex-shrink-0 text-text-3" />
-              )}
-              Density: {density === "cozy" ? "Cozy" : "Compact"}
-            </button>
           </div>
 
           {/* Admin console toggle — only visible to platform admins. */}
