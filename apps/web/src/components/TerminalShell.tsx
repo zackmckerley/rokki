@@ -81,7 +81,7 @@ export function TerminalShell({
         <TickerTape items={tickerItems} projectId={tickerProjectId} />
       </div>
       <div className="flex flex-1 flex-col overflow-hidden sm:flex-row">
-        {leftOpen ? (
+        {leftOpen && leftPane ? (
           <div className="hidden overflow-y-auto border-r border-border bg-bg-0 lg:block lg:w-[28%] lg:min-w-[240px]">
             {leftPane}
           </div>
