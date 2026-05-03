@@ -27,7 +27,6 @@ interface ExplorerRailProps {
   userEmail: string;
   userName: string;
   isPlatformAdmin: boolean;
-  canCreateSpace: boolean;
 }
 
 /**
@@ -58,7 +57,6 @@ export function ExplorerRail({
   userEmail,
   userName,
   isPlatformAdmin,
-  canCreateSpace,
 }: ExplorerRailProps) {
   const terminalsBySpace = useMemo(() => {
     const m = new Map<string, DashTerminal[]>();
@@ -189,31 +187,15 @@ export function ExplorerRail({
 
   return (
     <div className="flex h-full flex-col bg-bg-0">
-      <div className="flex h-9 flex-shrink-0 items-center justify-between border-b border-border px-3">
+      <div className="flex h-9 flex-shrink-0 items-center border-b border-border px-3">
         <span className="text-xs font-semibold uppercase tracking-wide text-text-3">
           Explorer
         </span>
-        {/* Plus is always rendered — disabled with a tooltip for
-            non-admins so the affordance is visible (and the tooltip
-            tells them why it's grayed out). */}
-        {canCreateSpace ? (
-          <Link
-            href="/?new=space"
-            aria-label="New space"
-            className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-            title="New space (admin)"
-          >
-            <Plus className="h-3 w-3" />
-          </Link>
-        ) : (
-          <span
-            aria-label="New space (admin only)"
-            title="Only platform admins can create spaces"
-            className="rounded-sm p-1 text-text-3/50"
-          >
-            <Plus className="h-3 w-3" />
-          </span>
-        )}
+        {/* The "new space" plus button used to live here. Removed —
+            space creation is admin-only, and admins always have it
+            in the command palette ("New space") plus the
+            `?new=space` query param. The plus button on every
+            non-admin's screen was just dead pixels. */}
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -234,8 +216,12 @@ export function ExplorerRail({
                 placeholder="Filter…"
                 aria-label="Filter explorer"
                 title="Press / to focus"
-                className="h-7 w-full rounded-sm border border-border bg-bg-1 pl-7 pr-7 text-xs text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                className="h-7 w-full rounded-sm border border-border bg-bg-1 pl-7 pr-2 text-xs text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
               />
+              {/* The "/" kbd hint that used to render here was dropped
+                  per UX feedback — it doubled up with the placeholder
+                  inside an already-narrow input and crowded the
+                  visible characters of what the user was typing. */}
               {filter ? (
                 <button
                   type="button"
@@ -248,14 +234,7 @@ export function ExplorerRail({
                 >
                   <X className="h-3 w-3" />
                 </button>
-              ) : (
-                <kbd
-                  className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 rounded-sm border border-border bg-bg-2 px-1 font-mono text-[9px] text-text-3"
-                  aria-hidden="true"
-                >
-                  /
-                </kbd>
-              )}
+              ) : null}
             </div>
           </div>
         ) : null}

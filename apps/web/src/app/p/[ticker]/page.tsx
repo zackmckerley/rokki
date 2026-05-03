@@ -221,18 +221,20 @@ export default async function ProjectTerminalPage({ params }: Props) {
           ) : null}
           <span className="text-text-3">/</span>
           <span className="text-text-0 font-medium">{p.name}</span>
+          {/* Topbar right-side: presence only. The per-terminal Settings
+              link used to live here too — removed because:
+                1. AccountBlock at the bottom-left is the canonical
+                   settings entry point (user-level settings).
+                2. Per-terminal admin (rename, members, archive) is
+                   reachable via the command palette and the explorer
+                   rail's per-space cog. A second top-right link was
+                   redundant clutter. */}
           <span className="ml-auto flex items-center gap-3">
             <TerminalPresence
               terminalId={p.id}
               userId={user.id}
               fullName={callerName}
             />
-            <Link
-              href={`/p/${p.ticker}/settings`}
-              className="text-text-3 hover:text-text-1"
-            >
-              Settings
-            </Link>
           </span>
         </TopBar>
       }
@@ -257,7 +259,6 @@ export default async function ProjectTerminalPage({ params }: Props) {
           userName={callerName}
           userEmail={user.email ?? ""}
           isPlatformAdmin={isPlatformAdmin}
-          canCreateSpace={isPlatformAdmin}
         />
       }
     />
