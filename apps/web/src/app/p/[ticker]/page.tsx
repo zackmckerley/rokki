@@ -8,6 +8,11 @@ import { createClient } from "@/lib/supabase/server";
 import { TopBar } from "@/components/TopBar";
 import { ProjectTerminal } from "@/components/ProjectTerminal";
 import { TerminalPresence } from "@/components/dashboard/TerminalPresence";
+import { ExplorerRail } from "@/components/dashboard/ExplorerRail";
+import {
+  loadDashSpaces,
+  loadDashTerminals,
+} from "@/lib/dashboard-queries";
 import { CORE_MODULE_CARDS, SPACE_TAGLINE } from "@/lib/project-templates";
 import type { ProjectStatus } from "@rokki/db";
 
@@ -128,6 +133,9 @@ export default async function ProjectTerminalPage({ params }: Props) {
     { data: rawMembers },
     { data: org },
     { data: callerProfile },
+    explorerSpaces,
+    explorerTerminals,
+    toolsResult,
   ] = await Promise.all([
     supabase
       .from("activity")
@@ -142,9 +150,18 @@ export default async function ProjectTerminalPage({ params }: Props) {
     supabase.from("spaces").select("slug, name").eq("id", p.space_id).single(),
     supabase
       .from("profiles")
-      .select("full_name")
+      .select("full_name, is_platform_admin")
       .eq("user_id", user.id)
       .maybeSingle(),
+    // ExplorerRail data — was being fetched in the layout, now the
+    // page owns it so the rail can be passed through the shell and
+    // rendered below the topbar (instead of beside it as an aside).
+    loadDashSpaces(supabase, user.id),
+    loadDashTerminals(supabase),
+    supabase
+      .from("tools")
+      .select("id", { count: "exact", head: true })
+      .is("deleted_at", null),
   ]);
 
   const activities = (activity ?? []) as ActivityRow[];
@@ -177,10 +194,14 @@ export default async function ProjectTerminalPage({ params }: Props) {
   const isOwnerOrManager =
     callerMembership?.role === "owner" || callerMembership?.role === "manager";
 
+  const callerProfileTyped = callerProfile as
+    | { full_name: string | null; is_platform_admin: boolean }
+    | null;
   const callerName =
-    (callerProfile as { full_name: string | null } | null)?.full_name ??
+    callerProfileTyped?.full_name ??
     user.email?.split("@")[0] ??
     "—";
+  const isPlatformAdmin = Boolean(callerProfileTyped?.is_platform_admin);
 
   const tickerItems = activities.map((a) => ({
     id: a.id,
@@ -228,6 +249,17 @@ export default async function ProjectTerminalPage({ params }: Props) {
       overviewLeft={<OverviewLeft project={p} members={memberRows} />}
       overviewMain={<OverviewMain project={p} />}
       rightPane={<AIChatStub project={p} />}
+      leftRail={
+        <ExplorerRail
+          spaces={explorerSpaces}
+          terminals={explorerTerminals}
+          toolCount={toolsResult.count ?? 0}
+          userName={callerName}
+          userEmail={user.email ?? ""}
+          isPlatformAdmin={isPlatformAdmin}
+          canCreateSpace={isPlatformAdmin}
+        />
+      }
     />
   );
 }
