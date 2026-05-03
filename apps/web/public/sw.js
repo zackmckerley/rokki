@@ -5,10 +5,10 @@
 //                                 7-day expiry. Skip /api/v1/auth/**,
 //                                 Cache-Control: no-store, and any
 //                                 non-GET method.
-//   * Page navigations         → network-first, cache fallback. Means: any
-//                                 page you've loaded once is offline-
-//                                 reachable. If both the network and the
-//                                 cache miss, fall through to /offline.
+//   * Page navigations         → network-only with /offline fallback on
+//                                 fetch failure. We deliberately do NOT
+//                                 cache HTML — see CACHE_VERSION v5
+//                                 below for why.
 //   * /_next/static/**         → cache-first (build hash invalidates).
 //   * Other same-origin GETs   → cache-first with background refresh
 //                                 (the previous shell behaviour).
@@ -19,16 +19,31 @@
 //
 // Cache version bumps on schema changes. Bump CACHE_VERSION to invalidate.
 
-// Bumped to v4 (2026-05-03):
+// Bumped to v5 (2026-05-03):
 //   * v3 added the RSC short-circuit so Next.js client-side navigation
 //     stops hitting the cache.
 //   * v4 broadcasts an SW_ACTIVATED message to all open clients on
 //     activate, so already-open tabs auto-reload onto the new SW
 //     instead of staying stuck on whatever the old SW was doing.
-const CACHE_VERSION = "v4";
+//   * v5 stops caching HTML page responses entirely. The
+//     "networkFirstPage with cache fallback" strategy was the root
+//     cause of a React #418 hydration crash: when a deploy bumped JS
+//     chunk hashes, the SW could hand back a stale page HTML whose
+//     embedded SSR output (e.g. tickerItems with "5m ago") no longer
+//     matched what the freshly-shipped TickerTape component would
+//     render against the same props on the client. Hydration died,
+//     event handlers never attached, and every Link click on
+//     terminal pages silently no-op'd. Symptom upstream: clicks on
+//     /p/<ticker> didn't navigate, NavigationFallback fell through
+//     to a hard reload (white flash). Removing the page cache
+//     eliminates the drift window. /offline is still seeded at
+//     install for true-offline visits.
+//   * Bumped the version so every v4 user purges the bad pages cache
+//     on next visit (the activate handler nukes anything not in the
+//     expected name set).
+const CACHE_VERSION = "v5";
 const SHELL_CACHE = `rokki-shell-${CACHE_VERSION}`;
 const API_CACHE = "rokki-api-v1";
-const PAGES_CACHE = `rokki-pages-${CACHE_VERSION}`;
 const STATIC_CACHE = `rokki-static-${CACHE_VERSION}`;
 
 // Files to seed at install. Keep this list short — the page-cache strategy
@@ -83,7 +98,6 @@ self.addEventListener("activate", (event) => {
   const expected = new Set([
     SHELL_CACHE,
     API_CACHE,
-    PAGES_CACHE,
     STATIC_CACHE,
   ]);
   event.waitUntil(
@@ -162,11 +176,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Page navigations: network-first with cache fallback. RSC requests
-  // already short-circuited above; this branch only handles real
-  // browser-initiated navigations and html document fetches.
+  // Page navigations: network-only with /offline fallback. We do NOT
+  // cache successful HTML responses anymore — caching them caused a
+  // hydration drift window across deploys (see CACHE_VERSION comment
+  // for the long version). The only fallback is the dedicated
+  // /offline page, seeded at install.
   if (req.mode === "navigate" || accept.includes("text/html")) {
-    event.respondWith(networkFirstPage(req));
+    event.respondWith(networkOnlyPage(req));
     return;
   }
 
@@ -229,16 +245,14 @@ async function cacheFirstStatic(req) {
   return res;
 }
 
-async function networkFirstPage(req) {
-  const cache = await caches.open(PAGES_CACHE);
+async function networkOnlyPage(req) {
+  // Always go to the network for HTML — never serve a cached page,
+  // because the cached HTML can race a fresh JS bundle and produce a
+  // hydration mismatch. The only fallback is the /offline page, used
+  // when fetch itself rejects (true network failure).
   try {
-    const res = await fetch(req);
-    if (res.ok) cache.put(req, res.clone()).catch(() => {});
-    return res;
+    return await fetch(req);
   } catch (err) {
-    const cached = await cache.match(req);
-    if (cached) return cached;
-    // Last resort: the dedicated /offline page. Always seeded at install.
     const fallback = await caches.match("/offline");
     if (fallback) return fallback;
     throw err;

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 
-const EXPECTED_SW_VERSION = "v4";
+const EXPECTED_SW_VERSION = "v5";
 
 /**
  * Registers the PWA service worker on mount, in production only. Dev runs
