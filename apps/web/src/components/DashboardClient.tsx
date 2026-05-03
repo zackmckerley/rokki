@@ -98,7 +98,19 @@ export function DashboardClient({
         topBar={
           <TopBar>
             <span className="text-text-3">/</span>
-            <span className="text-text-1">{greeting(userName)}</span>
+            {/* suppressHydrationWarning: greeting() reads new Date().getHours()
+                which uses the runtime's local timezone — UTC on Vercel's
+                Node server, local on the user's browser. SSR and client
+                disagree any time the local hour and UTC hour fall in
+                different greeting buckets (e.g. server says "evening" at
+                21 UTC, client says "afternoon" at 17 EDT). The mismatch
+                triggered React #418, which detaches all event handlers in
+                the subtree — symptom: every Link in the dashboard
+                silently no-op'd. The greeting is cosmetic; let the client
+                win after hydration. */}
+            <span className="text-text-1" suppressHydrationWarning>
+              {greeting(userName)}
+            </span>
             {/* Subtle Cmd+K hint — replaces nothing, just adds a
                 discoverable shortcut for power users. The palette
                 itself is wired up in <CommandPalette> and triggered
