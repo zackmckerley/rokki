@@ -53,7 +53,22 @@ self.addEventListener("install", (event) => {
 // can detect "I'm controlled by an old SW" and force a reload. The
 // message arrives with a transferred MessagePort; reply through it so
 // the page resolves its versionPromise.
+//
+// Origin check: a SW only receives postMessage from clients within its
+// scope, but a malicious iframe loaded into one of those clients could
+// still call postMessage on its window's controller. Reject anything
+// whose source isn't a same-origin window client.
 self.addEventListener("message", (event) => {
+  const source = event.source;
+  // Ignore messages without a source (e.g. broadcast channel forwards).
+  if (!source) return;
+  // Only accept from same-origin window clients on our own scope.
+  try {
+    const sourceUrl = new URL(source.url);
+    if (sourceUrl.origin !== self.location.origin) return;
+  } catch {
+    return;
+  }
   const data = event.data;
   if (!data || typeof data !== "object") return;
   if (data.type === "VERSION_CHECK") {
