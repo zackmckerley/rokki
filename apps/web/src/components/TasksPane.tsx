@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Check, MessageSquare, Maximize2, ListTodo } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Check,
+  MessageSquare,
+  Maximize2,
+  ListTodo,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./EmptyState";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
@@ -10,6 +18,7 @@ import { useRegisterCommands } from "@/lib/use-register-commands";
 import { offlineFetch } from "@/lib/offline-fetch";
 import { CommentThread } from "./CommentThread";
 import { TaskComposer, type TaskComposerMember } from "./TaskComposer";
+import { SubtasksList, type Subtask } from "./SubtasksList";
 import {
   PriorityDots,
   StatusPill,
@@ -60,6 +69,53 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
   const [creating, setCreating] = useState(false);
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
+
+  // Subtasks: lazily-loaded per parent. `null` = not yet fetched,
+  // `[]` = fetched and empty. The expand toggle drives both
+  // `expandedTaskIds` (visibility) and the first-fetch trigger.
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [subtasksByTaskId, setSubtasksByTaskId] = useState<
+    Record<string, Subtask[] | null>
+  >({});
+
+  async function loadSubtasks(taskId: string) {
+    setSubtasksByTaskId((prev) =>
+      taskId in prev ? prev : { ...prev, [taskId]: null },
+    );
+    try {
+      const r = await fetch(`/api/v1/tasks/${taskId}/subtasks`, {
+        credentials: "include",
+      });
+      const body = (await r.json().catch(() => ({}))) as {
+        data?: Subtask[];
+      };
+      setSubtasksByTaskId((prev) => ({
+        ...prev,
+        [taskId]: body.data ?? [],
+      }));
+    } catch {
+      setSubtasksByTaskId((prev) => ({ ...prev, [taskId]: [] }));
+    }
+  }
+
+  function toggleExpand(taskId: string) {
+    setExpandedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+        // Fire the lazy fetch the first time the row expands. Re-opening
+        // a previously-loaded row reuses the cached array — no refetch.
+        if (!(taskId in subtasksByTaskId)) {
+          void loadSubtasks(taskId);
+        }
+      }
+      return next;
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -315,19 +371,39 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
           <Empty onCreate={() => setCreating(true)} />
         ) : (
           <ul className="divide-y divide-border">
-            {tasks.map((t, i) => (
-              <TaskRow
-                key={t.id}
-                task={t}
-                ticker={ticker}
-                selected={i === selectedIdx}
-                onClick={() => setSelectedIdx(i)}
-                onToggle={() => toggleComplete(t)}
-                onOpenComments={() =>
-                  setCommentTaskId((prev) => (prev === t.id ? null : t.id))
-                }
-              />
-            ))}
+            {tasks.map((t, i) => {
+              const expanded = expandedTaskIds.has(t.id);
+              return (
+                <li key={t.id}>
+                  <TaskRow
+                    task={t}
+                    ticker={ticker}
+                    selected={i === selectedIdx}
+                    expanded={expanded}
+                    onClick={() => setSelectedIdx(i)}
+                    onToggle={() => toggleComplete(t)}
+                    onOpenComments={() =>
+                      setCommentTaskId((prev) =>
+                        prev === t.id ? null : t.id,
+                      )
+                    }
+                    onToggleExpand={() => toggleExpand(t.id)}
+                  />
+                  {expanded ? (
+                    <SubtasksList
+                      taskId={t.id}
+                      subtasks={subtasksByTaskId[t.id] ?? null}
+                      onChange={(next) =>
+                        setSubtasksByTaskId((prev) => ({
+                          ...prev,
+                          [t.id]: next,
+                        }))
+                      }
+                    />
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -361,28 +437,48 @@ function TaskRow({
   task,
   ticker,
   selected,
+  expanded,
   onClick,
   onToggle,
   onOpenComments,
+  onToggleExpand,
 }: {
   task: Task;
   ticker: string;
   selected: boolean;
+  expanded: boolean;
   onClick: () => void;
   onToggle: () => void;
   onOpenComments: () => void;
+  onToggleExpand: () => void;
 }) {
   const done = task.status === "done";
 
   return (
-    <li
+    <div
       onClick={onClick}
       className={cn(
-        "group flex cursor-pointer items-center gap-3 px-4 py-2.5 transition-colors",
+        "group flex cursor-pointer items-center gap-2 px-2 py-2.5 transition-colors",
         selected ? "bg-bg-2" : "hover:bg-bg-2",
-        selected && "border-l-2 border-l-border-focus pl-[14px]",
+        selected && "border-l-2 border-l-border-focus pl-[6px]",
       )}
     >
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleExpand();
+        }}
+        aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
+        aria-expanded={expanded}
+        className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm text-text-3 hover:bg-bg-3 hover:text-text-0"
+      >
+        {expanded ? (
+          <ChevronDown className="h-3 w-3" aria-hidden="true" />
+        ) : (
+          <ChevronRight className="h-3 w-3" aria-hidden="true" />
+        )}
+      </button>
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -427,7 +523,7 @@ function TaskRow({
       {task.due_date ? <DueChip date={task.due_date} /> : null}
       <PriorityDots priority={task.priority} />
       <StatusPill status={task.status} />
-    </li>
+    </div>
   );
 }
 
