@@ -101,20 +101,34 @@
   --info-subtle: #ddf4ff;
 }
 
-/* Density — "cozy" is default; "compact" tightens list rows ~30% without
-   touching typography. Targets list items inside dashboard cards so the
-   rest of the UI keeps its rhythm. */
-[data-density="cozy"] {
+/* Density — "cozy" is the default; "compact" shrinks the entire UI
+   ~12.5% by reducing the root font-size, which scales every
+   rem-based Tailwind utility (padding, margin, gap, font-size,
+   line-height). One number, global effect — much more visible
+   than the old data-row-only padding tweak that didn't move
+   anything outside of dashboard list rows.
+   The previous bespoke variables (--row-padding-y, --card-gap)
+   are kept around for the few `data-row` / `.card-stack` markers
+   that already use them, but they're no longer the primary
+   driver — the font-size change is. */
+:root {
   --row-padding-y: 6px;
   --card-gap: 12px;
 }
-[data-density="compact"] {
+html[data-density="cozy"] {
+  font-size: 16px;
+  --row-padding-y: 6px;
+  --card-gap: 12px;
+}
+html[data-density="compact"] {
+  font-size: 14px;
   --row-padding-y: 3px;
   --card-gap: 8px;
 }
 /* Legacy names for any older markup: treat default=cozy, comfortable=cozy. */
-[data-density="default"],
-[data-density="comfortable"] {
+html[data-density="default"],
+html[data-density="comfortable"] {
+  font-size: 16px;
   --row-padding-y: 6px;
   --card-gap: 12px;
 }
