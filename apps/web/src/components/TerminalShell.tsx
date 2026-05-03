@@ -130,7 +130,7 @@ export function TerminalShell({
             <div className="hidden lg:block">
               <ResizeHandle
                 ariaLabel="Resize explorer"
-                onPointerDown={(e) =>
+                onMouseDown={(e) =>
                   explorerRail.startDrag(e, { side: "before" })
                 }
               />
@@ -148,7 +148,7 @@ export function TerminalShell({
             <div className="hidden lg:block">
               <ResizeHandle
                 ariaLabel="Resize context pane"
-                onPointerDown={(e) =>
+                onMouseDown={(e) =>
                   ctxPane.startDrag(e, { side: "before" })
                 }
               />
@@ -161,7 +161,7 @@ export function TerminalShell({
             <div className="hidden lg:block">
               <ResizeHandle
                 ariaLabel="Resize right pane"
-                onPointerDown={(e) =>
+                onMouseDown={(e) =>
                   rightSidePane.startDrag(e, { side: "after" })
                 }
               />
