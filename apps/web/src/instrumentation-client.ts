@@ -33,7 +33,8 @@ if (dsn) {
 // transitions. Without this the browser SDK can't link route changes
 // to error events.
 //
-// (Briefly disabled in PR #85 to test whether this hook was the cause
-// of router.push silently no-op'ing on terminal pages — it isn't.
-// Restored.)
+// Briefly suspected (PR #85) of causing router.push to silently no-op
+// on terminal pages and disabled to confirm. It wasn't the culprit —
+// the actual cause was a service-worker page-cache drift triggering a
+// React #418 hydration mismatch (see public/sw.js v5 comment).
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
