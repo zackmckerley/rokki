@@ -132,7 +132,6 @@ export function DashboardClient({
             userName={userName}
             userEmail={userEmail}
             isPlatformAdmin={isPlatformAdmin}
-            canCreateSpace={isPlatformAdmin}
           />
         }
         center={
