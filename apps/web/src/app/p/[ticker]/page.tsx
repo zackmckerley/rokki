@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { CheckSquare, Users } from "lucide-react";
+import { CheckSquare, Settings, Users } from "lucide-react";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 import { createClient } from "@/lib/supabase/server";
@@ -221,14 +221,20 @@ export default async function ProjectTerminalPage({ params }: Props) {
           ) : null}
           <span className="text-text-3">/</span>
           <span className="text-text-0 font-medium">{p.name}</span>
-          {/* Topbar right-side: presence only. The per-terminal Settings
-              link used to live here too — removed because:
-                1. AccountBlock at the bottom-left is the canonical
-                   settings entry point (user-level settings).
-                2. Per-terminal admin (rename, members, archive) is
-                   reachable via the command palette and the explorer
-                   rail's per-space cog. A second top-right link was
-                   redundant clutter. */}
+          {/* Subtle settings cog right after the terminal name —
+              contextual access to per-terminal admin (rename, members,
+              archive) without re-introducing the redundant top-right
+              "Settings" link. The big top-right link was the
+              clutter; this small inline cog reads as "settings for
+              the thing the breadcrumb just named." */}
+          <Link
+            href={`/p/${p.ticker}/settings`}
+            aria-label={`${p.name} settings`}
+            title="Terminal settings"
+            className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+          >
+            <Settings className="h-3 w-3" aria-hidden="true" />
+          </Link>
           <span className="ml-auto flex items-center gap-3">
             <TerminalPresence
               terminalId={p.id}

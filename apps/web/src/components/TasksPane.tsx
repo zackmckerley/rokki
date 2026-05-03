@@ -168,7 +168,18 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
         window.location.origin,
       );
       if (sortMode === "manual") url.searchParams.set("sort", "position");
-      const r = await fetch(url.toString(), { credentials: "include" });
+      // `cache: 'no-store'` bypasses both the browser HTTP cache
+      // and our service-worker `staleWhileRevalidateApi` (which
+      // bails on `Cache-Control: no-store` requests). Without
+      // this, a dashboard→terminal navigation could land on the
+      // SW's stale-cached task list and show one fewer task than
+      // actually exists, until the user reloaded — see Zack's
+      // "count is one behind" report after creating tasks via the
+      // dashboard quick-create dialog.
+      const r = await fetch(url.toString(), {
+        credentials: "include",
+        cache: "no-store",
+      });
       const body = (await r.json()) as {
         data?: Task[];
         errors?: { message: string }[];

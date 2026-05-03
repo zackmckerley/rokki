@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
-  Plus,
   Search,
   Settings,
   Sparkles,
@@ -307,36 +306,28 @@ export function ExplorerRail({
                       >
                         {s.name}
                       </span>
-                      {/* Inline "empty" hint when this space has no
-                          terminals. Cheaper than rendering a separate
-                          row in the tree below. */}
-                      {children.length === 0 ? (
-                        <span
-                          className="font-mono text-[9px] italic text-text-3"
-                          aria-hidden="true"
-                        >
-                          empty
-                        </span>
-                      ) : null}
+                      {/* The "empty" italic hint that used to live here
+                          for terminal-less spaces was dropped per UX
+                          feedback — when a space has no terminals,
+                          expanding it just shows nothing, which reads
+                          fine on its own. */}
+                      {/* Per-space "+ New terminal" was removed per
+                          UX feedback ("why is there still a plus
+                          sign in my filter under the explorer"). The
+                          quick-create flow lives elsewhere now —
+                          ⌘K → "new terminal" or the AccountBlock
+                          dropdown. We keep the Settings cog because
+                          space admin doesn't have a global entry
+                          point yet. */}
                       {canMakeTerminal ? (
-                        <>
-                          <Link
-                            href={`/s/${s.slug}/settings`}
-                            aria-label={`Settings for ${s.name}`}
-                            title="Space settings"
-                            className="rounded-sm p-0.5 text-text-3 hover:bg-bg-3 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-                          >
-                            <Settings className="h-3 w-3" />
-                          </Link>
-                          <Link
-                            href={`/?new=terminal&space=${s.slug}`}
-                            aria-label="New terminal"
-                            title="New terminal"
-                            className="rounded-sm p-0.5 text-text-3 hover:bg-bg-3 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Link>
-                        </>
+                        <Link
+                          href={`/s/${s.slug}/settings`}
+                          aria-label={`Settings for ${s.name}`}
+                          title="Space settings"
+                          className="rounded-sm p-0.5 text-text-3 hover:bg-bg-3 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                        >
+                          <Settings className="h-3 w-3" />
+                        </Link>
                       ) : null}
                     </div>
                     {!isCollapsed && children.length > 0 ? (

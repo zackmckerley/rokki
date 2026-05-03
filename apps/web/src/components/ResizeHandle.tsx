@@ -136,21 +136,27 @@ interface ResizeHandleProps {
 }
 
 /**
- * Thin draggable thumb that sits between two panels and resizes
- * the one wired to it via `useResizable`.
+ * Draggable thumb that sits between two panels and resizes the one
+ * wired to it via `useResizable`.
+ *
+ * v1 of this component had a 4px-wide visible bar with a 6px hit
+ * area, which Zack reported he couldn't grab. v2 keeps the same
+ * visual minimalism (a 1px accent line on hover) but expands the
+ * hit area to 10px on either side and shows a persistent grip
+ * indicator at the column's vertical midpoint, so the affordance
+ * is discoverable at a glance.
  *
  * Visuals:
- *   - 4px wide / tall, transparent by default
- *   - hover and active states subtly tint it accent so the user
- *     can see they've grabbed the right edge
+ *   - 1px wide column, hover paints the full column accent
+ *   - small "::" grip glyph at the vertical midpoint, faint by
+ *     default and brightened on hover, makes the seam discoverable
+ *     without dominating the layout
  *   - cursor flips to col-resize / row-resize on hover
  *
  * Accessibility:
  *   - role="separator" with `aria-orientation` so screen readers
  *     announce it as a resizer
- *   - keyboard adjustment is not wired here — the localStorage
- *     state and pointer drag are the v1; arrow-key bumps will
- *     come later
+ *   - keyboard adjustment is not wired here — pointer drag is v1
  */
 export function ResizeHandle({
   orientation = "vertical",
@@ -165,23 +171,39 @@ export function ResizeHandle({
       aria-label={ariaLabel ?? "Resize"}
       onMouseDown={onMouseDown}
       className={cn(
-        "group relative flex-shrink-0 transition-colors",
+        "group relative flex-shrink-0 bg-border transition-colors",
         orientation === "vertical"
-          ? "w-1 cursor-col-resize hover:bg-border-focus active:bg-accent"
-          : "h-1 cursor-row-resize hover:bg-border-focus active:bg-accent",
+          ? "w-px cursor-col-resize hover:bg-accent"
+          : "h-px cursor-row-resize hover:bg-accent",
         className,
       )}
     >
-      {/* Wider hit area than the visible 4px — clicking *exactly* a
-          4px target is hard. The pseudo-element extends the
-          interactive zone without changing visual width. */}
+      {/* Grip indicator at the midpoint — three subtle dots so the
+          user can see this seam is interactive. Sized small so it
+          doesn't read as decoration. */}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute opacity-50 transition-opacity group-hover:opacity-100",
+          orientation === "vertical"
+            ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[2px]"
+            : "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[2px]",
+        )}
+      >
+        <span className="block h-[2px] w-[2px] rounded-full bg-text-3 group-hover:bg-accent" />
+        <span className="block h-[2px] w-[2px] rounded-full bg-text-3 group-hover:bg-accent" />
+        <span className="block h-[2px] w-[2px] rounded-full bg-text-3 group-hover:bg-accent" />
+      </span>
+      {/* Generous transparent hit area — easy to grab without
+          consuming visible layout space. 10px on either side of
+          the 1px line makes the effective click target 21px wide. */}
       <span
         aria-hidden="true"
         className={cn(
           "absolute",
           orientation === "vertical"
-            ? "inset-y-0 -left-1 -right-1"
-            : "inset-x-0 -top-1 -bottom-1",
+            ? "inset-y-0 -left-2 -right-2"
+            : "inset-x-0 -top-2 -bottom-2",
         )}
       />
     </div>
