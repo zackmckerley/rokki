@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Diamond, Calendar as CalIcon } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import type { WeekItem } from "@/lib/dashboard-queries";
@@ -19,7 +19,22 @@ interface WeekCardProps {
  * events land in a later slice when the sync connector is live.
  */
 export function WeekCard({ items }: WeekCardProps) {
+  // Defer the grouped/rendered content to client mount. The grouping
+  // depends on `new Date()` (server's UTC vs. browser's local TZ) and
+  // the day/time labels go through toLocaleDateString /
+  // toLocaleTimeString, which use the runtime's locale. Both diverge
+  // between SSR and CSR — and the divergence used to throw React
+  // #418, which detached every event handler in the dashboard
+  // subtree (Link clicks silently no-op'd). Rendering only after
+  // mount sidesteps the mismatch entirely; the placeholder during
+  // SSR is the empty card shell.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const grouped = useMemo(() => {
+    if (!mounted) return [];
     const days = new Map<string, WeekItem[]>();
     for (const it of items) {
       const key = it.when.slice(0, 10);
@@ -43,7 +58,7 @@ export function WeekCard({ items }: WeekCardProps) {
       });
     }
     return out;
-  }, [items]);
+  }, [items, mounted]);
 
   return (
     <DashboardCard
