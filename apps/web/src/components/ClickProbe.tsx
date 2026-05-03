@@ -30,9 +30,15 @@ export function ClickProbe() {
   const beforeUrlRef = useRef<string>("");
 
   useEffect(() => {
+    // Auto-activate on terminal pages (/p/*) while we're chasing the
+    // "clicks don't navigate" bug. Anywhere else, opt-in via URL or
+    // localStorage as before.
+    const onTerminalPage = window.location.pathname.startsWith("/p/");
     const isOptedIn =
+      onTerminalPage ||
       new URLSearchParams(window.location.search).get("debug-click") ===
-        "1" || window.localStorage.getItem("rokki:debug-click") === "1";
+        "1" ||
+      window.localStorage.getItem("rokki:debug-click") === "1";
     setEnabled(isOptedIn);
   }, []);
 
@@ -96,6 +102,20 @@ export function ClickProbe() {
           // Anchor was clicked but URL didn't change — that's the bug
           // we're chasing.
           console.warn("[ClickProbe] anchor click without navigation:", ev);
+        }
+        // POST to the diagnostic sink AFTER the 250ms verdict so the
+        // recorded event includes both the click context (target,
+        // anchor href, defaultPrevented) and whether navigation
+        // actually succeeded. Single POST per click, no spam.
+        try {
+          void fetch("/api/v1/health/click-log", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ url: ev.urlBefore, payload: ev }),
+            keepalive: true,
+          });
+        } catch {
+          // ignore
         }
       }, 250);
     };
