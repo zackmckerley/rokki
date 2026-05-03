@@ -19,11 +19,13 @@
 //
 // Cache version bumps on schema changes. Bump CACHE_VERSION to invalidate.
 
-// Bumped to v3 (2026-05-03) to invalidate v2 page caches that were
-// serving stale Next.js RSC payloads from cacheFirstWithRefresh, which
-// silently broke client-side navigation inside the terminal layout.
-// See the RSC short-circuit below.
-const CACHE_VERSION = "v3";
+// Bumped to v4 (2026-05-03):
+//   * v3 added the RSC short-circuit so Next.js client-side navigation
+//     stops hitting the cache.
+//   * v4 broadcasts an SW_ACTIVATED message to all open clients on
+//     activate, so already-open tabs auto-reload onto the new SW
+//     instead of staying stuck on whatever the old SW was doing.
+const CACHE_VERSION = "v4";
 const SHELL_CACHE = `rokki-shell-${CACHE_VERSION}`;
 const API_CACHE = "rokki-api-v1";
 const PAGES_CACHE = `rokki-pages-${CACHE_VERSION}`;
@@ -47,6 +49,36 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
 
+// Respond to version-check pings from the page so ServiceWorkerRegister
+// can detect "I'm controlled by an old SW" and force a reload. The
+// message arrives with a transferred MessagePort; reply through it so
+// the page resolves its versionPromise.
+//
+// Origin check: a SW only receives postMessage from clients within its
+// scope, but a malicious iframe loaded into one of those clients could
+// still call postMessage on its window's controller. Reject anything
+// whose source isn't a same-origin window client.
+self.addEventListener("message", (event) => {
+  const source = event.source;
+  // Ignore messages without a source (e.g. broadcast channel forwards).
+  if (!source) return;
+  // Only accept from same-origin window clients on our own scope.
+  try {
+    const sourceUrl = new URL(source.url);
+    if (sourceUrl.origin !== self.location.origin) return;
+  } catch {
+    return;
+  }
+  const data = event.data;
+  if (!data || typeof data !== "object") return;
+  if (data.type === "VERSION_CHECK") {
+    const port = event.ports?.[0];
+    if (port) {
+      port.postMessage({ type: "VERSION", version: CACHE_VERSION });
+    }
+  }
+});
+
 self.addEventListener("activate", (event) => {
   const expected = new Set([
     SHELL_CACHE,
@@ -62,7 +94,20 @@ self.addEventListener("activate", (event) => {
           keys.filter((k) => !expected.has(k)).map((k) => caches.delete(k)),
         ),
       )
-      .then(() => self.clients.claim()),
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window" }))
+      .then((clients) => {
+        // Broadcast to every open tab that a new SW just took over.
+        // The page-side listener (ServiceWorkerRegister) reloads on
+        // receipt so the tab picks up the new SW's responses without
+        // the user having to manually refresh / unregister.
+        for (const client of clients) {
+          client.postMessage({
+            type: "SW_ACTIVATED",
+            version: CACHE_VERSION,
+          });
+        }
+      }),
   );
 });
 
