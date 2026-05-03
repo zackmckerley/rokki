@@ -85,10 +85,25 @@ export default function RootLayout({
       <head>
         {/* Paint pure black before the CSS file even arrives. Without
             this the browser shows a flash of default white on cold
-            loads (especially noticeable on the dark-themed login page
-            with the nebula). */}
+            loads — especially noticeable on cross-page navigations
+            that fall through the NavigationFallback (which does a
+            window.location.assign hard-reload because the App Router's
+            client-side router.push is silently no-op'ing on terminal
+            pages — see NavigationFallback for context).
+
+            Three layers of dark-mode hint, in order of speed:
+              1. color-scheme: dark on <html> — tells the browser to
+                 paint native widgets (scrollbars, form chrome,
+                 background) in dark colors immediately. Renders
+                 before any CSS is parsed.
+              2. html, body background-color: #000 — covers any visible
+                 area until our stylesheets arrive.
+              3. body color: #f5f5f5 — placeholder light foreground for
+                 the same window. Real text colors land with the real
+                 stylesheet a few ms later. */}
         <style>{`
-          html, body { background: #000; }
+          html { color-scheme: dark; }
+          html, body { background: #000; color: #f5f5f5; }
           :root {
             --font-sans: ${GeistSans.style.fontFamily};
             --font-mono: ${GeistMono.style.fontFamily};
@@ -106,12 +121,20 @@ export default function RootLayout({
               (function () {
                 try {
                   var t = localStorage.getItem("rokki_theme");
+                  var resolved = "dark";
                   if (t === "system" || !t) {
                     var mq = window.matchMedia("(prefers-color-scheme: dark)");
-                    document.documentElement.dataset.theme = mq.matches ? "dark" : "light";
+                    resolved = mq.matches ? "dark" : "light";
                   } else if (t === "light" || t === "dark") {
-                    document.documentElement.dataset.theme = t;
+                    resolved = t;
                   }
+                  document.documentElement.dataset.theme = resolved;
+                  // Mirror the resolved theme onto color-scheme so the
+                  // browser repaints native chrome (scrollbars, form
+                  // controls) the moment localStorage is read. The
+                  // inline <style> above defaults to dark; flip to light
+                  // here when needed before any further paint.
+                  document.documentElement.style.colorScheme = resolved;
                   var d = localStorage.getItem("rokki_density");
                   if (d === "compact" || d === "cozy") {
                     document.documentElement.dataset.density = d;
