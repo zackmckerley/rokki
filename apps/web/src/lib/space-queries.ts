@@ -63,30 +63,12 @@ export interface SpaceActivityRow {
   created_at: string;
 }
 
-export interface SpaceWeekItem {
-  id: string;
-  kind: "due" | "event";
-  title: string;
-  when: string;
-  terminal_id: string | null;
-  terminal_ticker: string | null;
-}
-
 export interface SpaceLobbyMessage {
   id: string;
   body: string;
   author_id: string;
   author_name: string | null;
   created_at: string;
-}
-
-export interface SpaceFileRow {
-  id: string;
-  filename: string;
-  mime_type: string;
-  uploaded_at: string;
-  terminal_id: string;
-  terminal_ticker: string | null;
 }
 
 /**
@@ -520,88 +502,6 @@ export async function loadSpaceActivity(
 }
 
 /**
- * Load this week's items (tasks + calendar events) scoped to the
- * space. Mirror of the dashboard `loadWeekItems` but with
- * everything in the space, not just "tasks I touch."
- */
-export async function loadSpaceWeekItems(
-  supabase: AnySupabaseClient,
-  spaceId: string,
-): Promise<SpaceWeekItem[]> {
-  return traceSpan(
-    { name: "db.space.week_items", op: "db.query" },
-    async () => {
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 7);
-
-      const { data: terminals } = await supabase
-        .from("terminals")
-        .select("id, ticker")
-        .eq("space_id", spaceId)
-        .is("archived_at", null);
-      type TRow = { id: string; ticker: string };
-      const tList = (terminals ?? []) as TRow[];
-      const ids = tList.map((t) => t.id);
-      const tickerById = new Map(tList.map((t) => [t.id, t.ticker]));
-      if (ids.length === 0) return [];
-
-      const [{ data: tasks }, { data: events }] = await Promise.all([
-        supabase
-          .from("tasks")
-          .select("id, title, due_date, terminal_id")
-          .in("terminal_id", ids)
-          .gte("due_date", start.toISOString().slice(0, 10))
-          .lte("due_date", end.toISOString().slice(0, 10))
-          .neq("status", "done")
-          .is("deleted_at", null),
-        supabase
-          .from("calendar_events")
-          .select("id, title, starts_at, terminal_id")
-          .in("terminal_id", ids)
-          .gte("starts_at", start.toISOString())
-          .lte("starts_at", end.toISOString())
-          .is("deleted_at", null),
-      ]);
-
-      type TT = {
-        id: string;
-        title: string;
-        due_date: string | null;
-        terminal_id: string;
-      };
-      type EE = {
-        id: string;
-        title: string;
-        starts_at: string;
-        terminal_id: string | null;
-      };
-
-      const dueRows = ((tasks ?? []) as TT[]).map<SpaceWeekItem>((t) => ({
-        id: `task:${t.id}`,
-        kind: "due",
-        title: t.title,
-        when: t.due_date ?? "",
-        terminal_id: t.terminal_id,
-        terminal_ticker: tickerById.get(t.terminal_id) ?? null,
-      }));
-      const eventRows = ((events ?? []) as EE[]).map<SpaceWeekItem>((e) => ({
-        id: `event:${e.id}`,
-        kind: "event",
-        title: e.title,
-        when: e.starts_at,
-        terminal_id: e.terminal_id,
-        terminal_ticker: e.terminal_id
-          ? tickerById.get(e.terminal_id) ?? null
-          : null,
-      }));
-      return [...dueRows, ...eventRows];
-    },
-  );
-}
-
-/**
  * Load the most recent messages from the space's lobby thread (the
  * single `kind = 'space'` thread for this space, auto-provisioned
  * elsewhere). Returns up to `limit` newest-first.
@@ -668,48 +568,3 @@ export async function loadSpaceLobby(
   );
 }
 
-/**
- * Load the most-recently-uploaded files across all terminals in
- * the space. Files are still per-terminal in the schema; this is
- * a simple cross-terminal recents view.
- */
-export async function loadSpaceFiles(
-  supabase: AnySupabaseClient,
-  spaceId: string,
-  limit: number = 10,
-): Promise<SpaceFileRow[]> {
-  return traceSpan(
-    { name: "db.space.files", op: "db.query", attributes: { table: "files" } },
-    async () => {
-      const { data: terminals } = await supabase
-        .from("terminals")
-        .select("id, ticker")
-        .eq("space_id", spaceId)
-        .is("archived_at", null);
-      type TRow = { id: string; ticker: string };
-      const tList = (terminals ?? []) as TRow[];
-      const ids = tList.map((t) => t.id);
-      const tickerById = new Map(tList.map((t) => [t.id, t.ticker]));
-      if (ids.length === 0) return [];
-
-      const { data: rows } = await supabase
-        .from("files")
-        .select("id, filename, mime_type, uploaded_at, terminal_id")
-        .in("terminal_id", ids)
-        .is("deleted_at", null)
-        .order("uploaded_at", { ascending: false })
-        .limit(limit);
-      type FRow = {
-        id: string;
-        filename: string;
-        mime_type: string;
-        uploaded_at: string;
-        terminal_id: string;
-      };
-      return ((rows ?? []) as FRow[]).map((f) => ({
-        ...f,
-        terminal_ticker: tickerById.get(f.terminal_id) ?? null,
-      }));
-    },
-  );
-}

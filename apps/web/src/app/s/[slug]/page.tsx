@@ -7,12 +7,10 @@ import {
 } from "@/lib/dashboard-queries";
 import {
   loadSpaceActivity,
-  loadSpaceFiles,
   loadSpaceLobby,
   loadSpaceMembers,
   loadSpaceTasks,
   loadSpaceTerminals,
-  loadSpaceWeekItems,
 } from "@/lib/space-queries";
 
 interface Props {
@@ -63,15 +61,15 @@ export default async function SpaceLandingPage({ params }: Props) {
   if (!myRole) notFound();
 
   // All the heavy lifting in parallel — same pattern as the
-  // dashboard's loaders.
+  // dashboard's loaders. The week-calendar / files-vault loaders
+  // were dropped after the v1 ship per UX feedback ("remove the
+  // calendar … no need for recent files").
   const [
     terminals,
     tasks,
     members,
-    weekItems,
     activity,
     lobby,
-    files,
     explorerSpaces,
     explorerTerminals,
     toolsResult,
@@ -80,10 +78,8 @@ export default async function SpaceLandingPage({ params }: Props) {
     loadSpaceTerminals(supabase, s.id),
     loadSpaceTasks(supabase, s.id),
     loadSpaceMembers(supabase, s.id),
-    loadSpaceWeekItems(supabase, s.id),
     loadSpaceActivity(supabase, s.id, 30),
     loadSpaceLobby(supabase, s.id, 8),
-    loadSpaceFiles(supabase, s.id, 10),
     loadDashSpaces(supabase, user.id),
     loadDashTerminals(supabase),
     supabase
@@ -132,9 +128,7 @@ export default async function SpaceLandingPage({ params }: Props) {
       terminals={terminals}
       tasks={tasks}
       members={members}
-      weekItems={weekItems}
       lobby={{ hasThread: lobby.threadId !== null, messages: lobby.messages }}
-      files={files}
       tickerItems={tickerItems}
     />
   );

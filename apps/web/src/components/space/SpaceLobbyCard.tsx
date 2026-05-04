@@ -27,14 +27,14 @@ export function SpaceLobbyCard({
 }: SpaceLobbyCardProps) {
   return (
     <DashboardCard
-      title="Lobby"
+      title="Messages"
       count={hasThread ? messages.length : undefined}
       expandHref="/messages"
     >
       {!hasThread ? (
         <p className="px-3 py-4 text-center text-[11px] text-text-3">
-          No lobby thread yet for {spaceName}. Open the inbox to start
-          one.
+          No messages thread yet for {spaceName}. Open the inbox to
+          start one.
         </p>
       ) : messages.length === 0 ? (
         <p className="px-3 py-4 text-center text-[11px] text-text-3">

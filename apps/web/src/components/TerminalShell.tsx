@@ -127,7 +127,7 @@ export function TerminalShell({
             >
               {leftRail}
             </aside>
-            <div className="hidden lg:block">
+            <div className="hidden flex-shrink-0 lg:block">
               <ResizeHandle
                 ariaLabel="Resize explorer"
                 onMouseDown={(e) =>
@@ -145,7 +145,7 @@ export function TerminalShell({
             >
               {leftPane}
             </div>
-            <div className="hidden lg:block">
+            <div className="hidden flex-shrink-0 lg:block">
               <ResizeHandle
                 ariaLabel="Resize context pane"
                 onMouseDown={(e) =>
@@ -158,7 +158,7 @@ export function TerminalShell({
         <div className="flex-1 overflow-y-auto bg-bg-0">{mainPane}</div>
         {rightPane && rightOpen ? (
           <>
-            <div className="hidden lg:block">
+            <div className="hidden flex-shrink-0 lg:block">
               <ResizeHandle
                 ariaLabel="Resize right pane"
                 onMouseDown={(e) =>

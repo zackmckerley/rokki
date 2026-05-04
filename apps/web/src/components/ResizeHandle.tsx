@@ -136,22 +136,19 @@ interface ResizeHandleProps {
 }
 
 /**
- * Draggable thumb that sits between two panels and resizes the one
- * wired to it via `useResizable`.
+ * Draggable thumb between two resizable panels.
  *
- * v1 of this component had a 4px-wide visible bar with a 6px hit
- * area, which Zack reported he couldn't grab. v2 keeps the same
- * visual minimalism (a 1px accent line on hover) but expands the
- * hit area to 10px on either side and shows a persistent grip
- * indicator at the column's vertical midpoint, so the affordance
- * is discoverable at a glance.
+ * v1 used a 4px-wide bar with a tiny 6px hit area. v2 (this one)
+ * went the other way — 1px line + grip dots + 21px hit area —
+ * but Zack still couldn't find / grab it. v3 splits the difference:
  *
- * Visuals:
- *   - 1px wide column, hover paints the full column accent
- *   - small "::" grip glyph at the vertical midpoint, faint by
- *     default and brightened on hover, makes the seam discoverable
- *     without dominating the layout
- *   - cursor flips to col-resize / row-resize on hover
+ *   * 4px-wide visible column, accent-bordered against the
+ *     surrounding panel borders so the seam reads as
+ *     interactive (not as decoration)
+ *   * full-column accent fill on hover so there's no doubt
+ *     "this responds to my mouse"
+ *   * persistent grip-dots indicator at the midpoint
+ *   * 12px hit area on either side of the 4px bar (28px total)
  *
  * Accessibility:
  *   - role="separator" with `aria-orientation` so screen readers
@@ -173,37 +170,34 @@ export function ResizeHandle({
       className={cn(
         "group relative flex-shrink-0 bg-border transition-colors",
         orientation === "vertical"
-          ? "w-px cursor-col-resize hover:bg-accent"
-          : "h-px cursor-row-resize hover:bg-accent",
+          ? "w-1 cursor-col-resize hover:bg-accent"
+          : "h-1 cursor-row-resize hover:bg-accent",
         className,
       )}
     >
-      {/* Grip indicator at the midpoint — three subtle dots so the
-          user can see this seam is interactive. Sized small so it
-          doesn't read as decoration. */}
+      {/* Grip indicator at the midpoint — three vertical dots so the
+          user can see this seam is interactive without staring. */}
       <span
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute opacity-50 transition-opacity group-hover:opacity-100",
-          orientation === "vertical"
-            ? "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-[2px]"
-            : "left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex gap-[2px]",
+          "pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 opacity-80 transition-opacity group-hover:opacity-100",
+          orientation === "vertical" ? "flex-col gap-[2px]" : "gap-[2px]",
         )}
       >
-        <span className="block h-[2px] w-[2px] rounded-full bg-text-3 group-hover:bg-accent" />
-        <span className="block h-[2px] w-[2px] rounded-full bg-text-3 group-hover:bg-accent" />
-        <span className="block h-[2px] w-[2px] rounded-full bg-text-3 group-hover:bg-accent" />
+        <span className="block h-[3px] w-[3px] rounded-full bg-text-2 group-hover:bg-bg-0" />
+        <span className="block h-[3px] w-[3px] rounded-full bg-text-2 group-hover:bg-bg-0" />
+        <span className="block h-[3px] w-[3px] rounded-full bg-text-2 group-hover:bg-bg-0" />
       </span>
-      {/* Generous transparent hit area — easy to grab without
-          consuming visible layout space. 10px on either side of
-          the 1px line makes the effective click target 21px wide. */}
+      {/* Generous transparent hit area — 12px on each side of the
+          4px bar = 28px wide click target. Easy to grab even with
+          imprecise pointing. */}
       <span
         aria-hidden="true"
         className={cn(
           "absolute",
           orientation === "vertical"
-            ? "inset-y-0 -left-2 -right-2"
-            : "inset-x-0 -top-2 -bottom-2",
+            ? "inset-y-0 -left-3 -right-3"
+            : "inset-x-0 -top-3 -bottom-3",
         )}
       />
     </div>
