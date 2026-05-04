@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Settings } from "lucide-react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { TopBar } from "@/components/TopBar";
 import { TickerTape } from "@/components/TickerTape";
@@ -9,10 +8,8 @@ import { ExplorerRail } from "@/components/dashboard/ExplorerRail";
 import { DensityProvider, type Density } from "@/lib/density";
 import { TerminalsGrid } from "./TerminalsGrid";
 import { SpaceTasksCard } from "./SpaceTasksCard";
-import { SpaceWeekCard } from "./SpaceWeekCard";
 import { SpaceMembersCard } from "./SpaceMembersCard";
 import { SpaceLobbyCard } from "./SpaceLobbyCard";
-import { SpaceFilesCard } from "./SpaceFilesCard";
 import type {
   DashSpace,
   DashTerminal,
@@ -22,8 +19,6 @@ import type {
   SpaceTaskRow,
   SpaceMemberRow,
   SpaceLobbyMessage,
-  SpaceFileRow,
-  SpaceWeekItem,
 } from "@/lib/space-queries";
 
 interface SpaceClientProps {
@@ -49,9 +44,7 @@ interface SpaceClientProps {
     dueThisWeek: SpaceTaskRow[];
   };
   members: SpaceMemberRow[];
-  weekItems: SpaceWeekItem[];
   lobby: { hasThread: boolean; messages: SpaceLobbyMessage[] };
-  files: SpaceFileRow[];
   tickerItems: { id: string; text: string; when: string }[];
 }
 
@@ -77,12 +70,12 @@ export function SpaceClient({
   terminals,
   tasks,
   members,
-  weekItems,
   lobby,
-  files,
   tickerItems,
 }: SpaceClientProps) {
-  const canManage = myRole === "owner" || myRole === "admin";
+  // myRole is consumed by the parent route's auth gate (member-only
+  // landing); we don't render any role-gated chrome on this page.
+  void myRole;
   return (
     <DensityProvider initial={initialDensity}>
       <DashboardShell
@@ -94,16 +87,11 @@ export function SpaceClient({
             </Link>
             <span className="text-text-3">/</span>
             <span className="text-text-0 font-medium">{space.name}</span>
-            {canManage ? (
-              <Link
-                href={`/s/${space.slug}/settings`}
-                aria-label={`${space.name} settings`}
-                title="Space settings"
-                className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-              >
-                <Settings className="h-3 w-3" aria-hidden="true" />
-              </Link>
-            ) : null}
+            {/* No Settings cog up here per UX feedback ("dont need
+                the setting gear up top when i go into the space").
+                Space admin (rename, members, archive) lives at
+                /s/<slug>/settings — reachable via direct URL or
+                the command palette. */}
           </TopBar>
         }
         ticker={<TickerTape items={tickerItems} />}
@@ -123,9 +111,9 @@ export function SpaceClient({
                 have? — stretched full width. */}
             <TerminalsGrid terminals={terminals} />
 
-            {/* Two side-by-side roll-ups: tasks + week. Both are
-                "look across the space" surfaces; pairing them keeps
-                the overview shape compact. Stacks on narrow viewports. */}
+            {/* Tasks roll-up sits below — the cross-cutting "what's
+                actually moving" view. Members live next to it on
+                wide viewports, stacks below on narrow ones. */}
             <div className="grid gap-3 lg:grid-cols-2">
               <SpaceTasksCard
                 assignedToMe={tasks.assignedToMe}
@@ -133,28 +121,22 @@ export function SpaceClient({
                 blocked={tasks.blocked}
                 dueThisWeek={tasks.dueThisWeek}
               />
-              <SpaceWeekCard items={weekItems} />
-            </div>
-
-            {/* Members + Lobby — the social pair. */}
-            <div className="grid gap-3 lg:grid-cols-2">
               <SpaceMembersCard members={members} />
-              <SpaceLobbyCard
-                spaceName={space.name}
-                messages={lobby.messages}
-                hasThread={lobby.hasThread}
-              />
             </div>
-
-            <SpaceFilesCard files={files} />
           </div>
         }
         right={
-          /* Right rail is empty on the space landing — the ticker
-             tape across the top already serves as "what's happening
-             across the space," and the center is dense enough that
-             a third column would just compete for attention. */
-          <div className="hidden" aria-hidden="true" />
+          /* The space's lobby thread lives in the right rail —
+             same shape as the dashboard's MessagesCard. Title is
+             plain "Messages" because that's what the user calls
+             it; "lobby" was internal jargon. */
+          <div className="card-stack flex flex-col gap-3 p-2 sm:p-3">
+            <SpaceLobbyCard
+              spaceName={space.name}
+              messages={lobby.messages}
+              hasThread={lobby.hasThread}
+            />
+          </div>
         }
       />
     </DensityProvider>
