@@ -78,7 +78,7 @@ export function DashboardShell({
         >
           {left}
         </aside>
-        <div className="hidden flex-shrink-0 lg:block">
+        <div className="hidden flex-shrink-0 self-stretch lg:flex">
           <ResizeHandle
             ariaLabel="Resize explorer"
             onMouseDown={(e) =>
@@ -97,7 +97,7 @@ export function DashboardShell({
             {right}
           </div>
         </main>
-        <div className="hidden flex-shrink-0 lg:block">
+        <div className="hidden flex-shrink-0 self-stretch lg:flex">
           <ResizeHandle
             ariaLabel="Resize messages"
             onMouseDown={(e) =>
