@@ -300,12 +300,13 @@ export function ExplorerRail({
                           <ChevronDown className="h-3 w-3" />
                         )}
                       </button>
-                      <span
-                        className="flex-1 truncate text-text-1"
-                        title={s.name}
+                      <Link
+                        href={`/s/${s.slug}`}
+                        className="flex-1 truncate text-text-1 hover:text-text-0"
+                        title={`Open ${s.name}`}
                       >
                         {s.name}
-                      </span>
+                      </Link>
                       {/* The "empty" italic hint that used to live here
                           for terminal-less spaces was dropped per UX
                           feedback — when a space has no terminals,
