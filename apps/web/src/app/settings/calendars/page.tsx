@@ -183,15 +183,18 @@ export default async function CalendarsPage({ searchParams }: Props) {
           )}
         </AdminPanel>
 
-        {/* Add-calendar panel — only shown when there's at least one
-            provider not already connected, otherwise it's just noise. */}
-        {available.some((p) => !connectedProviders.has(p.id)) ||
-        unavailable.length > 0 ? (
+        {/* Add-calendar panel — always available because the schema
+            allows stacking multiple accounts per provider (e.g. work +
+            personal Outlook share one user but different
+            account_emails). The button reads "Connect" the first time
+            and "+ Add another" once at least one connection exists for
+            that provider. */}
+        {available.length > 0 || unavailable.length > 0 ? (
           <AdminPanel title="Add calendar" className="mb-4">
             <ul className="divide-y divide-border text-sm">
-              {available
-                .filter((p) => !connectedProviders.has(p.id))
-                .map((p) => (
+              {available.map((p) => {
+                const alreadyConnected = connectedProviders.has(p.id);
+                return (
                   <li
                     key={p.id}
                     className="flex items-center gap-3 px-4 py-2.5"
@@ -202,25 +205,14 @@ export default async function CalendarsPage({ searchParams }: Props) {
                       className="flex-shrink-0"
                     />
                     <span className="flex-1 text-text-1">{p.label}</span>
-                    <ConnectButton provider={p.id} label={p.label} />
-                  </li>
-                ))}
-              {available
-                .filter((p) => connectedProviders.has(p.id))
-                .map((p) => (
-                  <li
-                    key={p.id}
-                    className="flex items-center gap-3 px-4 py-2.5 text-text-3"
-                  >
-                    <ProviderLogo
+                    <ConnectButton
                       provider={p.id}
-                      size={18}
-                      className="flex-shrink-0 opacity-50"
+                      label={p.label}
+                      addAnother={alreadyConnected}
                     />
-                    <span className="flex-1">{p.label}</span>
-                    <AdminBadge variant="success">CONNECTED</AdminBadge>
                   </li>
-                ))}
+                );
+              })}
               {unavailable.map((p) => (
                 <li
                   key={p.id}

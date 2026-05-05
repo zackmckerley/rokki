@@ -68,13 +68,22 @@ export function providerConfig(p: Provider): ProviderConfig | null {
 /** Build the auth URL with a random state. Caller stores the state in a
  * short-lived cookie and verifies on callback.
  *
- * `prompt=select_account consent` — when a user is already signed into
- * a Microsoft/Google account in their browser, the IDP would otherwise
- * silently use that one. Forcing the account picker is critical for
- * the reconnect flow (users replacing a stale connection) and for the
- * second-account flow (e.g. work + personal Outlook). `consent` is
- * still requested so refresh_token is returned even if the user
- * previously consented and was about to skip the screen. */
+ * `prompt` handling differs per provider:
+ *   - Google supports space-separated multi-value prompts. We send
+ *     "select_account consent" so the account picker always renders
+ *     (critical for the reconnect / second-account flows) AND the
+ *     consent screen re-runs so a refresh_token is reissued.
+ *   - Microsoft Azure AD only accepts ONE prompt value at a time.
+ *     Sending multiple throws AADSTS90023 ("Unsupported 'prompt'
+ *     value"). We send only "select_account" — refresh tokens
+ *     come back automatically when `offline_access` is in the
+ *     requested scope (which it always is here).
+ *
+ * The Google `access_type=offline` is the equivalent of Microsoft's
+ * `offline_access` scope: both ask the IDP to return a refresh_token.
+ * Microsoft accepts the scope; Google requires the explicit query
+ * param.
+ */
 export function authorizeUrl(
   p: Provider,
   config: ProviderConfig,
@@ -85,10 +94,15 @@ export function authorizeUrl(
     redirect_uri: config.redirectUri,
     response_type: "code",
     scope: config.scopes.join(" "),
-    access_type: p === "google" ? "offline" : "",
-    prompt: "select_account consent",
     state,
   });
+  if (p === "google") {
+    params.set("access_type", "offline");
+    params.set("prompt", "select_account consent");
+  } else {
+    // Microsoft: single-value prompt only.
+    params.set("prompt", "select_account");
+  }
   return `${config.authorizeUrl}?${params.toString()}`;
 }
 
