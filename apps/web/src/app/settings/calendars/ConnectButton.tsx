@@ -17,15 +17,27 @@ import { ProviderLogo } from "./ProviderLogo";
  *   3. We surface a "Redirecting…" pending state for slow networks,
  *      since browser tabs can show no progress between click and the
  *      provider redirect.
+ *
+ * `addAnother` switches the label from "Connect <Provider>" to
+ * "+ Add another" — used in the panel when at least one account is
+ * already linked. The schema (calendar_connections has
+ * UNIQUE(user_id, provider, account_email)) supports stacking, and
+ * the OAuth flow uses prompt=select_account so the IDP shows the
+ * account picker even if the user is already signed in elsewhere.
  */
 export function ConnectButton({
   provider,
   label,
+  addAnother = false,
 }: {
   provider: "google" | "microsoft";
   label: string;
+  addAnother?: boolean;
 }) {
   const [pending, setPending] = useState(false);
+  const restingLabel = addAnother
+    ? "+ Add another"
+    : `Connect ${label}`;
   return (
     <button
       type="button"
@@ -41,7 +53,7 @@ export function ConnectButton({
       ) : (
         <ProviderLogo provider={provider} size={12} />
       )}
-      {pending ? "Redirecting…" : `Connect ${label}`}
+      {pending ? "Redirecting…" : restingLabel}
     </button>
   );
 }
