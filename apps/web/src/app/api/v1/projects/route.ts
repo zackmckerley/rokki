@@ -54,7 +54,12 @@ export async function POST(request: NextRequest) {
   // No longer gates UI behavior — every space gets the same universal core.
   const type = body.type ?? "space";
 
-  // Only owners or admins of the parent space may create terminals.
+  // Any member of the parent space can create terminals. The
+  // `trg_terminal_init_members` DB trigger seeds terminal_members
+  // with the creator (role='owner') AND every space owner
+  // (role='owner') so both have admin control of the new terminal.
+  // Old rule was owner/admin-only; relaxed per Zack — regular space
+  // members are who actually need to start working contexts.
   const { data: membership } = await supabase
     .from("space_members")
     .select("role")
@@ -62,12 +67,8 @@ export async function POST(request: NextRequest) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const role = (membership as { role?: string } | null)?.role;
-  if (!role) return forbidden("you are not a member of this space");
-  if (role !== "owner" && role !== "admin")
-    return forbidden(
-      "Only owners and admins of a space can create terminals. Ask a space admin to create it or promote you.",
-    );
+  if (!membership)
+    return forbidden("you are not a member of this space");
 
   // Resolve ticker: use provided, or auto-suggest + dedupe against existing
   let ticker = body.ticker?.toUpperCase();

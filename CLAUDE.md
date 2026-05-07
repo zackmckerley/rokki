@@ -17,7 +17,10 @@ older docs using the old names are wrong, treat this section as authoritative.
 **Permissions model:**
 
 - Only **platform administrators** (`profiles.is_platform_admin`) can create spaces.
-- Only **owners / admins of a space** can create terminals inside that space.
+- **Any member of a space** can create terminals inside that space. The
+  `trg_terminal_init_members` trigger seeds `terminal_members` with the
+  creator (role='owner') AND every space owner (role='owner') so both have
+  admin control of the new terminal.
 - Any **member of a terminal** can create tasks, upload files, post comments.
 
 Old docs sometimes say "project" or "organization" — read those as "terminal"

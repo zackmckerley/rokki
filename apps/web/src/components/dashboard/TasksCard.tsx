@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { Check, ArrowRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardCard, CardSection } from "./DashboardCard";
@@ -10,6 +11,7 @@ import {
   DueChip,
   TickerChip,
 } from "@/components/primitives";
+import { useRealtimeTable } from "@/lib/supabase/realtime";
 import type { AssignedTask, DelegatedTask } from "@/lib/dashboard-queries";
 
 interface TasksCardProps {
@@ -54,6 +56,26 @@ export function TasksCard({
   // Show ~10 rows per the spec; users with more get a "see all" link to a
   // dedicated full-list page.
   const ROW_LIMIT = 10;
+
+  // Subscribe to global task INSERT/UPDATE/DELETE events so the
+  // dashboard reflects new work without a refresh — Zack's report:
+  // "When i make a new task it doesn't automatically add it to the
+  // page. I have to refresh the browser to see it." Filter is
+  // intentionally absent (RLS scopes the events to tasks the user
+  // can see); we just `router.refresh()` on any of them rather than
+  // mutating the props locally, since the card owns view-derived
+  // counts and per-row decoration that are easier to recompute
+  // server-side.
+  const router = useRouter();
+  useRealtimeTable<{ id: string }>(
+    { table: "tasks", channelKey: "dash:tasks" },
+    {
+      onInsert: () => router.refresh(),
+      onUpdate: () => router.refresh(),
+      onDelete: () => router.refresh(),
+    },
+  );
+
   return (
     <DashboardCard
       title="Tasks"

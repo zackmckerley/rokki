@@ -400,23 +400,57 @@ function relativeTime(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function humanizeAction(action: string, metadata: Record<string, unknown>): string {
+function humanizeAction(
+  action: string,
+  metadata: Record<string, unknown>,
+): string {
+  // Same source-of-truth as the dashboard's `summarizeActivity` —
+  // dotted-versus-underscored variants both supported because the
+  // diff trigger emits `task_updated` while API code emits
+  // `task.update`. Rich phrasing replaces the old terse default
+  // (`action.replace(/\./g, " ")`) which produced unhelpful
+  // strings like "task update" or "tasks updated".
+  const m = metadata as Record<string, unknown>;
+  const s = (k: string): string | null =>
+    typeof m?.[k] === "string" ? (m[k] as string) : null;
   switch (action) {
-    case "terminal.create":
-      return `Space created`;
-    case "terminal.update":
-      return `Space updated`;
     case "task.create":
-      return `Task "${metadata.title ?? ""}" created`;
+      return `Task "${s("title") ?? "(untitled)"}" created`;
     case "task.complete":
-      return `Task completed`;
+      return `Task "${s("title") ?? "(untitled)"}" completed`;
+    case "task.update":
+    case "task_updated":
+      return `Task "${s("title") ?? ""}" updated`.trim();
+    case "task.delete":
+      return `Task "${s("title") ?? "(untitled)"}" deleted`;
+    case "task.assigned":
+      return `Task "${s("title") ?? ""}" assigned`.trim();
+    case "terminal.create":
+      return `Terminal created`;
+    case "terminal.update":
+    case "terminal_updated":
+      return `Terminal updated`;
+    case "terminal.archive":
+      return `Terminal archived`;
     case "file.upload":
-      return `${metadata.filename ?? "File"} uploaded`;
+      return `${s("filename") ?? "File"} uploaded`;
+    case "file.delete":
+      return `${s("filename") ?? "File"} deleted`;
+    case "file.update":
+    case "file_updated":
+      return `File ${s("filename") ?? ""} updated`.trim();
+    case "comment.create":
+      return `New comment on ${s("entity_kind") ?? "a task"}`;
+    case "comment.update":
+    case "comment_updated":
+      return `Comment edited`;
     case "member.invite":
-      return `${metadata.email ?? "Someone"} invited`;
+      return `${s("email") ?? "Someone"} invited`;
     case "member.join":
-      return `${metadata.name ?? "Someone"} joined`;
+      return `${s("name") ?? "Someone"} joined`;
+    case "member.remove":
+      return `${s("name") ?? "Member"} removed`;
     default:
-      return action.replace(/\./g, " ");
+      return action.replace(/[._]/g, " ");
   }
 }
