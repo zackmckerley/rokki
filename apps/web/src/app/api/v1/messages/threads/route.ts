@@ -31,7 +31,7 @@ export async function GET() {
     last_read_at: string | null;
     message_threads: {
       id: string;
-      kind: "dm" | "terminal" | "space";
+      kind: "dm" | "terminal" | "space" | "group";
       terminal_id: string | null;
       space_id: string | null;
       last_message_at: string;
@@ -49,7 +49,7 @@ export async function GET() {
     .in("kind", ["terminal", "space"]);
   type TT = {
     id: string;
-    kind: "dm" | "terminal" | "space";
+    kind: "dm" | "terminal" | "space" | "group";
     terminal_id: string | null;
     space_id: string | null;
     last_message_at: string;
@@ -86,12 +86,16 @@ export async function GET() {
     ((terms ?? []) as TermRow[]).map((t) => [t.id, t]),
   );
 
-  const dmIds = all.filter((t) => t.kind === "dm").map((t) => t.id);
-  const { data: dmParticipants } = dmIds.length
+  // DMs and group threads both label by participants — fetch them
+  // together. (terminal/space threads label by the terminal/space row.)
+  const peopleIds = all
+    .filter((t) => t.kind === "dm" || t.kind === "group")
+    .map((t) => t.id);
+  const { data: dmParticipants } = peopleIds.length
     ? await supabase
         .from("thread_participants")
         .select("thread_id, user_id")
-        .in("thread_id", dmIds)
+        .in("thread_id", peopleIds)
     : { data: [] };
   type PP = { thread_id: string; user_id: string };
   const partsByThread = new Map<string, string[]>();
@@ -101,7 +105,7 @@ export async function GET() {
   }
   const otherUserIds = Array.from(
     new Set(
-      dmIds.flatMap(
+      peopleIds.flatMap(
         (id) => partsByThread.get(id)?.filter((u) => u !== user.id) ?? [],
       ),
     ),
@@ -157,18 +161,20 @@ export async function GET() {
         last_message_at: t.last_message_at,
       };
     }
-    if (t.kind === "dm") {
+    if (t.kind === "dm" || t.kind === "group") {
       const others = (partsByThread.get(t.id) ?? []).filter(
         (u) => u !== user.id,
       );
       const label =
         others
           .map((u) => nameById.get(u) ?? "someone")
-          .join(", ") || "Direct message";
+          .join(", ") || (t.kind === "group" ? "Group chat" : "Direct message");
       return {
         id: t.id,
         kind: t.kind,
         label,
+        // Group threads have multiple "others"; expose only the first
+        // for callers that care (most consumers just use `label`).
         other_user_id: others[0] ?? null,
         last_message_at: t.last_message_at,
       };
