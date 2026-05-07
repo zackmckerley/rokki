@@ -2,10 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { Check, ArrowRight, Plus } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  Check,
+  ArrowRight,
+  Plus,
+  AlertOctagon,
+  Clock,
+  Layers,
+  User as UserIcon,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DashboardCard, CardSection } from "./DashboardCard";
+import { DashboardCard } from "./DashboardCard";
 import {
   PriorityDots,
   DueChip,
@@ -57,15 +65,6 @@ export function TasksCard({
   // dedicated full-list page.
   const ROW_LIMIT = 10;
 
-  // Subscribe to global task INSERT/UPDATE/DELETE events so the
-  // dashboard reflects new work without a refresh — Zack's report:
-  // "When i make a new task it doesn't automatically add it to the
-  // page. I have to refresh the browser to see it." Filter is
-  // intentionally absent (RLS scopes the events to tasks the user
-  // can see); we just `router.refresh()` on any of them rather than
-  // mutating the props locally, since the card owns view-derived
-  // counts and per-row decoration that are easier to recompute
-  // server-side.
   const router = useRouter();
   useRealtimeTable<{ id: string }>(
     { table: "tasks", channelKey: "dash:tasks" },
@@ -75,6 +74,62 @@ export function TasksCard({
       onDelete: () => router.refresh(),
     },
   );
+
+  // Filter chips per Zack's "filter between different items
+  // directly in tasks on the dashboard." Tabs replace the old
+  // two-section split (Assigned to me + I assigned to others)
+  // with five filter modes plus a default that preserves the old
+  // shape under the "Mine" + "Delegated" tabs.
+  type Tab = "mine" | "delegated" | "overdue" | "week" | "all";
+  const [tab, setTab] = useState<Tab>("mine");
+
+  const { mineList, delegatedList, overdueList, weekList, allList } =
+    useMemo(() => {
+      const today = new Date().toISOString().slice(0, 10);
+      const wk = new Date();
+      wk.setDate(wk.getDate() + 7);
+      const weekIso = wk.toISOString().slice(0, 10);
+
+      const mine = assigned.filter((t) => t.status !== "done");
+      const deleg = delegated.filter((t) => t.status !== "done");
+      // Combine + dedupe for cross-cutting tabs (overdue / week /
+      // all). A task assigned to me AND created by me lands in
+      // both source arrays; dedupe by id.
+      const seen = new Set<string>();
+      const combined: AssignedTask[] = [];
+      for (const t of [...mine, ...deleg]) {
+        if (seen.has(t.id)) continue;
+        seen.add(t.id);
+        combined.push(t);
+      }
+      return {
+        mineList: mine,
+        delegatedList: deleg,
+        overdueList: combined.filter(
+          (t) => t.due_date && t.due_date < today,
+        ),
+        weekList: combined.filter(
+          (t) =>
+            t.due_date && t.due_date >= today && t.due_date <= weekIso,
+        ),
+        allList: combined,
+      };
+    }, [assigned, delegated]);
+
+  const visibleAssigned: AssignedTask[] = (() => {
+    switch (tab) {
+      case "mine":
+        return mineList;
+      case "delegated":
+        return delegatedList;
+      case "overdue":
+        return overdueList;
+      case "week":
+        return weekList;
+      case "all":
+        return allList;
+    }
+  })();
 
   return (
     <DashboardCard
@@ -108,67 +163,134 @@ export function TasksCard({
         ) : null
       }
     >
-      <CardSection
-        title="Assigned to me"
-        count={assigned.length}
-        action={
-          assigned.length > ROW_LIMIT ? (
-            <Link
-              href="/tasks/mine"
-              className="text-[10px] text-text-3 hover:text-text-0"
-            >
-              see all →
-            </Link>
-          ) : null
-        }
-      >
-        {assigned.length === 0 ? (
-          <EmptyAssigned />
-        ) : (
-          <ul className="divide-y divide-border/40">
-            {assigned.slice(0, ROW_LIMIT).map((t) => (
+      <div className="flex flex-wrap items-center gap-1 border-b border-border/60 px-3 py-1.5">
+        <FilterChip
+          active={tab === "mine"}
+          onClick={() => setTab("mine")}
+          icon={<UserIcon className="h-3 w-3" />}
+          label="Mine"
+          count={mineList.length}
+        />
+        <FilterChip
+          active={tab === "delegated"}
+          onClick={() => setTab("delegated")}
+          icon={<ArrowRight className="h-3 w-3" />}
+          label="Delegated"
+          count={delegatedList.length}
+        />
+        <FilterChip
+          active={tab === "overdue"}
+          onClick={() => setTab("overdue")}
+          icon={<AlertOctagon className="h-3 w-3" />}
+          label="Overdue"
+          count={overdueList.length}
+          tone={overdueList.length > 0 ? "danger" : "neutral"}
+        />
+        <FilterChip
+          active={tab === "week"}
+          onClick={() => setTab("week")}
+          icon={<Clock className="h-3 w-3" />}
+          label="Week"
+          count={weekList.length}
+        />
+        <FilterChip
+          active={tab === "all"}
+          onClick={() => setTab("all")}
+          icon={<Layers className="h-3 w-3" />}
+          label="All"
+          count={allList.length}
+        />
+      </div>
+      {visibleAssigned.length === 0 ? (
+        <p className="px-3 py-4 text-center text-[11px] text-text-3">
+          {emptyForTab(tab)}
+        </p>
+      ) : (
+        <ul className="divide-y divide-border/40">
+          {visibleAssigned.slice(0, ROW_LIMIT).map((t) =>
+            tab === "delegated" ? (
+              <DelegatedRow
+                key={t.id}
+                task={t as DelegatedTask}
+                ticker={tickerById[t.terminal_id]}
+                terminalName={terminalNameById?.[t.terminal_id]}
+              />
+            ) : (
               <AssignedRow
                 key={t.id}
                 task={t}
                 ticker={tickerById[t.terminal_id]}
                 terminalName={terminalNameById?.[t.terminal_id]}
               />
-            ))}
-          </ul>
-        )}
-      </CardSection>
-      <CardSection
-        title="I assigned to others"
-        count={delegated.length}
-        className="mt-1"
-        action={
-          delegated.length > ROW_LIMIT ? (
-            <Link
-              href="/tasks/delegated"
-              className="text-[10px] text-text-3 hover:text-text-0"
-            >
-              see all →
-            </Link>
-          ) : null
-        }
-      >
-        {delegated.length === 0 ? (
-          <EmptyDelegated />
-        ) : (
-          <ul className="divide-y divide-border/40">
-            {delegated.slice(0, ROW_LIMIT).map((t) => (
-              <DelegatedRow
-                key={t.id}
-                task={t}
-                ticker={tickerById[t.terminal_id]}
-                terminalName={terminalNameById?.[t.terminal_id]}
-              />
-            ))}
-          </ul>
-        )}
-      </CardSection>
+            ),
+          )}
+        </ul>
+      )}
+      {visibleAssigned.length > ROW_LIMIT ? (
+        <p className="px-3 py-1 text-center text-[10px] text-text-3">
+          {visibleAssigned.length - ROW_LIMIT} more — open the full list
+        </p>
+      ) : null}
     </DashboardCard>
   );
+}
+
+function FilterChip({
+  active,
+  onClick,
+  icon,
+  label,
+  count,
+  tone = "neutral",
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  tone?: "neutral" | "danger";
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      onClick={onClick}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+        active
+          ? "border-accent/40 bg-bg-3 text-text-0"
+          : "border-border bg-bg-2 text-text-2 hover:bg-bg-3",
+      )}
+    >
+      {icon}
+      <span>{label}</span>
+      <span
+        className={cn(
+          "ml-0.5 font-mono text-[10px]",
+          active ? "text-text-1" : "text-text-3",
+          tone === "danger" && count > 0 && "text-danger",
+        )}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function emptyForTab(tab: "mine" | "delegated" | "overdue" | "week" | "all"): string {
+  switch (tab) {
+    case "mine":
+      return "Nothing assigned to you. Nice.";
+    case "delegated":
+      return "Nothing waiting on others.";
+    case "overdue":
+      return "Nothing overdue. Well done.";
+    case "week":
+      return "Nothing due this week.";
+    case "all":
+      return "No open tasks anywhere.";
+  }
 }
 
 function AssignedRow({
@@ -316,18 +438,6 @@ function DelegatedRow({
   );
 }
 
-function EmptyAssigned() {
-  return (
-    <p className="px-3 py-3 text-[11px] text-text-3">
-      You&apos;re clear. Nothing currently assigned to you.
-    </p>
-  );
-}
-function EmptyDelegated() {
-  return (
-    <p className="px-3 py-3 text-[11px] text-text-3">
-      Nothing waiting on others.
-    </p>
-  );
-}
+// EmptyAssigned / EmptyDelegated removed — `emptyForTab` covers
+// the per-filter empty state inline.
 
