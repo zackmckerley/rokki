@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Check, ArrowRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardCard, CardSection } from "./DashboardCard";
