@@ -74,15 +74,37 @@ export default async function AdminLayout({
 
   return (
     <DensityProvider initial={initialDensity}>
-    <div className="flex min-h-screen flex-col bg-bg-0">
+    <div className="flex h-[100dvh] flex-col overflow-hidden bg-bg-0">
       <TopBar>
         <AdminBackLink />
         <span className="font-mono text-xs uppercase tracking-wider text-accent">
           Platform admin
         </span>
       </TopBar>
-      <div className="mx-auto flex w-full max-w-7xl flex-1">
-        <aside className="sticky top-0 hidden w-52 flex-shrink-0 flex-col border-r border-border bg-bg-1 md:flex">
+      {/* Vercel-style shell: full-width row with a sticky sidebar
+          on the left and the work area filling the rest. The old
+          layout was constrained to max-w-7xl which left empty
+          gutters on wide screens; admins use this thing all day,
+          give them every available pixel. */}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <aside className="hidden w-60 flex-shrink-0 flex-col border-r border-border bg-bg-1 md:flex">
+          {/* Quick "New space" surfaced in the sidebar header — was
+              only reachable via the command palette before. Per
+              UX feedback ("admin should be able to create a space
+              through the admin panel"). */}
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-text-3">
+              Operator
+            </span>
+            <Link
+              href="/?new=space"
+              aria-label="New space"
+              title="New space"
+              className="inline-flex items-center gap-1 rounded-sm border border-accent/40 bg-accent-subtle px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent hover:bg-accent/20"
+            >
+              + Space
+            </Link>
+          </div>
           <nav
             aria-label="Admin sections"
             className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2 text-sm"
@@ -244,9 +266,13 @@ export default async function AdminLayout({
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex-1 overflow-x-auto p-6 focus:outline-none"
+          className="flex-1 overflow-y-auto bg-bg-0 p-6 focus:outline-none"
         >
-          {children}
+          {/* Constrain the work area's max width inside main so on
+              ultra-wide monitors content doesn't stretch into a
+              sea of whitespace, but the layout itself fills the
+              viewport (Vercel-style). */}
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
       </div>
     </div>
