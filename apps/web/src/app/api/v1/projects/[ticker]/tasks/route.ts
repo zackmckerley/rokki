@@ -176,8 +176,14 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   if (!body.title?.trim()) return bad("title is required");
   if (body.title.length > 300) return bad("title must be ≤ 300 characters");
-  if (body.priority !== undefined && (body.priority < 1 || body.priority > 4))
-    return bad("priority must be 1–4");
+  // priority: nullable + 1..3 (1=High, 2=Medium, 3=Low, NULL=No
+  // priority). Was 1..4 before the 2026-05-07 redesign.
+  if (
+    body.priority !== undefined &&
+    body.priority !== null &&
+    (body.priority < 1 || body.priority > 3)
+  )
+    return bad("priority must be 1 (High), 2 (Medium), 3 (Low), or null");
 
   let rule: TaskRecurrenceRule | null = null;
   if (body.recurrence_rule !== undefined) {
@@ -193,7 +199,9 @@ async function handlePost(request: NextRequest, { params }: Props) {
       terminal_id: project.id,
       title: body.title.trim(),
       description: body.description ?? null,
-      priority: body.priority ?? 3,
+      // Default = NULL (no priority) per the 2026-05-07 redesign.
+      // Was `?? 3` (Medium / "Normal" in the old 1-4 scheme).
+      priority: body.priority ?? null,
       due_date: body.due_date ?? null,
       labels: body.tags ?? body.labels ?? [],
       status: body.status ?? "todo",

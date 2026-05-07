@@ -41,7 +41,8 @@ interface Task {
   title: string;
   description: string | null;
   status: string;
-  priority: number;
+  /** 1=High, 2=Medium, 3=Low, null=No priority. */
+  priority: number | null;
   due_date: string | null;
   labels: string[] | null;
   recurrence_rule?: TaskRecurrenceRule | null;
@@ -596,16 +597,19 @@ export function TaskDetail({
             label="Priority"
             right={
               <select
-                value={task.priority}
+                value={task.priority == null ? "" : String(task.priority)}
                 onChange={(e) =>
-                  patchTask({ priority: Number(e.target.value) })
+                  patchTask({
+                    priority:
+                      e.target.value === "" ? null : Number(e.target.value),
+                  })
                 }
                 className="rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 text-[11px] text-text-0 outline-none focus:border-border-focus"
               >
-                <option value={1}>Urgent</option>
-                <option value={2}>High</option>
-                <option value={3}>Medium</option>
-                <option value={4}>Low</option>
+                <option value="">No priority</option>
+                <option value={1}>High</option>
+                <option value={2}>Medium</option>
+                <option value={3}>Low</option>
               </select>
             }
           >
@@ -1055,15 +1059,17 @@ function LabelBlock({
 /* PriorityChip — color-coded chip per spec (gray/blue/orange/red)      */
 /* ------------------------------------------------------------------- */
 
+// 1=High, 2=Medium, 3=Low, null=No priority chip rendered.
 const PRIORITY_TONE: Record<number, { tone: string; label: string }> = {
-  1: { tone: "bg-danger-subtle text-danger", label: "Urgent" },
-  2: { tone: "bg-warning-subtle text-warning", label: "High" },
-  3: { tone: "bg-info-subtle text-info", label: "Medium" },
-  4: { tone: "bg-bg-3 text-text-2", label: "Low" },
+  1: { tone: "bg-danger-subtle text-danger", label: "High" },
+  2: { tone: "bg-warning-subtle text-warning", label: "Medium" },
+  3: { tone: "bg-bg-3 text-text-2", label: "Low" },
 };
 
-function PriorityChip({ priority }: { priority: number }) {
-  const meta = PRIORITY_TONE[priority] ?? PRIORITY_TONE[3];
+function PriorityChip({ priority }: { priority: number | null }) {
+  if (priority == null) return null;
+  const meta = PRIORITY_TONE[priority];
+  if (!meta) return null;
   return (
     <span
       className={cn(

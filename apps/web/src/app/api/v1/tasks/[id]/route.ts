@@ -48,7 +48,8 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     title?: string;
     description?: string | null;
     status?: TaskStatus;
-    priority?: number;
+    /** 1=High, 2=Medium, 3=Low, null=No priority. Pass null to clear. */
+    priority?: number | null;
     due_date?: string | null;
     labels?: string[];
     /** Spec also calls these "tags"; we accept either name and map to labels. */
@@ -80,7 +81,12 @@ async function handlePatch(request: NextRequest, { params }: Props) {
   }
   if (body.description !== undefined) patch.description = body.description;
   if (body.priority !== undefined) {
-    if (body.priority < 1 || body.priority > 4) return bad("priority must be 1–4");
+    // null is allowed (= "no priority"). 1..3 otherwise.
+    if (
+      body.priority !== null &&
+      (body.priority < 1 || body.priority > 3)
+    )
+      return bad("priority must be 1 (High), 2 (Medium), 3 (Low), or null");
     patch.priority = body.priority;
   }
   if (body.due_date !== undefined) patch.due_date = body.due_date;
