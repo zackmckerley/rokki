@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Check, Circle, ArrowRight, Plus } from "lucide-react";
+import { useState } from "react";
+import { Check, ArrowRight, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardCard, CardSection } from "./DashboardCard";
 import {
@@ -157,24 +158,65 @@ function AssignedRow({
   ticker?: string;
   terminalName?: string;
 }) {
+  const [optimisticDone, setOptimisticDone] = useState<boolean | null>(null);
+  const isDone =
+    optimisticDone !== null ? optimisticDone : task.status === "done";
   // Deep-link to the task detail surface so a click puts the user one step
   // away from the work, not just on the parent terminal page.
   const href = ticker ? `/p/${ticker}/task/${task.ticker_seq}` : undefined;
+
+  /**
+   * Toggle done directly from the dashboard row. The status icon
+   * used to be decorative (just a Check / Circle); it's now a
+   * button so the user can flip a task without navigating into
+   * the detail page. Optimistic — flips locally on click,
+   * reconciles silently against the server response.
+   */
+  async function toggleDone(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !isDone;
+    setOptimisticDone(next);
+    try {
+      const r = await fetch(`/api/v1/tasks/${task.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next ? "done" : "todo" }),
+      });
+      if (!r.ok) setOptimisticDone(null);
+    } catch {
+      setOptimisticDone(null);
+    }
+  }
+
+  const statusButton = (
+    <button
+      type="button"
+      onClick={toggleDone}
+      aria-label={isDone ? "Mark as not done" : "Mark as done"}
+      className={cn(
+        "flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border transition-colors",
+        isDone
+          ? "border-success bg-success-subtle text-success"
+          : "border-text-3 hover:border-accent",
+      )}
+    >
+      {isDone ? <Check className="h-2.5 w-2.5" aria-hidden="true" /> : null}
+    </button>
+  );
+
   const body = (
     <div
       data-row
       className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-2"
     >
-      {task.status === "done" ? (
-        <Check className="h-3 w-3 flex-shrink-0 text-success" />
-      ) : (
-        <Circle className="h-3 w-3 flex-shrink-0 text-text-3" />
-      )}
+      {statusButton}
       {ticker ? <TickerChip>{ticker}</TickerChip> : null}
       <span
         className={cn(
           "flex-1 truncate",
-          task.status === "done" ? "text-text-3 line-through" : "text-text-0",
+          isDone ? "text-text-3 line-through" : "text-text-0",
         )}
       >
         {task.title}

@@ -138,16 +138,23 @@ export function AppearanceForm({
 /**
  * Applies the chosen theme to <html>. Call on every change and on
  * mount. For "system", listens for prefers-color-scheme media queries.
+ *
+ * Mirrors the resolved value onto `style.colorScheme` so native
+ * widgets (scrollbars, form chrome, the Edge UI) repaint
+ * immediately. Without this the dataset attribute flips but the
+ * native chrome stays at whatever the boot script set.
  */
 export function applyTheme(theme: Theme): void {
   if (typeof document === "undefined") return;
   const html = document.documentElement;
-  if (theme === "system") {
-    const match = window.matchMedia("(prefers-color-scheme: dark)");
-    html.dataset.theme = match.matches ? "dark" : "light";
-    return;
-  }
-  html.dataset.theme = theme;
+  const resolved =
+    theme === "system"
+      ? window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? "dark"
+        : "light"
+      : theme;
+  html.dataset.theme = resolved;
+  html.style.colorScheme = resolved;
 }
 
 function ThemeCard({

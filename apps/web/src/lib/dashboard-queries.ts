@@ -223,7 +223,12 @@ export async function loadDelegatedTasks(
  */
 export async function loadWeekItems(
   supabase: AnySupabaseClient,
-  userId: string,
+  // userId stays in the signature for back-compat with the dashboard
+  // page; the implementation no longer needs it because tasks are
+  // intentionally excluded from the calendar view (they have their
+  // own dedicated Tasks card already, which surfaces the same due
+  // dates with richer context).
+  _userId: string,
 ): Promise<WeekItem[]> {
   return traceSpan(
     { name: "db.dashboard.week_items", op: "db.query" },
@@ -233,36 +238,10 @@ export async function loadWeekItems(
       const end = new Date(start);
       end.setDate(end.getDate() + 7);
 
-      // Tasks assigned to me OR created by me that are due this week.
-      const { data: assignedIds } = await supabase
-        .from("task_assignees")
-        .select("task_id")
-        .eq("user_id", userId);
-      const myAssignedIds = new Set(
-        ((assignedIds ?? []) as { task_id: string }[]).map((r) => r.task_id),
-      );
-
-      const { data: tasks } = await supabase
-        .from("tasks")
-        .select("id, title, due_date, terminal_id, created_by")
-        .gte("due_date", start.toISOString().slice(0, 10))
-        .lte("due_date", end.toISOString().slice(0, 10))
-        .neq("status", "done");
-
-      type T = {
-        id: string;
-        title: string;
-        due_date: string | null;
-        terminal_id: string;
-        created_by: string;
-      };
-      const mine = ((tasks ?? []) as T[]).filter(
-        (t) => myAssignedIds.has(t.id) || t.created_by === userId,
-      );
-
-      const terminalIds = new Set(mine.map((t) => t.terminal_id));
-
-      // External calendar events (RLS filters to our own connections).
+      // External calendar events only — tasks were dropped from this
+      // view per UX feedback ("Due dates for tasks are showing up in
+      // the calendar. Not necessary."). Tasks live in the Tasks card
+      // where their due dates are surfaced more usefully.
       const { data: events } = await supabase
         .from("calendar_events")
         .select("id, title, starts_at, terminal_id")
@@ -276,7 +255,11 @@ export async function loadWeekItems(
         terminal_id: string | null;
       };
       const eventRows = (events ?? []) as E[];
-      for (const e of eventRows) if (e.terminal_id) terminalIds.add(e.terminal_id);
+      const terminalIds = new Set(
+        eventRows
+          .map((e) => e.terminal_id)
+          .filter((id): id is string => id !== null),
+      );
 
       const { data: terminals } = terminalIds.size
         ? await supabase
@@ -289,16 +272,7 @@ export async function loadWeekItems(
         ((terminals ?? []) as Tx[]).map((t) => [t.id, t.ticker]),
       );
 
-      const taskItems: WeekItem[] = mine.map((t) => ({
-        id: t.id,
-        kind: "due" as const,
-        title: t.title,
-        when: t.due_date!,
-        terminal_id: t.terminal_id,
-        terminal_ticker: tickerById.get(t.terminal_id) ?? null,
-      }));
-
-      const eventItems: WeekItem[] = eventRows.map((e) => ({
+      return eventRows.map<WeekItem>((e) => ({
         id: e.id,
         kind: "event" as const,
         title: e.title,
@@ -308,8 +282,6 @@ export async function loadWeekItems(
           ? (tickerById.get(e.terminal_id) ?? null)
           : null,
       }));
-
-      return [...eventItems, ...taskItems];
     },
   );
 }

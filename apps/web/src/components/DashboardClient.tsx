@@ -32,6 +32,7 @@ interface DashboardClientProps {
   weekItems: WeekItem[];
   tickerItems: { id: string; text: string; when: string }[];
   toolCount: number;
+  userId: string;
   userName: string;
   userEmail: string;
   isPlatformAdmin: boolean;
@@ -53,6 +54,7 @@ export function DashboardClient({
   weekItems,
   tickerItems,
   toolCount,
+  userId,
   userName,
   userEmail,
   isPlatformAdmin,
@@ -192,6 +194,7 @@ export function DashboardClient({
         onClose={() => setTaskDialog(false)}
         terminals={terminals}
         spaces={spaces}
+        currentUserId={userId}
       />
       <TimezoneProbe currentTimezone={savedTimezone} />
     </DensityProvider>
