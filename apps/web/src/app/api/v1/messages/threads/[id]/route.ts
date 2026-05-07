@@ -20,7 +20,9 @@ export async function GET(_req: NextRequest, { params }: Props) {
 
   const { data } = await supabase
     .from("messages")
-    .select("id, author_id, body, created_at, edited_at, deleted_at")
+    .select(
+      "id, author_id, body, created_at, edited_at, deleted_at, pinging_task_id",
+    )
     .eq("thread_id", id)
     .is("deleted_at", null)
     .order("created_at", { ascending: true });
@@ -32,6 +34,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
     created_at: string;
     edited_at: string | null;
     deleted_at: string | null;
+    pinging_task_id: string | null;
   };
   const rows = (data ?? []) as Row[];
   const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
@@ -45,9 +48,44 @@ export async function GET(_req: NextRequest, { params }: Props) {
   const nameById = new Map(
     ((profiles ?? []) as ProfileRow[]).map((p) => [p.user_id, p.full_name]),
   );
+
+  // Decorate any "request update" pings (pinging_task_id != null) with the
+  // referenced task's title + ticker so the inbox can render a chip and
+  // a deep-link to the task. One follow-up query, batched by task_id.
+  const taskIds = Array.from(
+    new Set(rows.map((r) => r.pinging_task_id).filter((x): x is string => !!x)),
+  );
+  type TaskRef = {
+    id: string;
+    ticker_seq: number;
+    title: string;
+    terminal_id: string;
+    terminals: { ticker: string } | { ticker: string }[] | null;
+  };
+  let taskById = new Map<
+    string,
+    { id: string; ticker_seq: number; title: string; ticker: string }
+  >();
+  if (taskIds.length > 0) {
+    const { data: taskRows } = await supabase
+      .from("tasks")
+      .select("id, ticker_seq, title, terminal_id, terminals(ticker)")
+      .in("id", taskIds);
+    for (const row of (taskRows ?? []) as TaskRef[]) {
+      const term = Array.isArray(row.terminals) ? row.terminals[0] : row.terminals;
+      taskById.set(row.id, {
+        id: row.id,
+        ticker_seq: row.ticker_seq,
+        title: row.title,
+        ticker: term?.ticker ?? "",
+      });
+    }
+  }
+
   const decorated = rows.map((r) => ({
     ...r,
     author_name: nameById.get(r.author_id) ?? "someone",
+    pinging_task: r.pinging_task_id ? taskById.get(r.pinging_task_id) ?? null : null,
   }));
 
   // Best effort: mark my last_read_at to "now" so unread counts drop.

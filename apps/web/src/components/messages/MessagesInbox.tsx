@@ -1,18 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Send, Hash, User as UserIcon } from "lucide-react";
+import Link from "next/link";
+import { Send, Hash, User as UserIcon, Pin } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
 
 interface ThreadSummary {
   id: string;
-  kind: "dm" | "terminal" | "space";
+  kind: "dm" | "terminal" | "space" | "group";
   label: string;
   last_message_at: string;
   href_ticker?: string | null;
   other_user_id?: string | null;
+}
+
+interface PingingTask {
+  id: string;
+  ticker_seq: number;
+  title: string;
+  ticker: string;
 }
 
 interface Message {
@@ -23,6 +31,8 @@ interface Message {
   created_at: string;
   edited_at: string | null;
   deleted_at: string | null;
+  pinging_task_id: string | null;
+  pinging_task: PingingTask | null;
 }
 
 /**
@@ -42,6 +52,14 @@ export function MessagesInbox() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
+  /**
+   * Maps message_id → in-progress draft for the "Reply with status"
+   * inline composer attached to a `pinging_task_id` ping. Storing the
+   * open state alongside the draft text lets the user keep typing while
+   * other thread events stream in without losing what they wrote.
+   */
+  const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
+  const [statusSending, setStatusSending] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   // Who am I?
@@ -131,6 +149,36 @@ export function MessagesInbox() {
     }
   }
 
+  /**
+   * Submit a reply to a "request update" ping. Hits the task's
+   * status-update endpoint, which both updates the latest_status_*
+   * columns AND echoes the reply into this thread (with `Status update:`
+   * prefix). Closes the inline composer on success.
+   */
+  async function submitStatusReply(messageId: string, taskId: string) {
+    const text = (statusDrafts[messageId] ?? "").trim();
+    if (!text || statusSending) return;
+    setStatusSending(messageId);
+    try {
+      const r = await fetch(`/api/v1/tasks/${taskId}/status-update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ text, post_to_thread: true }),
+      });
+      if (r.ok) {
+        setStatusDrafts((prev) => {
+          const next = { ...prev };
+          delete next[messageId];
+          return next;
+        });
+        if (activeId) await loadMessages(activeId);
+      }
+    } finally {
+      setStatusSending(null);
+    }
+  }
+
   const active = threads.find((t) => t.id === activeId) ?? null;
 
   return (
@@ -201,6 +249,9 @@ export function MessagesInbox() {
             <ul className="flex flex-col gap-2">
               {messages.map((m) => {
                 const mine = m.author_id === meId;
+                const ping = m.pinging_task;
+                const composerOpen = m.id in statusDrafts;
+                const isStatusEcho = m.body.startsWith("Status update:");
                 return (
                   <li
                     key={m.id}
@@ -209,10 +260,25 @@ export function MessagesInbox() {
                       mine ? "items-end" : "items-start",
                     )}
                   >
+                    {/* "📌 task" chip — shown for both the original ping
+                        AND the status echo so the connection stays
+                        legible as the thread grows. */}
+                    {ping ? (
+                      <Link
+                        href={`/p/${ping.ticker}/task/${ping.ticker_seq}`}
+                        className="mb-1 inline-flex max-w-[75%] items-center gap-1 truncate rounded-sm bg-bg-3 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-2 hover:text-text-0"
+                      >
+                        <Pin className="h-2.5 w-2.5 flex-shrink-0" />
+                        <span className="truncate">
+                          {ping.ticker}-{ping.ticker_seq} · {ping.title}
+                        </span>
+                      </Link>
+                    ) : null}
                     <div
                       className={cn(
                         "max-w-[75%] rounded px-2 py-1 text-xs",
                         mine ? "bg-accent text-bg-0" : "bg-bg-2 text-text-0",
+                        isStatusEcho && !mine && "border border-accent/40",
                       )}
                     >
                       {m.body}
@@ -221,7 +287,82 @@ export function MessagesInbox() {
                       <span>{mine ? "you" : m.author_name}</span>
                       <span>·</span>
                       <span>{formatRelative(m.created_at)}</span>
+                      {/* "Reply with status" — only on the original ping
+                          (the status-update echo isn't itself replyable),
+                          and only when the viewer is NOT the requester
+                          (the requester sent the ping; replies come from
+                          assignees). */}
+                      {ping && !mine && !isStatusEcho ? (
+                        <>
+                          <span>·</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setStatusDrafts((prev) =>
+                                m.id in prev
+                                  ? (() => {
+                                      const next = { ...prev };
+                                      delete next[m.id];
+                                      return next;
+                                    })()
+                                  : { ...prev, [m.id]: "" },
+                              )
+                            }
+                            className="rounded-sm px-1 py-0.5 text-text-2 hover:bg-bg-3 hover:text-text-0"
+                          >
+                            {composerOpen ? "Cancel" : "Reply with status"}
+                          </button>
+                        </>
+                      ) : null}
                     </div>
+                    {ping && composerOpen ? (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          void submitStatusReply(m.id, ping.id);
+                        }}
+                        className="mt-1 flex w-full max-w-[75%] flex-col gap-1 rounded border border-border bg-bg-1 p-1.5"
+                      >
+                        <textarea
+                          value={statusDrafts[m.id] ?? ""}
+                          onChange={(e) =>
+                            setStatusDrafts((prev) => ({
+                              ...prev,
+                              [m.id]: e.target.value,
+                            }))
+                          }
+                          onKeyDown={(e) => {
+                            if (
+                              e.key === "Enter" &&
+                              (e.metaKey || e.ctrlKey)
+                            ) {
+                              e.preventDefault();
+                              void submitStatusReply(m.id, ping.id);
+                            }
+                          }}
+                          rows={2}
+                          autoFocus
+                          placeholder={`Status of "${ping.title}"…`}
+                          className="resize-none rounded-sm border border-border bg-bg-0 px-2 py-1 text-xs text-text-0 outline-none focus:border-border-focus"
+                          disabled={statusSending === m.id}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <span className="font-mono text-[10px] text-text-3">
+                            ⌘↵ to send
+                          </span>
+                          <button
+                            type="submit"
+                            disabled={
+                              !(statusDrafts[m.id] ?? "").trim() ||
+                              statusSending === m.id
+                            }
+                            className="flex items-center gap-1 rounded-sm bg-accent px-2 py-0.5 text-[11px] text-bg-0 disabled:opacity-40"
+                          >
+                            <Send className="h-2.5 w-2.5" /> Send status
+                          </button>
+                        </div>
+                      </form>
+                    ) : null}
                   </li>
                 );
               })}

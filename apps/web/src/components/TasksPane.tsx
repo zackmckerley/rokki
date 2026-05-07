@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Maximize2,
   ListTodo,
+  Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./EmptyState";
@@ -36,6 +37,9 @@ interface Task {
   priority: number | null;
   due_date: string | null;
   labels: string[];
+  latest_status_text?: string | null;
+  latest_status_author_id?: string | null;
+  latest_status_at?: string | null;
   /**
    * Sparse-integer manual-sort position. May be null for legacy rows
    * created before the column existed; the GET endpoint coerces NULLs
@@ -88,6 +92,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [statusNotice, setStatusNotice] = useState<string | null>(null);
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [creating, setCreating] = useState(false);
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
@@ -405,6 +410,38 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
     }
   }
 
+  /**
+   * Ping the task's assignees with a "what's the status?" message
+   * via the messenger. Backend creates/reuses a `status_thread` and
+   * delivers a notification to each assignee. UX is intentionally
+   * quiet: the requester sees the row stay put, the assignee sees
+   * a notification + DM/group thread. We pop a tiny inline notice
+   * so the requester knows the ping fired.
+   */
+  async function requestUpdate(task: Task) {
+    try {
+      const r = await fetch(`/api/v1/tasks/${task.id}/request-update`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        const body = (await r.json().catch(() => ({}))) as {
+          errors?: { message: string }[];
+        };
+        setError(
+          body.errors?.[0]?.message ??
+            `Failed to request update (HTTP ${r.status})`,
+        );
+        return;
+      }
+      setError(null);
+      setStatusNotice(`Ping sent for "${task.title}"`);
+      window.setTimeout(() => setStatusNotice(null), 2500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+    }
+  }
+
   async function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "done" ? "todo" : "done";
     // Optimistic update
@@ -540,6 +577,12 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
         </div>
       ) : null}
 
+      {statusNotice ? (
+        <div className="border-b border-border bg-accent-subtle px-4 py-2 text-xs text-accent">
+          {statusNotice}
+        </div>
+      ) : null}
+
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <SkeletonList />
@@ -622,6 +665,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
                       )
                     }
                     onToggleExpand={() => toggleExpand(t.id)}
+                    onRequestUpdate={() => requestUpdate(t)}
                   />
                   {expanded ? (
                     <SubtasksList
@@ -678,6 +722,7 @@ function TaskRow({
   onToggle,
   onOpenComments,
   onToggleExpand,
+  onRequestUpdate,
 }: {
   task: Task;
   ticker: string;
@@ -688,10 +733,12 @@ function TaskRow({
   onToggle: () => void;
   onOpenComments: () => void;
   onToggleExpand: () => void;
+  onRequestUpdate: () => void;
 }) {
   const done = task.status === "done";
   const subtaskTotal = task.subtask_total ?? 0;
   const subtaskDone = task.subtask_done ?? 0;
+  const status = task.latest_status_text?.trim() ?? "";
 
   return (
     <div
@@ -752,14 +799,27 @@ function TaskRow({
       >
         {done ? <Check className="h-3 w-3" aria-hidden="true" /> : null}
       </button>
-      <span
-        className={cn(
-          "flex-1 truncate text-sm",
-          done ? "text-text-3 line-through" : "text-text-0",
-        )}
-      >
-        {task.title}
-      </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span
+          className={cn(
+            "truncate text-sm",
+            done ? "text-text-3 line-through" : "text-text-0",
+          )}
+        >
+          {task.title}
+        </span>
+        {status ? (
+          <span
+            className="flex items-center gap-1 truncate text-[11px] leading-tight text-text-2"
+            title={status}
+          >
+            <span className="font-mono text-[9px] uppercase tracking-wide text-text-3">
+              Status
+            </span>
+            <span className="truncate">{status}</span>
+          </span>
+        ) : null}
+      </div>
       {/* Subtask roll-up — surfaces the count without expanding. The
           list endpoint already returns subtask_total/subtask_done
           aggregates, so this is free. */}
@@ -788,6 +848,17 @@ function TaskRow({
         className="rounded-sm p-1 text-text-3 opacity-0 transition-opacity hover:bg-bg-3 hover:text-text-0 group-hover:opacity-100"
       >
         <MessageSquare className="h-3 w-3" />
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onRequestUpdate();
+        }}
+        aria-label="Request status update"
+        title="Request status update"
+        className="rounded-sm p-1 text-text-3 opacity-0 transition-opacity hover:bg-bg-3 hover:text-accent group-hover:opacity-100"
+      >
+        <Send className="h-3 w-3" />
       </button>
       {task.due_date ? <DueChip date={task.due_date} /> : null}
       <PriorityDots priority={task.priority} />
