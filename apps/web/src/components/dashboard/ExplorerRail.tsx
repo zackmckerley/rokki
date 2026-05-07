@@ -6,7 +6,6 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
-  Search,
   Settings,
   Sparkles,
   X,
@@ -203,24 +202,23 @@ export function ExplorerRail({
         {spaces.length > 0 ? (
           <div className="sticky top-0 z-10 flex-shrink-0 border-b border-border bg-bg-0 px-2 py-1.5">
             <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-text-3"
-                aria-hidden="true"
-              />
+              {/* The leading magnifying-glass icon was dropped per
+                  Zack's report ("there is still a + in the filter").
+                  At 12px the lucide-search circle + stroke combined
+                  with the text cursor on focus visually read as a
+                  "+" — so there's nothing inside the input now but
+                  the placeholder, the value, and the clear button
+                  on the right when there's a value. */}
               <input
                 ref={filterRef}
                 type="text"
                 value={filter}
                 onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter…"
+                placeholder="Search…"
                 aria-label="Filter explorer"
                 title="Press / to focus"
-                className="h-7 w-full rounded-sm border border-border bg-bg-1 pl-7 pr-2 text-xs text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                className="h-7 w-full rounded-sm border border-border bg-bg-1 px-2 text-xs text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
               />
-              {/* The "/" kbd hint that used to render here was dropped
-                  per UX feedback — it doubled up with the placeholder
-                  inside an already-narrow input and crowded the
-                  visible characters of what the user was typing. */}
               {filter ? (
                 <button
                   type="button"
