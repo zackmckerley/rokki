@@ -32,7 +32,8 @@ interface Task {
   title: string;
   description: string | null;
   status: TaskStatus;
-  priority: number;
+  /** 1=High, 2=Medium, 3=Low, null=No priority. */
+  priority: number | null;
   due_date: string | null;
   labels: string[];
   /**
@@ -442,7 +443,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
    */
   async function createTask(input: {
     title: string;
-    priority: number;
+    priority: number | null;
     due_date: string | null;
     labels: string[];
     assignee_ids: string[];
@@ -852,10 +853,13 @@ function sortTasks(tasks: Task[], mode: SortMode = "auto"): Task[] {
     blocked: 3,
     done: 4,
   };
+  // null priority sorts after 1..3 (matches the server ORDER BY).
+  const pkey = (p: number | null | undefined): number =>
+    p == null ? Number.POSITIVE_INFINITY : p;
   return [...tasks].sort((a, b) => {
     const s = rank[a.status] - rank[b.status];
     if (s !== 0) return s;
-    const p = a.priority - b.priority;
+    const p = pkey(a.priority) - pkey(b.priority);
     if (p !== 0) return p;
     const da = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
     const db = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY;

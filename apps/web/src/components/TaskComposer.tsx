@@ -31,7 +31,8 @@ export interface TaskComposerMember {
 
 export interface TaskComposerSubmit {
   title: string;
-  priority: number;
+  /** 1=High, 2=Medium, 3=Low, null=No priority. */
+  priority: number | null;
   due_date: string | null;
   labels: string[];
   assignee_ids: string[];
@@ -40,8 +41,11 @@ export interface TaskComposerSubmit {
 interface TaskComposerProps {
   /** Members available for assignee selection. Empty = no picker. */
   members?: TaskComposerMember[];
-  /** Pre-fill the priority chip. Defaults to 3 (the API default). */
-  initialPriority?: number;
+  /**
+   * Pre-fill the priority chip. Defaults to null = "No priority".
+   * Use 1/2/3 for High/Medium/Low.
+   */
+  initialPriority?: number | null;
   /** Pre-fill assignees. */
   initialAssigneeIds?: string[];
   /**
@@ -102,7 +106,7 @@ interface TaskComposerProps {
  */
 export function TaskComposer({
   members = [],
-  initialPriority = 3,
+  initialPriority = null,
   initialAssigneeIds = [],
   currentUserId,
   initialLabels = [],
@@ -116,7 +120,7 @@ export function TaskComposer({
   submitLabel = "Create",
 }: TaskComposerProps) {
   const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState(initialPriority);
+  const [priority, setPriority] = useState<number | null>(initialPriority);
   const [dueIso, setDueIso] = useState<string | null>(null);
   // If the parent gave us a currentUserId AND no explicit pre-fill,
   // default the assignee to the viewer. Matches "I made this, so
@@ -292,11 +296,18 @@ export function TaskComposer({
 /* Chip primitives                                                  */
 /* --------------------------------------------------------------- */
 
+// 1=High, 2=Medium, 3=Low, null=No priority. Was a 1..4 scale
+// before the 2026-05-07 redesign — see the priority migration for
+// the value remap.
 const PRIORITY_LABEL: Record<number, string> = {
-  1: "P1 · Critical",
-  2: "P2 · High",
-  3: "P3 · Normal",
-  4: "P4 · Low",
+  1: "High",
+  2: "Medium",
+  3: "Low",
+};
+const PRIORITY_DOT_TONE: Record<number, string> = {
+  1: "bg-danger",
+  2: "bg-warning",
+  3: "bg-text-3",
 };
 
 function PriorityChip({
@@ -304,23 +315,100 @@ function PriorityChip({
   onChange,
   disabled,
 }: {
-  priority: number;
-  onChange: (p: number) => void;
+  priority: number | null;
+  onChange: (p: number | null) => void;
   disabled: boolean;
 }) {
-  const cycle = () => onChange(priority === 4 ? 1 : priority + 1);
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside to close.
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e: MouseEvent) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  const label =
+    priority == null ? "Priority" : PRIORITY_LABEL[priority] ?? "Priority";
   return (
-    <button
-      type="button"
-      onClick={cycle}
-      disabled={disabled}
-      title={`${PRIORITY_LABEL[priority]} (click to cycle)`}
-      aria-label={`Priority ${priority} of 4 — click to change`}
-      className="flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-1 hover:bg-bg-3"
-    >
-      <Flag className="h-3 w-3 text-text-3" aria-hidden="true" />
-      <span className="font-mono">P{priority}</span>
-    </button>
+    <div ref={containerRef} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title={priority == null ? "No priority — click to set" : `Priority: ${label}`}
+        className={cn(
+          "flex items-center gap-1 rounded-sm border bg-bg-2 px-2 py-1 text-[11px]",
+          priority == null
+            ? "border-border text-text-1 hover:bg-bg-3"
+            : "border-accent/40 text-text-0",
+        )}
+      >
+        {priority == null ? (
+          <Flag className="h-3 w-3 text-text-3" aria-hidden="true" />
+        ) : (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "h-2 w-2 rounded-full",
+              PRIORITY_DOT_TONE[priority] ?? "bg-text-3",
+            )}
+          />
+        )}
+        <span>{label}</span>
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-50 mt-1 w-36 overflow-hidden rounded-sm border border-border bg-bg-1 py-1 shadow-lg"
+        >
+          {[
+            { val: 1, label: "High", tone: PRIORITY_DOT_TONE[1] },
+            { val: 2, label: "Medium", tone: PRIORITY_DOT_TONE[2] },
+            { val: 3, label: "Low", tone: PRIORITY_DOT_TONE[3] },
+            { val: null, label: "No priority", tone: null },
+          ].map((opt) => (
+            <button
+              key={String(opt.val)}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                onChange(opt.val);
+                setOpen(false);
+              }}
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-bg-2",
+                priority === opt.val && "bg-bg-2 text-text-0",
+              )}
+            >
+              {opt.tone ? (
+                <span
+                  aria-hidden="true"
+                  className={cn("h-2 w-2 rounded-full", opt.tone)}
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="h-2 w-2 rounded-full border border-text-3"
+                />
+              )}
+              <span className="flex-1 text-text-1">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

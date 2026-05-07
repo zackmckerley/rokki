@@ -3,7 +3,7 @@
  *
  * - `default`  → priority then due-date (matches the server ORDER BY).
  * - `due`      → due_date ascending; nulls last.
- * - `priority` → 1 (urgent) → 4 (low).
+ * - `priority` → 1 (High) → 2 (Medium) → 3 (Low) → null (No priority).
  * - `assignee` → alphabetical by first assignee's full_name.
  * - `status`   → todo → in_progress → blocked → review → done.
  * - `created`  → newest first.
@@ -74,13 +74,18 @@ export function saveTaskSort(key: TaskSortKey): void {
 interface SortableTask {
   id: string;
   status: string;
-  priority: number;
+  /** 1=High, 2=Medium, 3=Low, null=No priority. */
+  priority: number | null;
   due_date: string | null;
   position: number | null;
   created_at: string;
   updated_at: string;
   assignees: { user_id: string; full_name: string | null }[];
 }
+
+/** Treat NULL priority as "infinity" — drops to the bottom of priority sorts. */
+const priorityKey = (p: number | null | undefined): number =>
+  p == null ? Number.POSITIVE_INFINITY : p;
 
 /**
  * Stable sort. We pre-derive each comparison key and fall back to
@@ -105,7 +110,7 @@ export function applyTaskSort<T extends SortableTask>(
         return ad - bd;
       }
       case "priority":
-        return a.priority - b.priority;
+        return priorityKey(a.priority) - priorityKey(b.priority);
       case "assignee": {
         const an = (a.assignees[0]?.full_name ?? "").toLowerCase();
         const bn = (b.assignees[0]?.full_name ?? "").toLowerCase();
@@ -133,7 +138,7 @@ export function applyTaskSort<T extends SortableTask>(
       }
       case "default":
       default: {
-        const p = a.priority - b.priority;
+        const p = priorityKey(a.priority) - priorityKey(b.priority);
         if (p !== 0) return p;
         const ad = a.due_date ? new Date(a.due_date).getTime() : Infinity;
         const bd = b.due_date ? new Date(b.due_date).getTime() : Infinity;

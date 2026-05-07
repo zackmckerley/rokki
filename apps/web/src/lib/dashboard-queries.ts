@@ -35,7 +35,8 @@ export interface AssignedTask {
   id: string;
   title: string;
   status: string;
-  priority: number;
+  /** 1=High, 2=Medium, 3=Low, null=No priority. */
+  priority: number | null;
   due_date: string | null;
   terminal_id: string;
   ticker_seq: number;
@@ -118,7 +119,7 @@ export async function loadAssignedTasks(
           id: string;
           title: string;
           status: string;
-          priority: number;
+          priority: number | null;
           due_date: string | null;
           terminal_id: string;
           ticker_seq: number;
@@ -128,9 +129,14 @@ export async function loadAssignedTasks(
         .map((r) => r.tasks)
         .filter((t): t is NonNullable<Row["tasks"]> => !!t)
         .filter((t) => t.status !== "done");
+      // Sort: priority asc with NULL = "no priority" sinking to the
+      // bottom, then due_date asc. Matches the server ORDER BY
+      // semantics with NULLS LAST.
+      const pkey = (p: number | null): number =>
+        p == null ? Number.POSITIVE_INFINITY : p;
       return rows.sort(
         (a, b) =>
-          a.priority - b.priority ||
+          pkey(a.priority) - pkey(b.priority) ||
           (a.due_date ? new Date(a.due_date).getTime() : Infinity) -
             (b.due_date ? new Date(b.due_date).getTime() : Infinity),
       );
@@ -157,7 +163,7 @@ export async function loadDelegatedTasks(
         id: string;
         title: string;
         status: string;
-        priority: number;
+        priority: number | null;
         due_date: string | null;
         terminal_id: string;
         ticker_seq: number;

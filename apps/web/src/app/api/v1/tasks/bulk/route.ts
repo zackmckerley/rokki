@@ -12,7 +12,7 @@ import type { TaskStatus } from "@rokki/db";
  *
  * Supported actions:
  *   - status        { status: TaskStatus }                 — set status (and completed_at if done)
- *   - priority      { priority: 1..4 }                     — set priority
+ *   - priority      { priority: 1..3 | null }              — set priority (null = no priority)
  *   - delete        — remove the rows
  *   - assign        { user_ids: string[], replace: bool }  — add (or replace) assignees
  *
@@ -28,7 +28,7 @@ type BulkBody =
   | {
       task_ids: string[];
       action: "priority";
-      priority: number;
+      priority: number | null;
     }
   | {
       task_ids: string[];
@@ -81,12 +81,16 @@ async function handlePost(request: NextRequest) {
       break;
     }
     case "priority": {
+      // null is allowed (= "no priority"). 1..3 otherwise.
       if (
-        typeof body.priority !== "number" ||
-        body.priority < 1 ||
-        body.priority > 4
+        body.priority !== null &&
+        (typeof body.priority !== "number" ||
+          body.priority < 1 ||
+          body.priority > 3)
       )
-        return bad("priority must be 1..4");
+        return bad(
+          "priority must be 1 (High), 2 (Medium), 3 (Low), or null",
+        );
       const { data, error } = await supabase
         .from("tasks")
         // @ts-expect-error generic update collapses to never

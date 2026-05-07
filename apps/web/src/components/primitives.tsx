@@ -16,30 +16,54 @@ import { cn } from "@/lib/utils";
 /* -------------------------------------------------------------------- */
 /* PriorityDots                                                           */
 /* -------------------------------------------------------------------- */
+/**
+ * Shows the task's priority as a small colored dot + label.
+ *   1 = High   (danger color)
+ *   2 = Medium (warning color)
+ *   3 = Low    (text-3, subtle)
+ *   null = no chip (renders nothing)
+ *
+ * Replaces the old four-dot "P1/P2/P3/P4" rendering. Component
+ * name stayed the same to avoid touching every call site —
+ * "Dots" is a slight misnomer now (one dot + label).
+ */
+const PRIORITY_DOT: Record<number, string> = {
+  1: "bg-danger",
+  2: "bg-warning",
+  3: "bg-text-3",
+};
+const PRIORITY_LABEL_PRIMITIVE: Record<number, string> = {
+  1: "High",
+  2: "Med",
+  3: "Low",
+};
 
 export function PriorityDots({
   priority,
   className,
 }: {
-  priority: number;
+  /** 1..3 or null. null/undefined = no chip rendered. */
+  priority: number | null | undefined;
   className?: string;
 }) {
+  if (priority == null || !PRIORITY_LABEL_PRIMITIVE[priority]) return null;
   return (
     <span
       role="img"
-      aria-label={`Priority ${priority}`}
-      className={cn("flex items-center gap-0.5", className)}
+      aria-label={`Priority ${PRIORITY_LABEL_PRIMITIVE[priority]}`}
+      className={cn(
+        "inline-flex flex-shrink-0 items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-text-2",
+        className,
+      )}
     >
-      {[1, 2, 3, 4].map((n) => (
-        <span
-          key={n}
-          aria-hidden="true"
-          className={cn(
-            "h-1 w-1 rounded-full",
-            n <= priority ? "bg-text-2" : "bg-bg-3",
-          )}
-        />
-      ))}
+      <span
+        aria-hidden="true"
+        className={cn(
+          "h-1.5 w-1.5 rounded-full",
+          PRIORITY_DOT[priority] ?? "bg-text-3",
+        )}
+      />
+      {PRIORITY_LABEL_PRIMITIVE[priority]}
     </span>
   );
 }

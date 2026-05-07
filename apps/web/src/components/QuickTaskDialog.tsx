@@ -107,7 +107,7 @@ export function QuickTaskDialog({
 
   async function handleSubmit(input: {
     title: string;
-    priority: number;
+    priority: number | null;
     due_date: string | null;
     labels: string[];
     assignee_ids: string[];

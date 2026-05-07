@@ -4,7 +4,8 @@ import { applyTaskSort } from "./tasks-sort";
 interface T {
   id: string;
   status: string;
-  priority: number;
+  /** 1=High, 2=Medium, 3=Low, null=No priority. */
+  priority: number | null;
   due_date: string | null;
   position: number | null;
   created_at: string;
@@ -14,7 +15,7 @@ interface T {
 
 const t = (over: Partial<T> & { id: string }): T => ({
   status: "todo",
-  priority: 3,
+  priority: null,
   due_date: null,
   position: null,
   created_at: "2026-04-20T00:00:00Z",
@@ -34,16 +35,18 @@ describe("applyTaskSort", () => {
     expect(sorted).toEqual(["c", "b", "a"]);
   });
 
-  it("priority sort: urgent (1) first", () => {
+  it("priority sort: high (1) first, no-priority (null) last", () => {
     const tasks: T[] = [
-      t({ id: "lo", priority: 4 }),
+      t({ id: "lo", priority: 3 }),
+      t({ id: "none", priority: null }),
       t({ id: "hi", priority: 1 }),
-      t({ id: "med", priority: 3 }),
+      t({ id: "med", priority: 2 }),
     ];
     expect(applyTaskSort(tasks, "priority").map((x) => x.id)).toEqual([
       "hi",
       "med",
       "lo",
+      "none",
     ]);
   });
 
