@@ -105,7 +105,16 @@ export default async function SpaceSettingsPage({ params }: Props) {
           Dashboard
         </Link>
         <span className="text-text-3">/</span>
-        <span className="text-text-1">{s.name}</span>
+        {/* Space name is now a link back to the space landing — used
+            to be plain text, which forced "go to dashboard, then
+            click into space" round-trips per UX feedback. */}
+        <Link
+          href={`/s/${s.slug}`}
+          className="text-text-1 hover:text-text-0"
+          title={`Open ${s.name}`}
+        >
+          {s.name}
+        </Link>
         <span className="text-text-3">·</span>
         <span className="text-text-0">Settings</span>
       </TopBar>

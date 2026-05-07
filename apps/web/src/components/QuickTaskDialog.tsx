@@ -16,6 +16,12 @@ interface QuickTaskDialogProps {
   spaces: DashSpace[];
   /** Optional pre-selected terminal id (e.g. "+ task in this terminal"). */
   defaultTerminalId?: string | null;
+  /**
+   * Current viewer's user_id. Forwarded to the inner TaskComposer so
+   * the assignee chip auto-defaults to the viewer once a terminal
+   * is picked AND the viewer is one of that terminal's members.
+   */
+  currentUserId?: string;
 }
 
 /**
@@ -38,6 +44,7 @@ export function QuickTaskDialog({
   terminals,
   spaces,
   defaultTerminalId = null,
+  currentUserId,
 }: QuickTaskDialogProps) {
   const [terminalId, setTerminalId] = useState<string | null>(
     defaultTerminalId,
@@ -145,6 +152,7 @@ export function QuickTaskDialog({
       <TaskComposer
         key={composerKey}
         members={members}
+        currentUserId={currentUserId}
         variant="dialog"
         autoFocus={Boolean(terminalId)}
         placeholder="Task title…"

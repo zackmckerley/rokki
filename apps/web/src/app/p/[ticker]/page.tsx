@@ -254,6 +254,7 @@ export default async function ProjectTerminalPage({ params }: Props) {
       }}
       tickerItems={tickerItems}
       isOwnerOrManager={isOwnerOrManager}
+      currentUserId={user.id}
       overviewLeft={<OverviewLeft project={p} members={memberRows} />}
       overviewMain={<OverviewMain project={p} />}
       rightPane={<AIChatStub project={p} />}

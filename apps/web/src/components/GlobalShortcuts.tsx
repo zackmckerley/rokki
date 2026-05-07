@@ -84,7 +84,9 @@ export function GlobalShortcuts() {
 
 /**
  * Flip `<html data-theme>` and persist to localStorage. Matches the read
- * side in `app/layout.tsx` and `AppearanceForm.applyTheme`.
+ * side in `app/layout.tsx` and `AppearanceForm.applyTheme`. Also
+ * mirrors to `style.colorScheme` so native chrome repaints with the
+ * dataset change rather than lagging until a refresh.
  */
 function toggleTheme(): void {
   if (typeof document === "undefined") return;
@@ -92,6 +94,7 @@ function toggleTheme(): void {
   const current = html.dataset.theme === "light" ? "light" : "dark";
   const next = current === "light" ? "dark" : "light";
   html.dataset.theme = next;
+  html.style.colorScheme = next;
   try {
     localStorage.setItem("rokki_theme", next);
   } catch {

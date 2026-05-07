@@ -34,6 +34,8 @@ interface ProjectTerminalProps {
   };
   tickerItems: { id: string; text: string; when: string }[];
   isOwnerOrManager: boolean;
+  /** Current viewer's user_id, used by inline composers to default-assign self. */
+  currentUserId: string;
 }
 
 /**
@@ -50,6 +52,7 @@ export function ProjectTerminal({
   project,
   tickerItems,
   isOwnerOrManager,
+  currentUserId,
 }: ProjectTerminalProps) {
   const router = useRouter();
   const [activeKey, setActiveKey] = useState("F3");
@@ -85,6 +88,7 @@ export function ProjectTerminal({
     ticker,
     projectId: project.id,
     isOwnerOrManager,
+    currentUserId,
     overviewLeft,
     overviewMain,
   });
@@ -110,6 +114,7 @@ function resolvePanes({
   ticker,
   projectId,
   isOwnerOrManager,
+  currentUserId,
   overviewLeft,
   overviewMain,
 }: {
@@ -117,6 +122,7 @@ function resolvePanes({
   ticker: string;
   projectId: string;
   isOwnerOrManager: boolean;
+  currentUserId: string;
   overviewLeft: ReactNode;
   overviewMain: ReactNode;
 }): { mainPane: ReactNode; leftPane: ReactNode } {
@@ -131,7 +137,13 @@ function resolvePanes({
       };
     case "F3":
       return {
-        mainPane: <TasksPane ticker={ticker} projectId={projectId} />,
+        mainPane: (
+          <TasksPane
+            ticker={ticker}
+            projectId={projectId}
+            currentUserId={currentUserId}
+          />
+        ),
         leftPane: null,
       };
     case "F4":

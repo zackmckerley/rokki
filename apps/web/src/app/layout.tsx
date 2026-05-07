@@ -76,9 +76,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
+    // No `data-theme` on <html> here. The bootstrap script in <head>
+    // owns that attribute — it reads localStorage before first paint
+    // and assigns "light", "dark", or the resolved system preference.
+    // Putting `data-theme="dark"` in JSX caused React to silently
+    // overwrite the script's value back to dark on subsequent
+    // renders, which is what manifested as "the page keeps flipping
+    // back to dark even though I set light." Same pattern that
+    // `data-density` already follows (also script-managed, never in
+    // JSX). `suppressHydrationWarning` keeps React from warning when
+    // the SSR HTML and the script-mutated DOM differ on either
+    // attribute.
     <html
       lang="en"
-      data-theme="dark"
       className={`${GeistSans.variable} ${GeistMono.variable} ${Newsreader_.variable}`}
       suppressHydrationWarning
     >

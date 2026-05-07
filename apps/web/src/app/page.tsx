@@ -112,6 +112,7 @@ export default async function DashboardPage() {
       weekItems={weekItems}
       tickerItems={tickerItems}
       toolCount={toolsResult.count ?? 0}
+      userId={user.id}
       userName={userName}
       userEmail={user.email ?? ""}
       isPlatformAdmin={profile?.is_platform_admin ?? false}

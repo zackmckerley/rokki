@@ -57,6 +57,13 @@ function sortStorageKey(projectId: string): string {
 interface TasksPaneProps {
   ticker: string;
   projectId: string;
+  /**
+   * Current viewer's user_id. Used by the inline composer to
+   * auto-assign-self by default — without this prop the composer
+   * still works, but the assignee chip starts empty and the user
+   * has to remember to click it.
+   */
+  currentUserId?: string;
 }
 
 /**
@@ -76,7 +83,7 @@ interface Mentionable {
   full_name: string | null;
 }
 
-export function TasksPane({ ticker, projectId }: TasksPaneProps) {
+export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -636,6 +643,7 @@ export function TasksPane({ ticker, projectId }: TasksPaneProps) {
         {creating ? (
           <TaskComposer
             members={mentionables as TaskComposerMember[]}
+            currentUserId={currentUserId}
             onSubmit={createTask}
             onCancel={cancelCreate}
             submitLabel="Create"

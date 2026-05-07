@@ -44,6 +44,14 @@ interface TaskComposerProps {
   initialPriority?: number;
   /** Pre-fill assignees. */
   initialAssigneeIds?: string[];
+  /**
+   * Current viewer's user_id. When provided AND `initialAssigneeIds`
+   * is empty, the composer auto-pre-populates the assignee chip
+   * with the current user — matches the dashboard pattern of "I
+   * created this, so it's mine unless I say otherwise" without
+   * the user having to click into the picker.
+   */
+  currentUserId?: string;
   /** Pre-fill labels. */
   initialLabels?: string[];
   /**
@@ -96,6 +104,7 @@ export function TaskComposer({
   members = [],
   initialPriority = 3,
   initialAssigneeIds = [],
+  currentUserId,
   initialLabels = [],
   variant = "inline",
   autoFocus = true,
@@ -109,7 +118,16 @@ export function TaskComposer({
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState(initialPriority);
   const [dueIso, setDueIso] = useState<string | null>(null);
-  const [assigneeIds, setAssigneeIds] = useState<string[]>(initialAssigneeIds);
+  // If the parent gave us a currentUserId AND no explicit pre-fill,
+  // default the assignee to the viewer. Matches "I made this, so
+  // it's mine until I say otherwise."
+  const [assigneeIds, setAssigneeIds] = useState<string[]>(() => {
+    if (initialAssigneeIds.length > 0) return initialAssigneeIds;
+    if (currentUserId && members.some((m) => m.user_id === currentUserId)) {
+      return [currentUserId];
+    }
+    return [];
+  });
   const [labels, setLabels] = useState<string[]>(initialLabels);
   const [labelDraft, setLabelDraft] = useState("");
   const [showAssignees, setShowAssignees] = useState(false);

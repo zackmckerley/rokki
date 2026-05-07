@@ -138,17 +138,11 @@ interface ResizeHandleProps {
 /**
  * Draggable thumb between two resizable panels.
  *
- * v1 used a 4px-wide bar with a tiny 6px hit area. v2 (this one)
- * went the other way — 1px line + grip dots + 21px hit area —
- * but Zack still couldn't find / grab it. v3 splits the difference:
- *
- *   * 4px-wide visible column, accent-bordered against the
- *     surrounding panel borders so the seam reads as
- *     interactive (not as decoration)
- *   * full-column accent fill on hover so there's no doubt
- *     "this responds to my mouse"
- *   * persistent grip-dots indicator at the midpoint
- *   * 12px hit area on either side of the 4px bar (28px total)
+ * v4 styling per UX feedback: 2px bar (was 4px) + a small
+ * rectangular grip in the middle (was three dots). The grip is
+ * what the user looks at and grabs; the bar is the visual seam.
+ * Hit area still ~24px wide via an absolute pseudo-overlay so the
+ * thumb is forgiving to imprecise pointing.
  *
  * Accessibility:
  *   - role="separator" with `aria-orientation` so screen readers
@@ -161,6 +155,7 @@ export function ResizeHandle({
   ariaLabel,
   className,
 }: ResizeHandleProps) {
+  const isVertical = orientation === "vertical";
   return (
     <div
       role="separator"
@@ -169,33 +164,30 @@ export function ResizeHandle({
       onMouseDown={onMouseDown}
       className={cn(
         "group relative flex-shrink-0 bg-border transition-colors",
-        orientation === "vertical"
-          ? "w-1 cursor-col-resize hover:bg-accent"
-          : "h-1 cursor-row-resize hover:bg-accent",
+        isVertical
+          ? "w-px cursor-col-resize hover:bg-accent"
+          : "h-px cursor-row-resize hover:bg-accent",
         className,
       )}
     >
-      {/* Grip indicator at the midpoint — three vertical dots so the
-          user can see this seam is interactive without staring. */}
+      {/* Pill-shaped grip at the column midpoint. Vertical column
+          orientation → tall thin pill (the grip is taller than
+          wide); horizontal divider → flips. */}
       <span
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 opacity-80 transition-opacity group-hover:opacity-100",
-          orientation === "vertical" ? "flex-col gap-[2px]" : "gap-[2px]",
+          "pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-text-3 transition-colors group-hover:bg-accent",
+          isVertical ? "h-6 w-[3px]" : "h-[3px] w-6",
         )}
-      >
-        <span className="block h-[3px] w-[3px] rounded-full bg-text-2 group-hover:bg-bg-0" />
-        <span className="block h-[3px] w-[3px] rounded-full bg-text-2 group-hover:bg-bg-0" />
-        <span className="block h-[3px] w-[3px] rounded-full bg-text-2 group-hover:bg-bg-0" />
-      </span>
+      />
       {/* Generous transparent hit area — 12px on each side of the
-          4px bar = 28px wide click target. Easy to grab even with
+          1px bar = ~25px wide click target. Easy to grab even with
           imprecise pointing. */}
       <span
         aria-hidden="true"
         className={cn(
           "absolute",
-          orientation === "vertical"
+          isVertical
             ? "inset-y-0 -left-3 -right-3"
             : "inset-x-0 -top-3 -bottom-3",
         )}
