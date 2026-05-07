@@ -27,6 +27,11 @@ import {
 } from "./primitives";
 import type { TaskStatus } from "@rokki/db";
 
+interface TaskAssignee {
+  user_id: string;
+  full_name: string | null;
+}
+
 interface Task {
   id: string;
   ticker_seq: number;
@@ -40,6 +45,7 @@ interface Task {
   latest_status_text?: string | null;
   latest_status_author_id?: string | null;
   latest_status_at?: string | null;
+  assignees?: TaskAssignee[];
   /**
    * Sparse-integer manual-sort position. May be null for legacy rows
    * created before the column existed; the GET endpoint coerces NULLs
@@ -54,9 +60,19 @@ interface Task {
 }
 
 type SortMode = "auto" | "manual";
+/**
+ * Group-by modes for the task list. "None" keeps the flat list. The
+ * other modes bucket tasks visually with section headers; sorting
+ * within a bucket still respects the active SortMode.
+ */
+type GroupMode = "none" | "assignee" | "due" | "priority" | "status";
 
 function sortStorageKey(projectId: string): string {
   return `rokki_tasks_sort:${projectId}`;
+}
+
+function groupStorageKey(projectId: string): string {
+  return `rokki_tasks_group:${projectId}`;
 }
 
 interface TasksPaneProps {
@@ -98,6 +114,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>("auto");
+  const [groupMode, setGroupMode] = useState<GroupMode>("none");
   /**
    * The id of the row currently being dragged (in Manual mode). Used
    * to skip drop highlighting on the source row and to look up its
@@ -125,6 +142,31 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
       /* ignore */
     }
   }, [projectId, sortMode]);
+
+  // Hydrate + persist the group-by preference per project.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(groupStorageKey(projectId));
+      if (
+        saved === "none" ||
+        saved === "assignee" ||
+        saved === "due" ||
+        saved === "priority" ||
+        saved === "status"
+      )
+        setGroupMode(saved);
+    } catch {
+      /* ignore */
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(groupStorageKey(projectId), groupMode);
+    } catch {
+      /* ignore */
+    }
+  }, [projectId, groupMode]);
 
   // Subtasks: lazily-loaded per parent. `null` = not yet fetched,
   // `[]` = fetched and empty. The expand toggle drives both
@@ -562,6 +604,26 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
               Manual
             </button>
           </span>
+          {/* Group-by selector. Buckets the list visually with section
+              headers; rows still sort by the active SortMode within
+              each bucket. Persists per-project. */}
+          <label className="flex items-center gap-1 text-[10px]">
+            <span className="font-mono uppercase tracking-wide text-text-3">
+              Group
+            </span>
+            <select
+              value={groupMode}
+              onChange={(e) => setGroupMode(e.target.value as GroupMode)}
+              className="rounded-sm border border-border bg-bg-1 px-1 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-1 outline-none hover:border-border-focus focus:border-border-focus"
+              aria-label="Group tasks by"
+            >
+              <option value="none">None</option>
+              <option value="assignee">Assignee</option>
+              <option value="due">Due</option>
+              <option value="priority">Priority</option>
+              <option value="status">Status</option>
+            </select>
+          </label>
         </div>
         <button
           onClick={() => setCreating(true)}
@@ -589,100 +651,130 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
         ) : tasks.length === 0 && !creating ? (
           <Empty onCreate={() => setCreating(true)} />
         ) : (
-          <ul className="divide-y divide-border">
-            {tasks.map((t, i) => {
-              const expanded = expandedTaskIds.has(t.id);
-              const draggable = sortMode === "manual";
-              const isDragOver = dragOverId === t.id && dragId !== t.id;
-              return (
-                <li
-                  key={t.id}
-                  draggable={draggable}
-                  onDragStart={
-                    draggable
-                      ? (e) => {
-                          e.dataTransfer.effectAllowed = "move";
-                          e.dataTransfer.setData("text/plain", t.id);
-                          setDragId(t.id);
-                        }
-                      : undefined
-                  }
-                  onDragOver={
-                    draggable
-                      ? (e) => {
-                          if (!dragId || dragId === t.id) return;
-                          e.preventDefault();
-                          e.dataTransfer.dropEffect = "move";
-                          if (dragOverId !== t.id) setDragOverId(t.id);
-                        }
-                      : undefined
-                  }
-                  onDragLeave={
-                    draggable
-                      ? () => {
-                          if (dragOverId === t.id) setDragOverId(null);
-                        }
-                      : undefined
-                  }
-                  onDrop={
-                    draggable
-                      ? (e) => {
-                          e.preventDefault();
-                          const sourceId =
-                            e.dataTransfer.getData("text/plain") || dragId;
-                          setDragOverId(null);
-                          setDragId(null);
-                          if (sourceId)
-                            void handleRowDrop(t.id, sourceId);
-                        }
-                      : undefined
-                  }
-                  onDragEnd={
-                    draggable
-                      ? () => {
-                          setDragId(null);
-                          setDragOverId(null);
-                        }
-                      : undefined
-                  }
-                  className={cn(
-                    isDragOver &&
-                      "outline outline-2 -outline-offset-2 outline-accent",
-                    dragId === t.id && "opacity-50",
-                  )}
-                >
-                  <TaskRow
-                    task={t}
-                    ticker={ticker}
-                    selected={i === selectedIdx}
-                    expanded={expanded}
-                    draggable={draggable}
-                    onClick={() => setSelectedIdx(i)}
-                    onToggle={() => toggleComplete(t)}
-                    onOpenComments={() =>
-                      setCommentTaskId((prev) =>
-                        prev === t.id ? null : t.id,
-                      )
-                    }
-                    onToggleExpand={() => toggleExpand(t.id)}
-                    onRequestUpdate={() => requestUpdate(t)}
-                  />
-                  {expanded ? (
-                    <SubtasksList
-                      taskId={t.id}
-                      subtasks={subtasksByTaskId[t.id] ?? null}
-                      onChange={(next) =>
-                        setSubtasksByTaskId((prev) => ({
-                          ...prev,
-                          [t.id]: next,
-                        }))
-                      }
-                    />
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
+          (() => {
+            // Manual drag-reorder writes to the position column with no
+            // bucket semantics — disable it when grouped to avoid a
+            // confusing "drag worked but the row didn't move" UX.
+            const dragEnabled = sortMode === "manual" && groupMode === "none";
+            const groups = groupTasks(tasks, groupMode);
+            // Map task.id → its index in the global `tasks` array so
+            // selectedIdx (driven by j/k) keeps working across buckets.
+            const idxById = new Map(tasks.map((t, i) => [t.id, i]));
+            return (
+              <div>
+                {groups.map((group) => (
+                  <section key={group.key}>
+                    {group.label ? (
+                      <header className="sticky top-0 z-[1] flex items-center justify-between border-b border-border bg-bg-1 px-4 py-1">
+                        <span className="font-mono text-[10px] uppercase tracking-wide text-text-2">
+                          {group.label}
+                        </span>
+                        <span className="font-mono text-[10px] text-text-3">
+                          {group.tasks.length}
+                        </span>
+                      </header>
+                    ) : null}
+                    <ul className="divide-y divide-border">
+                      {group.tasks.map((t) => {
+                        const i = idxById.get(t.id) ?? 0;
+                        const expanded = expandedTaskIds.has(t.id);
+                        const isDragOver =
+                          dragOverId === t.id && dragId !== t.id;
+                        return (
+                          <li
+                            key={`${group.key}:${t.id}`}
+                            draggable={dragEnabled}
+                            onDragStart={
+                              dragEnabled
+                                ? (e) => {
+                                    e.dataTransfer.effectAllowed = "move";
+                                    e.dataTransfer.setData("text/plain", t.id);
+                                    setDragId(t.id);
+                                  }
+                                : undefined
+                            }
+                            onDragOver={
+                              dragEnabled
+                                ? (e) => {
+                                    if (!dragId || dragId === t.id) return;
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = "move";
+                                    if (dragOverId !== t.id) setDragOverId(t.id);
+                                  }
+                                : undefined
+                            }
+                            onDragLeave={
+                              dragEnabled
+                                ? () => {
+                                    if (dragOverId === t.id) setDragOverId(null);
+                                  }
+                                : undefined
+                            }
+                            onDrop={
+                              dragEnabled
+                                ? (e) => {
+                                    e.preventDefault();
+                                    const sourceId =
+                                      e.dataTransfer.getData("text/plain") ||
+                                      dragId;
+                                    setDragOverId(null);
+                                    setDragId(null);
+                                    if (sourceId)
+                                      void handleRowDrop(t.id, sourceId);
+                                  }
+                                : undefined
+                            }
+                            onDragEnd={
+                              dragEnabled
+                                ? () => {
+                                    setDragId(null);
+                                    setDragOverId(null);
+                                  }
+                                : undefined
+                            }
+                            className={cn(
+                              isDragOver &&
+                                "outline outline-2 -outline-offset-2 outline-accent",
+                              dragId === t.id && "opacity-50",
+                            )}
+                          >
+                            <TaskRow
+                              task={t}
+                              ticker={ticker}
+                              selected={i === selectedIdx}
+                              expanded={expanded}
+                              draggable={dragEnabled}
+                              onClick={() => setSelectedIdx(i)}
+                              onToggle={() => toggleComplete(t)}
+                              onOpenComments={() =>
+                                setCommentTaskId((prev) =>
+                                  prev === t.id ? null : t.id,
+                                )
+                              }
+                              onToggleExpand={() => toggleExpand(t.id)}
+                              onRequestUpdate={() => requestUpdate(t)}
+                            />
+                            {expanded ? (
+                              <SubtasksList
+                                taskId={t.id}
+                                subtasks={subtasksByTaskId[t.id] ?? null}
+                                onChange={(next) =>
+                                  setSubtasksByTaskId((prev) => ({
+                                    ...prev,
+                                    [t.id]: next,
+                                  }))
+                                }
+                              />
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            );
+          })()
         )}
 
         {creating ? (
@@ -937,5 +1029,130 @@ function sortTasks(tasks: Task[], mode: SortMode = "auto"): Task[] {
     if (da !== db) return da - db;
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
+}
+
+/**
+ * Bucket tasks for the group-by view. Returns an ordered list of
+ * `{ key, label, tasks }` so the renderer can emit a section header
+ * per bucket. Empty buckets are dropped — the layout shouldn't waste
+ * vertical space on "0 tasks" headers.
+ *
+ * Ordering rationale:
+ *   - assignee: name A→Z; "Unassigned" last
+ *   - due: Overdue → Today → This week → Later → No due date
+ *           (matches the urgency-first triage order)
+ *   - priority: High → Medium → Low → No priority
+ *   - status: todo → in_progress → review → blocked → done
+ */
+function groupTasks(
+  tasks: Task[],
+  mode: GroupMode,
+): { key: string; label: string; tasks: Task[] }[] {
+  if (mode === "none" || tasks.length === 0) {
+    return [{ key: "all", label: "", tasks }];
+  }
+  if (mode === "assignee") {
+    const buckets = new Map<string, { label: string; tasks: Task[] }>();
+    for (const t of tasks) {
+      const list = t.assignees ?? [];
+      if (list.length === 0) {
+        const acc = buckets.get("__none__") ?? {
+          label: "Unassigned",
+          tasks: [],
+        };
+        acc.tasks.push(t);
+        buckets.set("__none__", acc);
+        continue;
+      }
+      // Tasks with multiple assignees show up under each one — the
+      // user expectation when grouping by assignee is "show me what
+      // each person owes me", not "pick one canonical owner".
+      for (const a of list) {
+        const key = a.user_id;
+        const acc = buckets.get(key) ?? {
+          label: a.full_name?.trim() || "Someone",
+          tasks: [],
+        };
+        acc.tasks.push(t);
+        buckets.set(key, acc);
+      }
+    }
+    return Array.from(buckets.entries())
+      .map(([key, v]) => ({ key, label: v.label, tasks: v.tasks }))
+      .sort((a, b) => {
+        if (a.key === "__none__") return 1;
+        if (b.key === "__none__") return -1;
+        return a.label.localeCompare(b.label);
+      });
+  }
+  if (mode === "due") {
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    const endOfWeek = new Date(startOfDay);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+    const buckets = new Map<string, Task[]>();
+    const order = ["overdue", "today", "week", "later", "none"];
+    for (const k of order) buckets.set(k, []);
+    for (const t of tasks) {
+      let key: string;
+      if (!t.due_date) key = "none";
+      else {
+        const d = new Date(t.due_date).getTime();
+        if (d < startOfDay.getTime()) key = "overdue";
+        else if (d < endOfDay.getTime()) key = "today";
+        else if (d < endOfWeek.getTime()) key = "week";
+        else key = "later";
+      }
+      buckets.get(key)!.push(t);
+    }
+    const labels: Record<string, string> = {
+      overdue: "Overdue",
+      today: "Today",
+      week: "This week",
+      later: "Later",
+      none: "No due date",
+    };
+    return order
+      .map((k) => ({ key: k, label: labels[k], tasks: buckets.get(k) ?? [] }))
+      .filter((g) => g.tasks.length > 0);
+  }
+  if (mode === "priority") {
+    const buckets: Record<string, Task[]> = { high: [], med: [], low: [], none: [] };
+    for (const t of tasks) {
+      const k =
+        t.priority === 1
+          ? "high"
+          : t.priority === 2
+            ? "med"
+            : t.priority === 3
+              ? "low"
+              : "none";
+      buckets[k].push(t);
+    }
+    return [
+      { key: "high", label: "High", tasks: buckets.high },
+      { key: "med", label: "Medium", tasks: buckets.med },
+      { key: "low", label: "Low", tasks: buckets.low },
+      { key: "none", label: "No priority", tasks: buckets.none },
+    ].filter((g) => g.tasks.length > 0);
+  }
+  // status
+  const order: TaskStatus[] = ["todo", "in_progress", "review", "blocked", "done"];
+  const labels: Record<TaskStatus, string> = {
+    todo: "To do",
+    in_progress: "In progress",
+    review: "Review",
+    blocked: "Blocked",
+    done: "Done",
+  };
+  const buckets = new Map<TaskStatus, Task[]>();
+  for (const s of order) buckets.set(s, []);
+  for (const t of tasks) buckets.get(t.status)?.push(t);
+  return order
+    .map((s) => ({ key: s, label: labels[s], tasks: buckets.get(s) ?? [] }))
+    .filter((g) => g.tasks.length > 0);
 }
 
