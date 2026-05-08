@@ -97,6 +97,19 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key-for-build
           NEXT_PUBLIC_APP_URL: http://localhost:3000
 
+      - name: Stage captured snapshots
+        # `peter-evans/create-pull-request@v6` does NOT auto-stage
+        # untracked files even when they match `add-paths` — it
+        # only filters what it commits among ALREADY-tracked or
+        # ALREADY-staged paths. The previous run captured PNGs
+        # successfully but they sat as untracked files until the
+        # job ended (logs:
+        #   "nothing added to commit but untracked files present").
+        # Stage them explicitly so peter-evans sees a real diff.
+        run: |
+          git add 'apps/web/tests/visual/**/*-snapshots/**' || true
+          git status --short
+
       - name: Open refresh PR
         uses: peter-evans/create-pull-request@v6
         with:
