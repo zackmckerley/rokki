@@ -142,10 +142,12 @@ jobs:
             close this PR and either revert the underlying UI change
             or amend the visual spec.
           delete-branch: true
-          # Playwright writes baselines to `<spec>-snapshots/` per
-          # spec file (apps/web/tests/visual/public-pages.spec.ts
-          # → public-pages.spec.ts-snapshots/), NOT a single
-          # `__snapshots__/` dir. Match the actual layout or
-          # peter-evans finds nothing to commit.
-          add-paths: |
-            apps/web/tests/visual/**/*-snapshots/**
+          # No `add-paths` — the previous step `git add -A
+          # apps/web/tests/visual` already staged exactly the
+          # files we want committed. peter-evans's own `add-paths`
+          # filter passed the unexpanded `**` glob to git status,
+          # which only treats `**` as wildcard with the
+          # `:(glob)` pathspec prefix; it found nothing and the
+          # commit step quietly skipped. With nothing in
+          # `add-paths`, peter-evans commits whatever's already
+          # staged — which is exactly the captured snapshots.
