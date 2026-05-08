@@ -1,0 +1,55 @@
+name: Reminders fan-out
+
+# Daily reminders tick — for every user with a reminders thread,
+# scan their open tasks and post a fresh ping for any overdue or
+# due-today task that hasn't been reminded in the past 24h.
+#
+# The endpoint is per-task 24h-deduped, so over-firing the cron is
+# harmless. We run once a day at 8:00 UTC (~3am Eastern, 8pm Pacific
+# the previous day) — early enough to be in someone's inbox by
+# breakfast, late enough that timezone-shifted users don't miss the
+# day's reminders.
+#
+# Secrets required:
+#   ROKKI_CRON_SECRET — must match the CRON_SECRET env var on Vercel.
+#
+# Manual run: Actions tab → "Reminders fan-out" → Run workflow.
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+# Belt-and-suspenders concurrency guard. The 24h dedupe already
+# protects against duplicate posts, but skipping a stacked second
+# run also keeps the action log readable.
+concurrency:
+  group: reminders-fanout
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    name: POST /api/v1/cron/reminders
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Trigger reminders fan-out
+        env:
+          CRON_SECRET: ${{ secrets.ROKKI_CRON_SECRET }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::warning::ROKKI_CRON_SECRET not set; skipping tick"
+            exit 0
+          fi
+          STATUS=$(curl -sS -o /tmp/body -w "%{http_code}" \
+            -X POST \
+            -H "x-cron-secret: $CRON_SECRET" \
+            -H "content-type: application/json" \
+            --max-time 290 \
+            https://rokki.ai/api/v1/cron/reminders)
+          BODY=$(cat /tmp/body)
+          echo "HTTP $STATUS"
+          echo "$BODY"
+          if [ "$STATUS" != "200" ]; then
+            echo "::error::reminders tick failed with HTTP $STATUS: $BODY"
+            exit 1
+          fi
