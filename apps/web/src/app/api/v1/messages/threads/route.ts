@@ -31,7 +31,7 @@ export async function GET() {
     last_read_at: string | null;
     message_threads: {
       id: string;
-      kind: "dm" | "terminal" | "space" | "group";
+      kind: "dm" | "terminal" | "space" | "group" | "reminders";
       terminal_id: string | null;
       space_id: string | null;
       last_message_at: string;
@@ -49,7 +49,7 @@ export async function GET() {
     .in("kind", ["terminal", "space"]);
   type TT = {
     id: string;
-    kind: "dm" | "terminal" | "space" | "group";
+    kind: "dm" | "terminal" | "space" | "group" | "reminders";
     terminal_id: string | null;
     space_id: string | null;
     last_message_at: string;
@@ -158,6 +158,14 @@ export async function GET() {
         id: t.id,
         kind: t.kind,
         label: sp ? `#lobby · ${sp.name}` : "#lobby",
+        last_message_at: t.last_message_at,
+      };
+    }
+    if (t.kind === "reminders") {
+      return {
+        id: t.id,
+        kind: t.kind,
+        label: "Reminders",
         last_message_at: t.last_message_at,
       };
     }

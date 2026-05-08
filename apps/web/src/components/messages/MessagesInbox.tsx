@@ -2,14 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Send, Hash, User as UserIcon, Pin } from "lucide-react";
+import { Send, Hash, User as UserIcon, Pin, Bell, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
 
 interface ThreadSummary {
   id: string;
-  kind: "dm" | "terminal" | "space" | "group";
+  kind: "dm" | "terminal" | "space" | "group" | "reminders";
   label: string;
   last_message_at: string;
   href_ticker?: string | null;
@@ -60,6 +60,7 @@ export function MessagesInbox() {
    */
   const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({});
   const [statusSending, setStatusSending] = useState<string | null>(null);
+  const [refreshingReminders, setRefreshingReminders] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
   // Who am I?
@@ -150,6 +151,33 @@ export function MessagesInbox() {
   }
 
   /**
+   * Refresh the reminders thread — server scans the user's open
+   * tasks for overdue / due-today and posts new pinging messages.
+   * Idempotent (24h dedupe per task on the server). After refresh
+   * we reload the active thread and the thread list so any new
+   * messages + last_message_at bump show up immediately.
+   */
+  async function refreshReminders() {
+    if (refreshingReminders) return;
+    setRefreshingReminders(true);
+    try {
+      const r = await fetch("/api/v1/reminders/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      if (r.ok) {
+        // Threads first so the new reminders thread (if first
+        // refresh) appears in the sidebar; then messages so the
+        // active thread refreshes if it was already selected.
+        await loadThreads();
+        if (activeId) await loadMessages(activeId);
+      }
+    } finally {
+      setRefreshingReminders(false);
+    }
+  }
+
+  /**
    * Submit a reply to a "request update" ping. Hits the task's
    * status-update endpoint, which both updates the latest_status_*
    * columns AND echoes the reply into this thread (with `Status update:`
@@ -189,6 +217,26 @@ export function MessagesInbox() {
             Conversations
           </span>
         </header>
+        {/* Reminders CTA — shows once until the user enables it; the
+            refresh endpoint creates the thread + posts pings for the
+            user's overdue / due-today tasks. After first run the
+            thread surfaces in the list below and this banner clears. */}
+        {!threads.some((t) => t.kind === "reminders") ? (
+          <button
+            type="button"
+            onClick={refreshReminders}
+            disabled={refreshingReminders}
+            className="flex w-full items-center gap-2 border-b border-border bg-bg-2 px-3 py-2 text-left text-xs text-text-1 hover:bg-bg-3 disabled:opacity-50"
+          >
+            <Bell className="h-3 w-3 flex-shrink-0 text-accent" />
+            <span className="flex-1">
+              {refreshingReminders
+                ? "Setting up reminders…"
+                : "Turn on Reminders"}
+            </span>
+            <span className="font-mono text-[10px] text-text-3">+</span>
+          </button>
+        ) : null}
         <ul className="overflow-y-auto">
           {threads.length === 0 ? (
             <li className="px-3 py-6 text-center text-xs text-text-3">
@@ -206,6 +254,8 @@ export function MessagesInbox() {
                 >
                   {t.kind === "terminal" ? (
                     <Hash className="h-3 w-3 flex-shrink-0 text-text-3" />
+                  ) : t.kind === "reminders" ? (
+                    <Bell className="h-3 w-3 flex-shrink-0 text-accent" />
                   ) : (
                     <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
                   )}
@@ -226,10 +276,29 @@ export function MessagesInbox() {
             <>
               {active.kind === "terminal" ? (
                 <Hash className="h-3 w-3 text-text-3" />
+              ) : active.kind === "reminders" ? (
+                <Bell className="h-3 w-3 text-accent" />
               ) : (
                 <UserIcon className="h-3 w-3 text-text-3" />
               )}
               <span className="text-xs text-text-1">{active.label}</span>
+              {active.kind === "reminders" ? (
+                <button
+                  type="button"
+                  onClick={refreshReminders}
+                  disabled={refreshingReminders}
+                  title="Scan for new overdue / due-today tasks"
+                  className="ml-auto flex items-center gap-1 rounded-sm border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-2 hover:border-accent/40 hover:text-text-0 disabled:opacity-50"
+                >
+                  <RefreshCw
+                    className={cn(
+                      "h-2.5 w-2.5",
+                      refreshingReminders && "animate-spin",
+                    )}
+                  />
+                  {refreshingReminders ? "Refreshing…" : "Refresh"}
+                </button>
+              ) : null}
             </>
           ) : (
             <span className="text-xs text-text-3">Select a conversation</span>
