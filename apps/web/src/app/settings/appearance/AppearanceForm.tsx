@@ -33,6 +33,7 @@ export function AppearanceForm({
       try {
         localStorage.setItem("rokki_density", next);
       } catch {}
+      writeThemeCookie("rokki_density", next);
     }
     await save({ density: next });
   }
@@ -40,10 +41,17 @@ export function AppearanceForm({
   async function pickTheme(next: Theme) {
     if (next === theme || saving) return;
     setTheme(next);
-    applyTheme(next);
+    const resolved = applyTheme(next);
     try {
       localStorage.setItem("rokki_theme", next);
     } catch {}
+    // The cookie holds the RESOLVED concrete theme ("dark" / "light"),
+    // not the user's preference ("system"). The server-side layout
+    // only knows how to paint dark or light — it can't resolve
+    // `prefers-color-scheme` from the request. Saving the resolved
+    // value gives the next page-render the correct paint without
+    // having to re-resolve.
+    writeThemeCookie("rokki_theme", resolved);
     await save({ theme: next });
   }
 
@@ -143,11 +151,16 @@ export function AppearanceForm({
  * widgets (scrollbars, form chrome, the Edge UI) repaint
  * immediately. Without this the dataset attribute flips but the
  * native chrome stays at whatever the boot script set.
+ *
+ * Returns the resolved concrete theme ("dark" / "light") — the
+ * cookie path needs the resolved value, not the user-facing
+ * preference, since the server layout can't compute
+ * `prefers-color-scheme` from the request.
  */
-export function applyTheme(theme: Theme): void {
-  if (typeof document === "undefined") return;
+export function applyTheme(theme: Theme): "dark" | "light" {
+  if (typeof document === "undefined") return "dark";
   const html = document.documentElement;
-  const resolved =
+  const resolved: "dark" | "light" =
     theme === "system"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches
         ? "dark"
@@ -155,6 +168,19 @@ export function applyTheme(theme: Theme): void {
       : theme;
   html.dataset.theme = resolved;
   html.style.colorScheme = resolved;
+  return resolved;
+}
+
+/**
+ * Write a theme/density cookie so the next server-side render paints
+ * with the right tokens before any client JS runs. Plain (non-Secure,
+ * non-HttpOnly) so JS can read/write it; values are non-sensitive.
+ */
+function writeThemeCookie(name: string, value: string): void {
+  if (typeof document === "undefined") return;
+  document.cookie =
+    `${name}=${encodeURIComponent(value)}` +
+    `; max-age=31536000; path=/; samesite=lax`;
 }
 
 function ThemeCard({
