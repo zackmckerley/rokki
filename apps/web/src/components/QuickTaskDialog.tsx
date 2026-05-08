@@ -111,6 +111,7 @@ export function QuickTaskDialog({
     due_date: string | null;
     labels: string[];
     assignee_ids: string[];
+    external_assignee_emails: string[];
   }) {
     if (!selectedTerminal) {
       throw new Error("Pick a terminal first");
@@ -128,6 +129,10 @@ export function QuickTaskDialog({
           labels: input.labels,
           assignee_ids:
             input.assignee_ids.length > 0 ? input.assignee_ids : undefined,
+          external_assignee_emails:
+            input.external_assignee_emails.length > 0
+              ? input.external_assignee_emails
+              : undefined,
         }),
       },
     );

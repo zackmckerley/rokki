@@ -63,6 +63,13 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     position?: number;
     recurrence_rule?: TaskRecurrenceRule | null;
     /**
+     * External (not-yet-platform-user) email assignees. Pass the
+     * full canonical list — server replaces the column wholesale,
+     * matching the way the user thinks of "set these emails" rather
+     * than "add/remove". Pass `[]` to clear.
+     */
+    external_assignee_emails?: string[];
+    /**
      * Optimistic-concurrency token. If supplied (either via this field or
      * the `If-Match` header) we 409 when the row's current `updated_at`
      * doesn't match what the client thought it was editing.
@@ -104,6 +111,13 @@ async function handlePatch(request: NextRequest, { params }: Props) {
   if (body.status !== undefined) {
     patch.status = body.status;
     patch.completed_at = body.status === "done" ? new Date().toISOString() : null;
+  }
+  if (body.external_assignee_emails !== undefined) {
+    const normalized = normalizeEmails(body.external_assignee_emails);
+    if (normalized === "invalid") {
+      return bad("external_assignee_emails contains an invalid address");
+    }
+    patch.external_assignee_emails = normalized;
   }
 
   if (Object.keys(patch).length === 0) return bad("no fields to update");
@@ -215,6 +229,26 @@ async function handleDelete(_request: NextRequest, { params }: Props) {
     });
 
   return new NextResponse(null, { status: 204 });
+}
+
+/**
+ * Normalize email assignee list — duplicate of the helper in the
+ * project tasks POST route. Keeping the duplication local rather
+ * than building a shared lib for a 12-line function until a third
+ * call site shows up.
+ */
+function normalizeEmails(input: unknown): string[] | "invalid" {
+  if (!Array.isArray(input)) return "invalid";
+  const out = new Set<string>();
+  const re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  for (const raw of input) {
+    if (typeof raw !== "string") continue;
+    const v = raw.trim().toLowerCase();
+    if (!v) continue;
+    if (!re.test(v)) return "invalid";
+    out.add(v);
+  }
+  return Array.from(out);
 }
 
 function unauth() {

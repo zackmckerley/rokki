@@ -46,6 +46,7 @@ interface Task {
   latest_status_author_id?: string | null;
   latest_status_at?: string | null;
   assignees?: TaskAssignee[];
+  external_assignee_emails?: string[];
   /**
    * Sparse-integer manual-sort position. May be null for legacy rows
    * created before the column existed; the GET endpoint coerces NULLs
@@ -526,6 +527,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
     due_date: string | null;
     labels: string[];
     assignee_ids: string[];
+    external_assignee_emails: string[];
   }) {
     const r = await offlineFetch(`/api/v1/projects/${ticker}/tasks`, {
       method: "POST",
@@ -537,6 +539,10 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
         labels: input.labels,
         assignee_ids:
           input.assignee_ids.length > 0 ? input.assignee_ids : undefined,
+        external_assignee_emails:
+          input.external_assignee_emails.length > 0
+            ? input.external_assignee_emails
+            : undefined,
       }),
       label: `Create task: ${input.title}`,
     });
@@ -831,6 +837,11 @@ function TaskRow({
   const subtaskTotal = task.subtask_total ?? 0;
   const subtaskDone = task.subtask_done ?? 0;
   const status = task.latest_status_text?.trim() ?? "";
+  const externalCount = task.external_assignee_emails?.length ?? 0;
+  const externalEmailsTitle =
+    externalCount > 0
+      ? `External assignees: ${task.external_assignee_emails!.join(", ")}`
+      : "";
 
   return (
     <div
@@ -921,6 +932,14 @@ function TaskRow({
           title={`${subtaskDone} of ${subtaskTotal} subtasks done`}
         >
           {subtaskDone}/{subtaskTotal}
+        </span>
+      ) : null}
+      {externalCount > 0 ? (
+        <span
+          className="flex-shrink-0 rounded-sm border border-border bg-bg-2 px-1 font-mono text-[10px] uppercase tracking-wide text-text-2"
+          title={externalEmailsTitle}
+        >
+          @+{externalCount}
         </span>
       ) : null}
       <Link

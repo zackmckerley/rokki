@@ -36,6 +36,11 @@ export interface TaskComposerSubmit {
   due_date: string | null;
   labels: string[];
   assignee_ids: string[];
+  /**
+   * Email-based assignees for people not (yet) on the platform.
+   * Server side these land on `tasks.external_assignee_emails`.
+   */
+  external_assignee_emails: string[];
 }
 
 interface TaskComposerProps {
@@ -48,6 +53,8 @@ interface TaskComposerProps {
   initialPriority?: number | null;
   /** Pre-fill assignees. */
   initialAssigneeIds?: string[];
+  /** Pre-fill external (email) assignees. */
+  initialExternalEmails?: string[];
   /**
    * Current viewer's user_id. When provided AND `initialAssigneeIds`
    * is empty, the composer auto-pre-populates the assignee chip
@@ -108,6 +115,7 @@ export function TaskComposer({
   members = [],
   initialPriority = null,
   initialAssigneeIds = [],
+  initialExternalEmails = [],
   currentUserId,
   initialLabels = [],
   variant = "inline",
@@ -132,6 +140,9 @@ export function TaskComposer({
     }
     return [];
   });
+  const [externalEmails, setExternalEmails] = useState<string[]>(
+    initialExternalEmails,
+  );
   const [labels, setLabels] = useState<string[]>(initialLabels);
   const [labelDraft, setLabelDraft] = useState("");
   const [showAssignees, setShowAssignees] = useState(false);
@@ -175,6 +186,7 @@ export function TaskComposer({
         due_date: dueIso,
         labels: labelsFinal,
         assignee_ids: assigneeIds,
+        external_assignee_emails: externalEmails,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create");
@@ -234,16 +246,16 @@ export function TaskComposer({
           onChange={setDueIso}
           disabled={submitting}
         />
-        {members.length > 0 ? (
-          <AssigneeChip
-            members={members}
-            selected={assigneeIds}
-            open={showAssignees}
-            onToggleOpen={() => setShowAssignees((v) => !v)}
-            onChange={setAssigneeIds}
-            disabled={submitting}
-          />
-        ) : null}
+        <AssigneeChip
+          members={members}
+          selected={assigneeIds}
+          externalEmails={externalEmails}
+          open={showAssignees}
+          onToggleOpen={() => setShowAssignees((v) => !v)}
+          onChange={setAssigneeIds}
+          onChangeExternal={setExternalEmails}
+          disabled={submitting}
+        />
         <LabelsChip
           labels={labels}
           draft={labelDraft}
@@ -617,19 +629,25 @@ function DueChipPopover({
 function AssigneeChip({
   members,
   selected,
+  externalEmails,
   open,
   onToggleOpen,
   onChange,
+  onChangeExternal,
   disabled,
 }: {
   members: TaskComposerMember[];
   selected: string[];
+  externalEmails: string[];
   open: boolean;
   onToggleOpen: () => void;
   onChange: (ids: string[]) => void;
+  onChangeExternal: (emails: string[]) => void;
   disabled: boolean;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   // Click outside to close.
   useEffect(() => {
@@ -661,12 +679,31 @@ function AssigneeChip({
     );
   }
 
+  function commitEmail() {
+    const v = emailDraft.trim().toLowerCase();
+    if (!v) return;
+    const re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+    if (!re.test(v)) {
+      setEmailError("Not a valid email");
+      return;
+    }
+    if (externalEmails.includes(v)) {
+      setEmailDraft("");
+      setEmailError(null);
+      return;
+    }
+    onChangeExternal([...externalEmails, v]);
+    setEmailDraft("");
+    setEmailError(null);
+  }
+
+  const totalCount = selected.length + externalEmails.length;
   const label =
-    selected.length === 0
+    totalCount === 0
       ? "Assign"
-      : selected.length === 1
-        ? (selectedNames[0] ?? "1 assigned")
-        : `${selected.length} assigned`;
+      : totalCount === 1
+        ? (selectedNames[0] ?? externalEmails[0] ?? "1 assigned")
+        : `${totalCount} assigned`;
 
   return (
     <div ref={containerRef} className="relative">
@@ -679,49 +716,118 @@ function AssigneeChip({
         aria-expanded={open}
         className={cn(
           "flex items-center gap-1 rounded-sm border bg-bg-2 px-2 py-1 text-[11px] text-text-1 hover:bg-bg-3",
-          selected.length > 0 ? "border-accent/40" : "border-border",
+          totalCount > 0 ? "border-accent/40" : "border-border",
         )}
       >
         <UserPlus className="h-3 w-3 text-text-3" aria-hidden="true" />
-        <span className="max-w-[120px] truncate">{label}</span>
+        <span className="max-w-[140px] truncate">{label}</span>
       </button>
       {open ? (
         <div
           role="menu"
-          className="absolute left-0 top-full z-50 mt-1 max-h-60 w-56 overflow-y-auto rounded-sm border border-border bg-bg-1 py-1 shadow-lg"
+          className="absolute left-0 top-full z-50 mt-1 w-64 overflow-hidden rounded-sm border border-border bg-bg-1 py-1 shadow-lg"
         >
-          {members.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-text-3">No members yet.</p>
-          ) : (
-            members.map((m) => {
-              const checked = selected.includes(m.user_id);
-              return (
-                <button
-                  key={m.user_id}
-                  role="menuitem"
-                  type="button"
-                  onClick={() => toggle(m.user_id)}
-                  className={cn(
-                    "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-bg-2",
-                    checked && "bg-bg-2 text-text-0",
-                  )}
-                >
-                  <span
+          <div className="max-h-44 overflow-y-auto">
+            {members.length === 0 ? (
+              <p className="px-3 py-2 text-xs text-text-3">No members yet.</p>
+            ) : (
+              members.map((m) => {
+                const checked = selected.includes(m.user_id);
+                return (
+                  <button
+                    key={m.user_id}
+                    role="menuitem"
+                    type="button"
+                    onClick={() => toggle(m.user_id)}
                     className={cn(
-                      "h-3 w-3 flex-shrink-0 rounded-sm border",
-                      checked
-                        ? "border-accent bg-accent"
-                        : "border-border bg-bg-0",
+                      "flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs hover:bg-bg-2",
+                      checked && "bg-bg-2 text-text-0",
                     )}
-                    aria-hidden="true"
-                  />
-                  <span className="flex-1 truncate text-text-1">
-                    {m.full_name ?? "—"}
-                  </span>
-                </button>
-              );
-            })
-          )}
+                  >
+                    <span
+                      className={cn(
+                        "h-3 w-3 flex-shrink-0 rounded-sm border",
+                        checked
+                          ? "border-accent bg-accent"
+                          : "border-border bg-bg-0",
+                      )}
+                      aria-hidden="true"
+                    />
+                    <span className="flex-1 truncate text-text-1">
+                      {m.full_name ?? "—"}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+          {externalEmails.length > 0 ? (
+            <div className="border-t border-border px-2 py-1.5">
+              <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+                External (by email)
+              </p>
+              <ul className="flex flex-wrap gap-1">
+                {externalEmails.map((email) => (
+                  <li
+                    key={email}
+                    className="flex items-center gap-1 rounded-sm bg-bg-3 px-1.5 py-0.5 font-mono text-[10px] text-text-1"
+                  >
+                    <span className="truncate max-w-[160px]">{email}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChangeExternal(
+                          externalEmails.filter((x) => x !== email),
+                        )
+                      }
+                      aria-label={`Remove ${email}`}
+                      className="text-text-3 hover:text-text-0"
+                    >
+                      <X className="h-2.5 w-2.5" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className="border-t border-border px-2 py-1.5">
+            <label
+              htmlFor="ext-email-input"
+              className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-text-3"
+            >
+              Add by email
+            </label>
+            <input
+              id="ext-email-input"
+              type="email"
+              autoComplete="off"
+              spellCheck={false}
+              value={emailDraft}
+              onChange={(e) => {
+                setEmailDraft(e.target.value);
+                if (emailError) setEmailError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === ",") {
+                  e.preventDefault();
+                  commitEmail();
+                }
+              }}
+              onBlur={() => {
+                if (emailDraft.trim()) commitEmail();
+              }}
+              placeholder="vendor@example.com"
+              aria-label="External assignee email"
+              className="h-7 w-full rounded-sm border border-border bg-bg-0 px-2 text-[11px] text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none"
+            />
+            {emailError ? (
+              <p className="mt-1 text-[10px] text-danger">{emailError}</p>
+            ) : (
+              <p className="mt-1 text-[10px] text-text-3">
+                They&rsquo;ll be invited when they sign up.
+              </p>
+            )}
+          </div>
         </div>
       ) : null}
     </div>
