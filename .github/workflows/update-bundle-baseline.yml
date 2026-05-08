@@ -35,6 +35,12 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v6
+        # peter-evans/create-pull-request does its own auth via the
+        # GITHUB_TOKEN we pass it explicitly. If checkout also
+        # persists credentials, the two stack and git fails with
+        # "Duplicate header: Authorization" → HTTP 400 on push.
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
