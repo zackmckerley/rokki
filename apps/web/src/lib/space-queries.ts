@@ -60,6 +60,8 @@ export interface SpaceActivityRow {
   actor_id: string | null;
   terminal_id: string | null;
   metadata: Record<string, unknown> | null;
+  before_json: Record<string, unknown> | null;
+  after_json: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -492,7 +494,9 @@ export async function loadSpaceActivity(
 
       const { data } = await supabase
         .from("activity")
-        .select("id, action, actor_id, terminal_id, metadata, created_at")
+        .select(
+          "id, action, actor_id, terminal_id, metadata, before_json, after_json, created_at",
+        )
         .in("terminal_id", ids)
         .order("created_at", { ascending: false })
         .limit(limit);

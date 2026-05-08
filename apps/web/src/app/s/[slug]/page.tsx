@@ -12,6 +12,7 @@ import {
   loadSpaceTasks,
   loadSpaceTerminals,
 } from "@/lib/space-queries";
+import { summarizeActivity } from "@/lib/activity-summary";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -105,12 +106,17 @@ export default async function SpaceLandingPage({ params }: Props) {
   const initialDensity =
     profile?.settings?.density === "compact" ? "compact" : "cozy";
 
-  // Build a tiny ticker label per activity row. Mirrors the
-  // dashboard's `summarizeActivity` so the ticker reads the same
-  // across surfaces.
+  // Tiny ticker label per activity row. Uses the shared
+  // `summarizeActivity` helper so dashboard / space / terminal
+  // tickers all read the same way.
   const tickerItems = activity.map((a) => ({
     id: a.id,
-    text: summarizeActivity(a.action, a.metadata ?? {}),
+    text: summarizeActivity({
+      action: a.action,
+      metadata: a.metadata,
+      before_json: a.before_json,
+      after_json: a.after_json,
+    }),
     when: relativeTime(a.created_at),
   }));
 
@@ -132,62 +138,6 @@ export default async function SpaceLandingPage({ params }: Props) {
       tickerItems={tickerItems}
     />
   );
-}
-
-function summarizeActivity(
-  action: string,
-  metadata: Record<string, unknown>,
-): string {
-  // Mirror of the dashboard's summarizeActivity (apps/web/src/app/page.tsx)
-  // — kept local for the space ticker so we don't have to plumb
-  // it through props. Both should be edited together.
-  const pick = (k: string): string | null => {
-    const v = metadata[k];
-    return typeof v === "string" ? v : null;
-  };
-  switch (action) {
-    case "task.create":
-      return `task created: ${pick("title") ?? "(untitled)"}`;
-    case "task.complete":
-      return `task completed: ${pick("title") ?? "(untitled)"}`;
-    case "task.update":
-    case "task_updated":
-      return `task updated: ${pick("title") ?? "(untitled)"}`;
-    case "task.delete":
-      return `task deleted: ${pick("title") ?? "(untitled)"}`;
-    case "task.assigned":
-      return `assigned: ${pick("title") ?? "(untitled)"}`;
-    case "terminal.create":
-      return `new terminal: ${pick("name") ?? "(unnamed)"}`;
-    case "terminal.update":
-    case "terminal_updated":
-      return `terminal updated: ${pick("name") ?? ""}`.trim();
-    case "terminal.archive":
-      return `archived ${pick("name") ?? "a terminal"}`;
-    case "file.upload":
-      return `uploaded ${pick("filename") ?? "a file"}`;
-    case "file.delete":
-      return `deleted ${pick("filename") ?? "a file"}`;
-    case "file.update":
-    case "file_updated":
-      return `file updated: ${pick("filename") ?? ""}`.trim();
-    case "comment.create":
-      return `commented on ${pick("entity_kind") ?? "a task"}`;
-    case "comment.update":
-    case "comment_updated":
-      return `comment edited`;
-    case "member.invite":
-      return `invited ${pick("email") ?? "a member"}`;
-    case "member.join":
-      return `${pick("name") ?? "someone"} joined`;
-    case "member.remove":
-      return `removed ${pick("name") ?? "a member"}`;
-    case "space_updated":
-    case "space.update":
-      return `space updated: ${pick("name") ?? ""}`.trim();
-    default:
-      return action.replace(/[._]/g, " ");
-  }
 }
 
 function relativeTime(iso: string): string {
