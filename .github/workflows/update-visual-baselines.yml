@@ -123,5 +123,10 @@ jobs:
             close this PR and either revert the underlying UI change
             or amend the visual spec.
           delete-branch: true
+          # Playwright writes baselines to `<spec>-snapshots/` per
+          # spec file (apps/web/tests/visual/public-pages.spec.ts
+          # → public-pages.spec.ts-snapshots/), NOT a single
+          # `__snapshots__/` dir. Match the actual layout or
+          # peter-evans finds nothing to commit.
           add-paths: |
-            apps/web/tests/visual/__snapshots__/**
+            apps/web/tests/visual/**/*-snapshots/**
