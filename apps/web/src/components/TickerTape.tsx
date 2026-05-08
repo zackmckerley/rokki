@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { summarizeActivity } from "@/lib/activity-summary";
+import { withToolTips } from "@/lib/ticker-tips";
 
 interface TickerItem {
   id: string;
@@ -191,52 +192,6 @@ function TickerRow({ item }: { item: TickerItem }) {
       {content}
     </Link>
   );
-}
-
-/**
- * Sprinkle a tool tip in roughly every 10th slot so power users keep
- * discovering what they can do via MCP without a dedicated toolbox card.
- */
-function withToolTips(items: TickerItem[]): TickerItem[] {
-  if (items.length < 5) return items;
-  const tips: TickerItem[] = [
-    {
-      id: "tip:ask",
-      text: `Try: "ask rokki what's in the permit folder" — ⌘K "ask"`,
-      when: "",
-      href: "/tools",
-      tip: true,
-    },
-    {
-      id: "tip:search",
-      text: `Try: "search across all my files" — ⌘K "search"`,
-      when: "",
-      href: "/tools",
-      tip: true,
-    },
-    {
-      id: "tip:tool",
-      text: `💡 Your tools are one keystroke away — ⌘K`,
-      when: "",
-      href: "/tools",
-      tip: true,
-    },
-  ];
-  const out: TickerItem[] = [];
-  items.forEach((it, idx) => {
-    out.push(it);
-    // Every 10th item, sprinkle a tip. Use Math.floor so we land on
-    // an integer array index — `(idx / 10) % 3` evaluates to 0.9,
-    // 1.9, 2.9 at idx=9,19,29, and `tips[0.9]` is `undefined`. Once
-    // the activity stream crosses 10 rows, that undefined gets
-    // pushed into the ticker and the renderer trips on `item.id`,
-    // which is what the recent dashboard 500s were.
-    if ((idx + 1) % 10 === 0) {
-      const tip = tips[Math.floor(idx / 10) % tips.length];
-      if (tip) out.push(tip);
-    }
-  });
-  return out;
 }
 
 /**

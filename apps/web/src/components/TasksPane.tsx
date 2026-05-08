@@ -32,6 +32,7 @@ import {
   StatusPill,
   DueChip,
 } from "./primitives";
+import { groupTasks, type TaskGroupMode } from "@/lib/task-grouping";
 import type { TaskStatus } from "@rokki/db";
 
 interface TaskAssignee {
@@ -71,9 +72,11 @@ type SortMode = "auto" | "manual";
 /**
  * Group-by modes for the task list. "None" keeps the flat list. The
  * other modes bucket tasks visually with section headers; sorting
- * within a bucket still respects the active SortMode.
+ * within a bucket still respects the active SortMode. Re-exported
+ * from `lib/task-grouping` so the bucket logic + tests share one
+ * source of truth.
  */
-type GroupMode = "none" | "assignee" | "due" | "priority" | "status";
+type GroupMode = TaskGroupMode;
 
 function sortStorageKey(projectId: string): string {
   return `rokki_tasks_sort:${projectId}`;
@@ -1057,128 +1060,4 @@ function sortTasks(tasks: Task[], mode: SortMode = "auto"): Task[] {
   });
 }
 
-/**
- * Bucket tasks for the group-by view. Returns an ordered list of
- * `{ key, label, tasks }` so the renderer can emit a section header
- * per bucket. Empty buckets are dropped — the layout shouldn't waste
- * vertical space on "0 tasks" headers.
- *
- * Ordering rationale:
- *   - assignee: name A→Z; "Unassigned" last
- *   - due: Overdue → Today → This week → Later → No due date
- *           (matches the urgency-first triage order)
- *   - priority: High → Medium → Low → No priority
- *   - status: todo → in_progress → review → blocked → done
- */
-function groupTasks(
-  tasks: Task[],
-  mode: GroupMode,
-): { key: string; label: string; tasks: Task[] }[] {
-  if (mode === "none" || tasks.length === 0) {
-    return [{ key: "all", label: "", tasks }];
-  }
-  if (mode === "assignee") {
-    const buckets = new Map<string, { label: string; tasks: Task[] }>();
-    for (const t of tasks) {
-      const list = t.assignees ?? [];
-      if (list.length === 0) {
-        const acc = buckets.get("__none__") ?? {
-          label: "Unassigned",
-          tasks: [],
-        };
-        acc.tasks.push(t);
-        buckets.set("__none__", acc);
-        continue;
-      }
-      // Tasks with multiple assignees show up under each one — the
-      // user expectation when grouping by assignee is "show me what
-      // each person owes me", not "pick one canonical owner".
-      for (const a of list) {
-        const key = a.user_id;
-        const acc = buckets.get(key) ?? {
-          label: a.full_name?.trim() || "Someone",
-          tasks: [],
-        };
-        acc.tasks.push(t);
-        buckets.set(key, acc);
-      }
-    }
-    return Array.from(buckets.entries())
-      .map(([key, v]) => ({ key, label: v.label, tasks: v.tasks }))
-      .sort((a, b) => {
-        if (a.key === "__none__") return 1;
-        if (b.key === "__none__") return -1;
-        return a.label.localeCompare(b.label);
-      });
-  }
-  if (mode === "due") {
-    const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
-    const endOfWeek = new Date(startOfDay);
-    endOfWeek.setDate(endOfWeek.getDate() + 7);
-    const buckets = new Map<string, Task[]>();
-    const order = ["overdue", "today", "week", "later", "none"];
-    for (const k of order) buckets.set(k, []);
-    for (const t of tasks) {
-      let key: string;
-      if (!t.due_date) key = "none";
-      else {
-        const d = new Date(t.due_date).getTime();
-        if (d < startOfDay.getTime()) key = "overdue";
-        else if (d < endOfDay.getTime()) key = "today";
-        else if (d < endOfWeek.getTime()) key = "week";
-        else key = "later";
-      }
-      buckets.get(key)!.push(t);
-    }
-    const labels: Record<string, string> = {
-      overdue: "Overdue",
-      today: "Today",
-      week: "This week",
-      later: "Later",
-      none: "No due date",
-    };
-    return order
-      .map((k) => ({ key: k, label: labels[k], tasks: buckets.get(k) ?? [] }))
-      .filter((g) => g.tasks.length > 0);
-  }
-  if (mode === "priority") {
-    const buckets: Record<string, Task[]> = { high: [], med: [], low: [], none: [] };
-    for (const t of tasks) {
-      const k =
-        t.priority === 1
-          ? "high"
-          : t.priority === 2
-            ? "med"
-            : t.priority === 3
-              ? "low"
-              : "none";
-      buckets[k].push(t);
-    }
-    return [
-      { key: "high", label: "High", tasks: buckets.high },
-      { key: "med", label: "Medium", tasks: buckets.med },
-      { key: "low", label: "Low", tasks: buckets.low },
-      { key: "none", label: "No priority", tasks: buckets.none },
-    ].filter((g) => g.tasks.length > 0);
-  }
-  // status
-  const order: TaskStatus[] = ["todo", "in_progress", "review", "blocked", "done"];
-  const labels: Record<TaskStatus, string> = {
-    todo: "To do",
-    in_progress: "In progress",
-    review: "Review",
-    blocked: "Blocked",
-    done: "Done",
-  };
-  const buckets = new Map<TaskStatus, Task[]>();
-  for (const s of order) buckets.set(s, []);
-  for (const t of tasks) buckets.get(t.status)?.push(t);
-  return order
-    .map((s) => ({ key: s, label: labels[s], tasks: buckets.get(s) ?? [] }))
-    .filter((g) => g.tasks.length > 0);
-}
 
