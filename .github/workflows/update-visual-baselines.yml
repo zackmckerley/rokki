@@ -101,13 +101,19 @@ jobs:
         # `peter-evans/create-pull-request@v6` does NOT auto-stage
         # untracked files even when they match `add-paths` — it
         # only filters what it commits among ALREADY-tracked or
-        # ALREADY-staged paths. The previous run captured PNGs
-        # successfully but they sat as untracked files until the
-        # job ended (logs:
-        #   "nothing added to commit but untracked files present").
-        # Stage them explicitly so peter-evans sees a real diff.
+        # ALREADY-staged paths. Stage everything Playwright wrote
+        # under the visual test dir so peter-evans sees a real
+        # diff. `-A` covers untracked + modified + deleted; the
+        # path scope keeps the add to `tests/visual/` so unrelated
+        # files (e.g. cached browsers, .next/) can't leak in.
+        #
+        # The bash `**` globstar is OFF by default in CI shells,
+        # which is why the previous attempt with
+        # `git add 'tests/visual/**/*-snapshots/**'` failed with
+        # `pathspec did not match any files`. Use `-A <dir>` to
+        # let git itself recurse.
         run: |
-          git add 'apps/web/tests/visual/**/*-snapshots/**' || true
+          git add -A apps/web/tests/visual
           git status --short
 
       - name: Open refresh PR
