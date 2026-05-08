@@ -8,6 +8,7 @@ import {
   loadDelegatedTasks,
   loadWeekItems,
 } from "@/lib/dashboard-queries";
+import { summarizeActivity } from "@/lib/activity-summary";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -60,7 +61,9 @@ export default async function DashboardPage() {
       .is("deleted_at", null),
     supabase
       .from("activity")
-      .select("id, action, actor_id, metadata, created_at")
+      .select(
+        "id, action, actor_id, metadata, before_json, after_json, created_at",
+      )
       .order("created_at", { ascending: false })
       .limit(30),
     supabase
@@ -93,12 +96,19 @@ export default async function DashboardPage() {
     action: string;
     actor_id: string | null;
     metadata: Record<string, unknown> | null;
+    before_json: Record<string, unknown> | null;
+    after_json: Record<string, unknown> | null;
     created_at: string;
   };
   const tickerItems = ((activityResult.data ?? []) as ActivityRow[]).map(
     (a) => ({
       id: a.id,
-      text: summarizeActivity(a.action, a.metadata),
+      text: summarizeActivity({
+        action: a.action,
+        metadata: a.metadata,
+        before_json: a.before_json,
+        after_json: a.after_json,
+      }),
       when: relativeTime(a.created_at),
     }),
   );
@@ -121,63 +131,6 @@ export default async function DashboardPage() {
       briefingDismissedOn={briefingDismissedOn}
     />
   );
-}
-
-function summarizeActivity(
-  action: string,
-  metadata: Record<string, unknown> | null,
-): string {
-  const pick = (k: string): string | null => {
-    const v = metadata?.[k];
-    return typeof v === "string" ? v : null;
-  };
-  // Rich, specific phrasing per action — used to be a generic
-  // ".replace(/[._]/g, ' ')" fallback that produced garbage like
-  // "tasks updated", which is what Zack flagged as "I want more
-  // detail than 'task updated'." Cases are sorted by frequency.
-  switch (action) {
-    case "task.create":
-      return `task created: ${pick("title") ?? "(untitled)"}`;
-    case "task.complete":
-      return `task completed: ${pick("title") ?? "(untitled)"}`;
-    case "task.update":
-    case "task_updated":
-      return `task updated: ${pick("title") ?? "(untitled)"}`;
-    case "task.delete":
-      return `task deleted: ${pick("title") ?? "(untitled)"}`;
-    case "task.assigned":
-      return `assigned: ${pick("title") ?? "(untitled)"}`;
-    case "terminal.create":
-      return `new terminal: ${pick("name") ?? "(unnamed)"}`;
-    case "terminal.update":
-    case "terminal_updated":
-      return `terminal updated: ${pick("name") ?? ""}`.trim();
-    case "terminal.archive":
-      return `archived ${pick("name") ?? "a terminal"}`;
-    case "file.upload":
-      return `uploaded ${pick("filename") ?? "a file"}`;
-    case "file.delete":
-      return `deleted ${pick("filename") ?? "a file"}`;
-    case "file.update":
-    case "file_updated":
-      return `file updated: ${pick("filename") ?? ""}`.trim();
-    case "comment.create":
-      return `commented on ${pick("entity_kind") ?? "a task"}`;
-    case "comment.update":
-    case "comment_updated":
-      return `comment edited`;
-    case "member.invite":
-      return `invited ${pick("email") ?? "a member"}`;
-    case "member.join":
-      return `${pick("name") ?? "someone"} joined`;
-    case "member.remove":
-      return `removed ${pick("name") ?? "a member"}`;
-    case "space_updated":
-    case "space.update":
-      return `space updated: ${pick("name") ?? ""}`.trim();
-    default:
-      return action.replace(/[._]/g, " ");
-  }
 }
 
 function relativeTime(iso: string): string {

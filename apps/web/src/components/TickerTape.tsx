@@ -6,6 +6,7 @@ import { Activity, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import { summarizeActivity } from "@/lib/activity-summary";
 
 interface TickerItem {
   id: string;
@@ -24,6 +25,8 @@ interface ActivityRow {
   entity_type: string | null;
   entity_id: string | null;
   metadata: Record<string, unknown> | null;
+  before_json?: Record<string, unknown> | null;
+  after_json?: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -238,9 +241,18 @@ function withToolTips(items: TickerItem[]): TickerItem[] {
 
 /**
  * Convert a raw activity row into a ticker item with a sensible deep link.
+ *
+ * Uses the shared `summarizeActivity` helper so the dashboard ticker,
+ * per-terminal ticker, and notification descriptions all read the same
+ * way and pick up new action types in one place.
  */
 function toTickerItem(row: ActivityRow): TickerItem | null {
-  const text = describeActivity(row);
+  const text = summarizeActivity({
+    action: row.action,
+    metadata: row.metadata,
+    before_json: row.before_json ?? null,
+    after_json: row.after_json ?? null,
+  });
   if (!text) return null;
   return {
     id: row.id,
@@ -257,58 +269,6 @@ function hrefForActivity(row: ActivityRow): string | undefined {
   if (row.entity_type === "file" || row.action.startsWith("file."))
     return ticker ? `/p/${ticker}` : undefined;
   return undefined;
-}
-
-function describeActivity(row: ActivityRow): string | null {
-  const m = (row.metadata ?? {}) as Record<string, unknown>;
-  const pick = (key: string): string | null => {
-    const v = m[key];
-    return typeof v === "string" ? v : null;
-  };
-  switch (row.action) {
-    case "terminal.create":
-      return `terminal created: ${pick("name") ?? ""}`;
-    case "terminal.update":
-      return `terminal updated`;
-    case "terminal.archive":
-      return `terminal archived`;
-    case "member.invite":
-      return `invited ${pick("email") ?? "a member"}`;
-    case "member.join":
-      return `joined the terminal`;
-    case "task.create":
-      return `task: "${pick("title") ?? ""}"`;
-    case "task.complete":
-      return `task complete`;
-    case "task.delete":
-      return `task deleted${pick("title") ? `: "${pick("title")}"` : ""}`;
-    case "task.update":
-      return `task updated`;
-    case "file.upload": {
-      const op = pick("op");
-      if (op === "folder.create") return `folder: ${pick("path") ?? ""}`;
-      if (op === "file.duplicate") return `duplicated ${pick("filename") ?? "file"}`;
-      return `uploaded ${pick("filename") ?? "a file"}`;
-    }
-    case "file.update": {
-      const op = pick("op");
-      if (op === "file.rename")
-        return `renamed ${pick("from") ?? ""} → ${pick("to") ?? ""}`;
-      if (op === "folder.rename")
-        return `renamed ${pick("from") ?? ""} → ${pick("to") ?? ""}`;
-      if (op === "file.move")
-        return `moved file ${pick("from") ?? ""} → ${pick("to") ?? ""}`;
-      return `file updated`;
-    }
-    case "file.delete":
-      return `deleted ${pick("filename") ?? pick("path") ?? "item"}`;
-    case "file.download":
-      return `read ${pick("filename") ?? "a file"}`;
-    case "tool.invoke":
-      return `called tool ${pick("slug") ? `"${pick("slug")}"` : ""}`.trim();
-    default:
-      return row.action.replace(/[._]/g, " ");
-  }
 }
 
 function relativeTime(iso: string): string {
