@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { TopBar } from "@/components/TopBar";
 import { TickerTape } from "@/components/TickerTape";
 import { ExplorerRail } from "@/components/dashboard/ExplorerRail";
+import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { DensityProvider, type Density } from "@/lib/density";
 import { TerminalsGrid } from "./TerminalsGrid";
 import { SpaceTasksCard } from "./SpaceTasksCard";
@@ -76,6 +78,7 @@ export function SpaceClient({
   // myRole is consumed by the parent route's auth gate (member-only
   // landing); we don't render any role-gated chrome on this page.
   void myRole;
+  const [createTerminalOpen, setCreateTerminalOpen] = useState(false);
   return (
     <DensityProvider initial={initialDensity}>
       <DashboardShell
@@ -108,8 +111,16 @@ export function SpaceClient({
         center={
           <div className="card-stack flex flex-col gap-3 p-2 sm:p-3">
             {/* The grid is the lead — what does this space actually
-                have? — stretched full width. */}
-            <TerminalsGrid terminals={terminals} />
+                have? — stretched full width. The "+ Terminal" button
+                lives in the card header AND as a tile in the grid
+                (or a CTA in the empty state) so the affordance is
+                impossible to miss. Permission to create is handled
+                by RLS on the API side; the button just opens the
+                dialog and lets the server enforce. */}
+            <TerminalsGrid
+              terminals={terminals}
+              onCreateTerminal={() => setCreateTerminalOpen(true)}
+            />
 
             {/* Tasks roll-up sits below — the cross-cutting "what's
                 actually moving" view. Members live next to it on
@@ -138,6 +149,12 @@ export function SpaceClient({
             />
           </div>
         }
+      />
+      <CreateProjectDialog
+        open={createTerminalOpen}
+        onClose={() => setCreateTerminalOpen(false)}
+        orgs={spaces}
+        preferredSlug={space.slug}
       />
     </DensityProvider>
   );
