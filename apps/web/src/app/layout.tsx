@@ -93,6 +93,24 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        {/* Cut latency on the first API roundtrip. Browsers open a TCP
+            handshake + TLS session against Supabase the moment the
+            HTML lands, so by the time React hydrates and dispatches
+            its first `supabase.from(...)` the connection is already
+            warm. ~100-300ms saved on cold visits. */}
+        {process.env.NEXT_PUBLIC_SUPABASE_URL ? (
+          <>
+            <link
+              rel="preconnect"
+              href={process.env.NEXT_PUBLIC_SUPABASE_URL}
+              crossOrigin="anonymous"
+            />
+            <link
+              rel="dns-prefetch"
+              href={process.env.NEXT_PUBLIC_SUPABASE_URL}
+            />
+          </>
+        ) : null}
         {/* Paint pure black before the CSS file even arrives. Without
             this the browser shows a flash of default white on cold
             loads — especially noticeable on cross-page navigations

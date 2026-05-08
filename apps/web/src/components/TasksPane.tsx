@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   ChevronDown,
@@ -17,7 +18,13 @@ import { EmptyState } from "./EmptyState";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { useRegisterCommands } from "@/lib/use-register-commands";
 import { offlineFetch } from "@/lib/offline-fetch";
-import { CommentThread } from "./CommentThread";
+// CommentThread is opened on demand (the user clicks the comment icon
+// or hits `;`). Code-splitting it out trims the TasksPane bundle so
+// the list renders sooner on first paint.
+const CommentThread = dynamic(
+  () => import("./CommentThread").then((m) => ({ default: m.CommentThread })),
+  { ssr: false },
+);
 import { TaskComposer, type TaskComposerMember } from "./TaskComposer";
 import { SubtasksList, type Subtask } from "./SubtasksList";
 import {
