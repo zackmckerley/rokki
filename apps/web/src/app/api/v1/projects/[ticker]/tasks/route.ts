@@ -45,7 +45,7 @@ async function handleGet(request: NextRequest, { params }: Props) {
   let query = supabase
     .from("tasks")
     .select(
-      "id, ticker_seq, title, description, status, priority, due_date, labels, position, latest_status_text, latest_status_author_id, latest_status_at, status_thread_id, created_at, updated_at, completed_at",
+      "id, ticker_seq, title, description, status, priority, due_date, labels, position, latest_status_text, latest_status_author_id, latest_status_at, status_thread_id, external_assignee_emails, created_at, updated_at, completed_at",
     )
     .eq("terminal_id", project.id);
 
@@ -77,6 +77,7 @@ async function handleGet(request: NextRequest, { params }: Props) {
     due_date: string | null;
     labels: string[] | null;
     position: number | null;
+    external_assignee_emails: string[] | null;
     created_at: string;
     updated_at: string;
     completed_at: string | null;
@@ -139,6 +140,7 @@ async function handleGet(request: NextRequest, { params }: Props) {
     subtask_total: subtaskTotals.get(t.id)?.total ?? 0,
     subtask_done: subtaskTotals.get(t.id)?.done ?? 0,
     assignees: assigneesByTask.get(t.id) ?? [],
+    external_assignee_emails: t.external_assignee_emails ?? [],
   }));
 
   return NextResponse.json({ data });
@@ -172,6 +174,12 @@ async function handlePost(request: NextRequest, { params }: Props) {
      * trg_tasks_default_assignee trigger.
      */
     assignee_ids?: string[];
+    /**
+     * External (not-yet-platform-user) email assignees. Stored on
+     * tasks.external_assignee_emails as a normalized text[]. The
+     * email-invite + reconcile flow runs server-side later.
+     */
+    external_assignee_emails?: string[];
   };
 
   if (!body.title?.trim()) return bad("title is required");
@@ -192,6 +200,14 @@ async function handlePost(request: NextRequest, { params }: Props) {
     rule = parsed;
   }
 
+  // Normalize external assignee emails: trim, lower-case, dedupe,
+  // reject anything obviously not an email. The DB column is
+  // NOT NULL DEFAULT '{}', so an empty list becomes the default.
+  const externalEmails = normalizeEmails(body.external_assignee_emails ?? []);
+  if (externalEmails === "invalid") {
+    return bad("external_assignee_emails contains an invalid address");
+  }
+
   const result = await supabase
     .from("tasks")
     // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
@@ -206,6 +222,7 @@ async function handlePost(request: NextRequest, { params }: Props) {
       labels: body.tags ?? body.labels ?? [],
       status: body.status ?? "todo",
       recurrence_rule: rule,
+      external_assignee_emails: externalEmails,
       created_by: user.id,
     })
     .select(
@@ -275,6 +292,32 @@ async function handlePost(request: NextRequest, { params }: Props) {
   });
 
   return NextResponse.json({ data }, { status: 201 });
+}
+
+/**
+ * Normalize a caller-provided list of email addresses. Trims,
+ * lower-cases, dedupes, and validates the shape. Returns the
+ * canonical list, or the literal string "invalid" if any entry
+ * fails the basic shape check (which the API surfaces as a 400).
+ *
+ * Empty / whitespace-only entries are silently dropped so a UI
+ * with a stale chip can't accidentally poison the row.
+ */
+function normalizeEmails(input: unknown): string[] | "invalid" {
+  if (!Array.isArray(input)) return "invalid";
+  const out = new Set<string>();
+  // Permissive: anything with `<local>@<domain>.<tld>` and no spaces.
+  // The deeper validation (existence, deliverability) belongs in
+  // the invite email step, not here.
+  const re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  for (const raw of input) {
+    if (typeof raw !== "string") continue;
+    const v = raw.trim().toLowerCase();
+    if (!v) continue;
+    if (!re.test(v)) return "invalid";
+    out.add(v);
+  }
+  return Array.from(out);
 }
 
 async function resolveProject(
