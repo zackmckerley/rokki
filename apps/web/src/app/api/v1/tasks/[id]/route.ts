@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { withObservability } from "@/lib/observability";
 import { validateRecurrenceRule } from "@/lib/task-recurrence";
+import { normalizeEmails } from "@/lib/normalize-emails";
 import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
 interface Props {
@@ -231,25 +232,6 @@ async function handleDelete(_request: NextRequest, { params }: Props) {
   return new NextResponse(null, { status: 204 });
 }
 
-/**
- * Normalize email assignee list — duplicate of the helper in the
- * project tasks POST route. Keeping the duplication local rather
- * than building a shared lib for a 12-line function until a third
- * call site shows up.
- */
-function normalizeEmails(input: unknown): string[] | "invalid" {
-  if (!Array.isArray(input)) return "invalid";
-  const out = new Set<string>();
-  const re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-  for (const raw of input) {
-    if (typeof raw !== "string") continue;
-    const v = raw.trim().toLowerCase();
-    if (!v) continue;
-    if (!re.test(v)) return "invalid";
-    out.add(v);
-  }
-  return Array.from(out);
-}
 
 function unauth() {
   return NextResponse.json(
