@@ -20,6 +20,7 @@ import {
   TickerChip,
 } from "@/components/primitives";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import { bucketDashTasks } from "@/lib/task-grouping";
 import type { AssignedTask, DelegatedTask } from "@/lib/dashboard-queries";
 
 interface TasksCardProps {
@@ -352,134 +353,6 @@ function FilterChip({
       </span>
     </button>
   );
-}
-
-/**
- * Bucket dashboard tasks for the group-by view.
- *
- *   terminal:  one bucket per terminal, label = "TICKER · Name"
- *   priority:  High → Medium → Low → No priority
- *   due:       Overdue → Today → This week → Later → No due date
- *   assignee:  one bucket per assignee (delegated tab only); falls
- *              back to a single "All" bucket if assignees aren't on
- *              the row (Mine / Overdue / etc. don't include them).
- */
-function bucketDashTasks(
-  tasks: AssignedTask[],
-  by: "terminal" | "priority" | "due" | "assignee",
-  tickerById: Record<string, string>,
-  terminalNameById?: Record<string, string>,
-): { key: string; label: string; tasks: AssignedTask[] }[] {
-  if (by === "terminal") {
-    const buckets = new Map<string, AssignedTask[]>();
-    for (const t of tasks) {
-      const key = t.terminal_id;
-      if (!buckets.has(key)) buckets.set(key, []);
-      buckets.get(key)!.push(t);
-    }
-    return Array.from(buckets.entries())
-      .map(([key, list]) => {
-        const ticker = tickerById[key] ?? "";
-        const name = terminalNameById?.[key] ?? "";
-        const label = ticker
-          ? name
-            ? `${ticker} · ${name}`
-            : ticker
-          : name || "Terminal";
-        return { key, label, tasks: list };
-      })
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }
-  if (by === "priority") {
-    const buckets: Record<string, AssignedTask[]> = {
-      high: [],
-      med: [],
-      low: [],
-      none: [],
-    };
-    for (const t of tasks) {
-      const k =
-        t.priority === 1
-          ? "high"
-          : t.priority === 2
-            ? "med"
-            : t.priority === 3
-              ? "low"
-              : "none";
-      buckets[k].push(t);
-    }
-    return [
-      { key: "high", label: "High", tasks: buckets.high },
-      { key: "med", label: "Medium", tasks: buckets.med },
-      { key: "low", label: "Low", tasks: buckets.low },
-      { key: "none", label: "No priority", tasks: buckets.none },
-    ].filter((g) => g.tasks.length > 0);
-  }
-  if (by === "due") {
-    const now = new Date();
-    const startOfDay = new Date(now);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(startOfDay);
-    endOfDay.setDate(endOfDay.getDate() + 1);
-    const endOfWeek = new Date(startOfDay);
-    endOfWeek.setDate(endOfWeek.getDate() + 7);
-    const buckets: Record<string, AssignedTask[]> = {
-      overdue: [],
-      today: [],
-      week: [],
-      later: [],
-      none: [],
-    };
-    for (const t of tasks) {
-      let key: string;
-      if (!t.due_date) key = "none";
-      else {
-        const d = new Date(t.due_date).getTime();
-        if (d < startOfDay.getTime()) key = "overdue";
-        else if (d < endOfDay.getTime()) key = "today";
-        else if (d < endOfWeek.getTime()) key = "week";
-        else key = "later";
-      }
-      buckets[key].push(t);
-    }
-    return [
-      { key: "overdue", label: "Overdue", tasks: buckets.overdue },
-      { key: "today", label: "Today", tasks: buckets.today },
-      { key: "week", label: "This week", tasks: buckets.week },
-      { key: "later", label: "Later", tasks: buckets.later },
-      { key: "none", label: "No due date", tasks: buckets.none },
-    ].filter((g) => g.tasks.length > 0);
-  }
-  // assignee — only delegated rows carry the list
-  const buckets = new Map<string, { label: string; tasks: AssignedTask[] }>();
-  for (const t of tasks) {
-    const list = (t as DelegatedTask).assignees ?? [];
-    if (list.length === 0) {
-      const acc = buckets.get("__none__") ?? {
-        label: "Unassigned",
-        tasks: [],
-      };
-      acc.tasks.push(t);
-      buckets.set("__none__", acc);
-      continue;
-    }
-    for (const a of list) {
-      const key = a.user_id;
-      const acc = buckets.get(key) ?? {
-        label: a.full_name?.trim() || "Someone",
-        tasks: [],
-      };
-      acc.tasks.push(t);
-      buckets.set(key, acc);
-    }
-  }
-  return Array.from(buckets.entries())
-    .map(([key, v]) => ({ key, label: v.label, tasks: v.tasks }))
-    .sort((a, b) => {
-      if (a.key === "__none__") return 1;
-      if (b.key === "__none__") return -1;
-      return a.label.localeCompare(b.label);
-    });
 }
 
 function emptyForTab(tab: "mine" | "delegated" | "overdue" | "week" | "all"): string {
