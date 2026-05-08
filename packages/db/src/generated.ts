@@ -7,8 +7,43 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
+      _debug_error_log: {
+        Row: {
+          digest: string | null
+          id: string
+          message: string | null
+          recorded_at: string
+          stack: string | null
+          url: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          digest?: string | null
+          id?: string
+          message?: string | null
+          recorded_at?: string
+          stack?: string | null
+          url?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          digest?: string | null
+          id?: string
+          message?: string | null
+          recorded_at?: string
+          stack?: string | null
+          url?: string | null
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       access_tokens: {
         Row: {
           created_at: string
@@ -63,6 +98,8 @@ export type Database = {
           actor_id: string | null
           actor_token_id: string | null
           actor_tool_id: string | null
+          after_json: Json | null
+          before_json: Json | null
           created_at: string
           entity_id: string | null
           entity_type: string | null
@@ -76,6 +113,8 @@ export type Database = {
           actor_id?: string | null
           actor_token_id?: string | null
           actor_tool_id?: string | null
+          after_json?: Json | null
+          before_json?: Json | null
           created_at?: string
           entity_id?: string | null
           entity_type?: string | null
@@ -89,6 +128,8 @@ export type Database = {
           actor_id?: string | null
           actor_token_id?: string | null
           actor_tool_id?: string | null
+          after_json?: Json | null
+          before_json?: Json | null
           created_at?: string
           entity_id?: string | null
           entity_type?: string | null
@@ -568,6 +609,7 @@ export type Database = {
           id: string
           mentions: string[]
           parent_id: string | null
+          search_vector: unknown
           terminal_id: string
         }
         Insert: {
@@ -581,6 +623,7 @@ export type Database = {
           id?: string
           mentions?: string[]
           parent_id?: string | null
+          search_vector?: unknown
           terminal_id: string
         }
         Update: {
@@ -594,6 +637,7 @@ export type Database = {
           id?: string
           mentions?: string[]
           parent_id?: string | null
+          search_vector?: unknown
           terminal_id?: string
         }
         Relationships: [
@@ -913,6 +957,7 @@ export type Database = {
           metadata: Json
           mime_type: string
           revision_label: string | null
+          search_vector: unknown
           sha256: string | null
           size_bytes: number
           supersedes: string | null
@@ -939,6 +984,7 @@ export type Database = {
           metadata?: Json
           mime_type: string
           revision_label?: string | null
+          search_vector?: unknown
           sha256?: string | null
           size_bytes: number
           supersedes?: string | null
@@ -965,6 +1011,7 @@ export type Database = {
           metadata?: Json
           mime_type?: string
           revision_label?: string | null
+          search_vector?: unknown
           sha256?: string | null
           size_bytes?: number
           supersedes?: string | null
@@ -1225,6 +1272,7 @@ export type Database = {
           deleted_at: string | null
           edited_at: string | null
           id: string
+          pinging_task_id: string | null
           thread_id: string
         }
         Insert: {
@@ -1234,6 +1282,7 @@ export type Database = {
           deleted_at?: string | null
           edited_at?: string | null
           id?: string
+          pinging_task_id?: string | null
           thread_id: string
         }
         Update: {
@@ -1243,9 +1292,17 @@ export type Database = {
           deleted_at?: string | null
           edited_at?: string | null
           id?: string
+          pinging_task_id?: string | null
           thread_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_pinging_task_id_fkey"
+            columns: ["pinging_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_thread_id_fkey"
             columns: ["thread_id"]
@@ -1734,6 +1791,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
+          search_vector: unknown
           settings: Json
           slug: string
           updated_at: string
@@ -1745,6 +1803,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
+          search_vector?: unknown
           settings?: Json
           slug: string
           updated_at?: string
@@ -1756,6 +1815,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+          search_vector?: unknown
           settings?: Json
           slug?: string
           updated_at?: string
@@ -1862,6 +1922,42 @@ export type Database = {
           },
         ]
       }
+      task_files: {
+        Row: {
+          attached_at: string
+          attached_by: string
+          file_id: string
+          task_id: string
+        }
+        Insert: {
+          attached_at?: string
+          attached_by: string
+          file_id: string
+          task_id: string
+        }
+        Update: {
+          attached_at?: string
+          attached_by?: string
+          file_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_files_file_id_fkey"
+            columns: ["file_id"]
+            isOneToOne: false
+            referencedRelation: "files"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_files_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_watchers: {
         Row: {
           added_at: string
@@ -1896,15 +1992,24 @@ export type Database = {
           completed_at: string | null
           created_at: string
           created_by: string
+          deleted_at: string | null
+          deleted_by: string | null
           description: string | null
           due_date: string | null
+          external_assignee_emails: string[]
           id: string
           labels: string[]
+          latest_status_at: string | null
+          latest_status_author_id: string | null
+          latest_status_text: string | null
           metadata: Json
-          priority: number
+          position: number | null
+          priority: number | null
           recurrence_parent_id: string | null
           recurrence_rule: Json | null
+          search_vector: unknown
           status: Database["public"]["Enums"]["task_status"]
+          status_thread_id: string | null
           terminal_id: string
           ticker_seq: number
           title: string
@@ -1914,15 +2019,24 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           due_date?: string | null
+          external_assignee_emails?: string[]
           id?: string
           labels?: string[]
+          latest_status_at?: string | null
+          latest_status_author_id?: string | null
+          latest_status_text?: string | null
           metadata?: Json
-          priority?: number
+          position?: number | null
+          priority?: number | null
           recurrence_parent_id?: string | null
           recurrence_rule?: Json | null
+          search_vector?: unknown
           status?: Database["public"]["Enums"]["task_status"]
+          status_thread_id?: string | null
           terminal_id: string
           ticker_seq: number
           title: string
@@ -1932,15 +2046,24 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           created_by?: string
+          deleted_at?: string | null
+          deleted_by?: string | null
           description?: string | null
           due_date?: string | null
+          external_assignee_emails?: string[]
           id?: string
           labels?: string[]
+          latest_status_at?: string | null
+          latest_status_author_id?: string | null
+          latest_status_text?: string | null
           metadata?: Json
-          priority?: number
+          position?: number | null
+          priority?: number | null
           recurrence_parent_id?: string | null
           recurrence_rule?: Json | null
+          search_vector?: unknown
           status?: Database["public"]["Enums"]["task_status"]
+          status_thread_id?: string | null
           terminal_id?: string
           ticker_seq?: number
           title?: string
@@ -1952,6 +2075,13 @@ export type Database = {
             columns: ["recurrence_parent_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_status_thread_id_fkey"
+            columns: ["status_thread_id"]
+            isOneToOne: false
+            referencedRelation: "message_threads"
             referencedColumns: ["id"]
           },
           {
@@ -2004,6 +2134,7 @@ export type Database = {
           id: string
           metadata: Json
           name: string
+          search_vector: unknown
           space_id: string
           status: Database["public"]["Enums"]["project_status"]
           ticker: string
@@ -2018,6 +2149,7 @@ export type Database = {
           id?: string
           metadata?: Json
           name: string
+          search_vector?: unknown
           space_id: string
           status?: Database["public"]["Enums"]["project_status"]
           ticker: string
@@ -2032,6 +2164,7 @@ export type Database = {
           id?: string
           metadata?: Json
           name?: string
+          search_vector?: unknown
           space_id?: string
           status?: Database["public"]["Enums"]["project_status"]
           ticker?: string
@@ -2330,6 +2463,56 @@ export type Database = {
           },
         ]
       }
+      user_views: {
+        Row: {
+          columns: Json
+          created_at: string
+          filter: Json
+          id: string
+          is_shared: boolean
+          name: string
+          owner_id: string
+          scope: string
+          sort: Json
+          terminal_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          filter?: Json
+          id?: string
+          is_shared?: boolean
+          name: string
+          owner_id: string
+          scope: string
+          sort?: Json
+          terminal_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          filter?: Json
+          id?: string
+          is_shared?: boolean
+          name?: string
+          owner_id?: string
+          scope?: string
+          sort?: Json
+          terminal_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_views_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendors: {
         Row: {
           contact_email: string | null
@@ -2390,13 +2573,17 @@ export type Database = {
         Row: {
           attempt: number
           attempted_at: string
+          created_at: string
           dead_at: string | null
+          dead_lettered_at: string | null
           delivered_at: string | null
           destination_id: string
           event_id: string | null
           event_name: string
           id: string
           last_attempt_at: string | null
+          last_error: string | null
+          next_attempt_at: string | null
           payload: Json
           response_body: string | null
           response_code: number | null
@@ -2405,13 +2592,17 @@ export type Database = {
         Insert: {
           attempt?: number
           attempted_at?: string
+          created_at?: string
           dead_at?: string | null
+          dead_lettered_at?: string | null
           delivered_at?: string | null
           destination_id: string
           event_id?: string | null
           event_name: string
           id?: string
           last_attempt_at?: string | null
+          last_error?: string | null
+          next_attempt_at?: string | null
           payload: Json
           response_body?: string | null
           response_code?: number | null
@@ -2420,13 +2611,17 @@ export type Database = {
         Update: {
           attempt?: number
           attempted_at?: string
+          created_at?: string
           dead_at?: string | null
+          dead_lettered_at?: string | null
           delivered_at?: string | null
           destination_id?: string
           event_id?: string | null
           event_name?: string
           id?: string
           last_attempt_at?: string | null
+          last_error?: string | null
+          next_attempt_at?: string | null
           payload?: Json
           response_body?: string | null
           response_code?: number | null
@@ -2438,6 +2633,13 @@ export type Database = {
             columns: ["destination_id"]
             isOneToOne: false
             referencedRelation: "webhook_destinations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhook_deliveries_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "domain_events"
             referencedColumns: ["id"]
           },
         ]
@@ -2525,12 +2727,35 @@ export type Database = {
         Returns: boolean
       }
       can_see_thread: { Args: { _thread: string }; Returns: boolean }
+      explain_slow_query: {
+        Args: { _query: string }
+        Returns: {
+          line: string
+        }[]
+      }
       get_auth_uid: { Args: never; Returns: string }
+      get_slow_queries: {
+        Args: { _limit?: number }
+        Returns: {
+          calls: number
+          mean_exec_time: number
+          query: string
+          rows: number
+          total_exec_time: number
+        }[]
+      }
       has_emergency_access: { Args: never; Returns: boolean }
       is_space_admin: { Args: { _org: string }; Returns: boolean }
       is_space_member: { Args: { _org: string }; Returns: boolean }
       is_terminal_manager: { Args: { _project: string }; Returns: boolean }
       is_terminal_member: { Args: { _project: string }; Returns: boolean }
+      purge_expired_trash: {
+        Args: { _cutoff_days?: number }
+        Returns: {
+          purged: number
+          table_name: string
+        }[]
+      }
       rate_limit_check: {
         Args: {
           _bucket: string
@@ -2541,6 +2766,7 @@ export type Database = {
         Returns: boolean
       }
       rate_limit_cleanup: { Args: never; Returns: number }
+      reset_slow_queries: { Args: never; Returns: boolean }
       search_chunks_fts: {
         Args: { _limit?: number; _project?: string; _query: string }
         Returns: {
@@ -2580,6 +2806,18 @@ export type Database = {
           file_id: string
           page_number: number
           terminal_id: string
+        }[]
+      }
+      search_global: {
+        Args: { _kinds?: string[]; _limit?: number; _query: string }
+        Returns: {
+          id: string
+          kind: string
+          score: number
+          snippet: string
+          terminal_id: string
+          terminal_ticker: string
+          title: string
         }[]
       }
       session_revocations_prune: { Args: never; Returns: number }
@@ -2626,6 +2864,11 @@ export type Database = {
         | "key.remove"
         | "emergency_access.start"
         | "emergency_access.end"
+        | "tasks_updated"
+        | "terminals_updated"
+        | "spaces_updated"
+        | "files_updated"
+        | "comments_updated"
       approval_mode: "auto" | "one_time" | "per_invocation"
       approval_status: "pending" | "approved" | "denied" | "expired"
       file_visibility: "project" | "owners" | "custom"
@@ -2814,6 +3057,11 @@ export const Constants = {
         "key.remove",
         "emergency_access.start",
         "emergency_access.end",
+        "tasks_updated",
+        "terminals_updated",
+        "spaces_updated",
+        "files_updated",
+        "comments_updated",
       ],
       approval_mode: ["auto", "one_time", "per_invocation"],
       approval_status: ["pending", "approved", "denied", "expired"],
@@ -2847,4 +3095,3 @@ export const Constants = {
     },
   },
 } as const
-
