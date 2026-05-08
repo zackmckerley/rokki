@@ -411,28 +411,23 @@ function AssignedRow({
     }
   }
 
-  const statusButton = (
-    <button
-      type="button"
-      onClick={toggleDone}
-      aria-label={isDone ? "Mark as not done" : "Mark as done"}
-      className={cn(
-        "flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border transition-colors",
-        isDone
-          ? "border-success bg-success-subtle text-success"
-          : "border-text-3 hover:border-accent",
-      )}
-    >
-      {isDone ? <Check className="h-2.5 w-2.5" aria-hidden="true" /> : null}
-    </button>
-  );
-
-  const body = (
-    <div
-      data-row
-      className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-2"
-    >
-      {statusButton}
+  // Two adjacent click targets in one row:
+  //   - the circle button → toggle done (no nav)
+  //   - the rest of the row → navigate to task detail
+  //
+  // Critically, the button must NOT be nested inside the Link.
+  // `<button>` inside `<a>` is invalid HTML and browsers handle the
+  // clash inconsistently — Zack reported "I can't complete tasks
+  // from the dashboard, I have to open the detail." Separating
+  // them as siblings is the reliable fix; stopPropagation on the
+  // button was already in place but couldn't help once the Link
+  // navigation was queued.
+  //
+  // The row gets the `hover:bg-bg-2` so hovering anywhere in the
+  // row still feels like one unit. Both children are flex items
+  // inside the same `<li>`.
+  const linkContent = (
+    <>
       {ticker ? <TickerChip>{ticker}</TickerChip> : null}
       <span
         className={cn(
@@ -452,16 +447,40 @@ function AssignedRow({
       ) : null}
       <PriorityDots priority={task.priority} />
       {task.due_date ? <DueChip date={task.due_date} /> : null}
-    </div>
+    </>
   );
-  return href ? (
-    <li>
-      <Link href={href} className="block">
-        {body}
-      </Link>
+
+  return (
+    <li
+      data-row
+      className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-2"
+    >
+      <button
+        type="button"
+        onClick={toggleDone}
+        aria-label={isDone ? "Mark as not done" : "Mark as done"}
+        className={cn(
+          "flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border transition-colors",
+          isDone
+            ? "border-success bg-success-subtle text-success"
+            : "border-text-3 hover:border-accent",
+        )}
+      >
+        {isDone ? <Check className="h-2.5 w-2.5" aria-hidden="true" /> : null}
+      </button>
+      {href ? (
+        <Link
+          href={href}
+          className="flex flex-1 items-center gap-2 min-w-0"
+        >
+          {linkContent}
+        </Link>
+      ) : (
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          {linkContent}
+        </div>
+      )}
     </li>
-  ) : (
-    <li>{body}</li>
   );
 }
 

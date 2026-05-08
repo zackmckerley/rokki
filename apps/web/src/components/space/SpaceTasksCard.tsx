@@ -171,30 +171,45 @@ function TaskRow({ task }: { task: SpaceTaskRow }) {
   const href = task.ticker
     ? `/p/${task.ticker}/task/${task.ticker_seq}`
     : undefined;
-  const body = (
-    <div
-      data-row
-      className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-2"
-    >
-      {task.status === "done" ? (
-        <Check className="h-3 w-3 flex-shrink-0 text-success" />
-      ) : (
-        <span
-          className={cn(
-            "h-3 w-3 flex-shrink-0 rounded-full border",
-            task.status === "blocked"
-              ? "border-danger"
-              : task.status === "review"
-                ? "border-warning"
-                : task.status === "in_progress"
-                  ? "border-info"
-                  : "border-text-3",
-          )}
-          aria-hidden="true"
-        />
-      )}
+  const [optimisticDone, setOptimisticDone] = useState<boolean | null>(null);
+  const isDone =
+    optimisticDone !== null ? optimisticDone : task.status === "done";
+
+  /**
+   * Toggle done from the space-page row. Same affordance as the
+   * dashboard TasksCard — clicking the circle should flip status
+   * without leaving the page. Optimistic on click; reconciles
+   * silently against the server.
+   */
+  async function toggleDone(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    const next = !isDone;
+    setOptimisticDone(next);
+    try {
+      const r = await fetch(`/api/v1/tasks/${task.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next ? "done" : "todo" }),
+      });
+      if (!r.ok) setOptimisticDone(null);
+    } catch {
+      setOptimisticDone(null);
+    }
+  }
+
+  const linkContent = (
+    <>
       {task.ticker ? <TickerChip>{task.ticker}</TickerChip> : null}
-      <span className="flex-1 truncate text-text-0">{task.title}</span>
+      <span
+        className={cn(
+          "flex-1 truncate",
+          isDone ? "text-text-3 line-through" : "text-text-0",
+        )}
+      >
+        {task.title}
+      </span>
       {task.assignees.length > 0 ? (
         <span
           className="hidden truncate text-text-2 md:inline max-w-[12ch]"
@@ -209,16 +224,52 @@ function TaskRow({ task }: { task: SpaceTaskRow }) {
       ) : null}
       <PriorityDots priority={task.priority} />
       {task.due_date ? <DueChip date={task.due_date} /> : null}
-    </div>
+    </>
   );
-  return href ? (
-    <li>
-      <Link href={href} className="block">
-        {body}
-      </Link>
+
+  // Button + Link as siblings (NOT button-inside-link, which is
+  // invalid HTML and silently swallows the button click in some
+  // browsers). The whole row gets the hover effect via the <li>
+  // so it still reads as one unit.
+  const borderForStatus =
+    task.status === "blocked"
+      ? "border-danger"
+      : task.status === "review"
+        ? "border-warning"
+        : task.status === "in_progress"
+          ? "border-info"
+          : "border-text-3";
+  return (
+    <li
+      data-row
+      className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-2"
+    >
+      <button
+        type="button"
+        onClick={toggleDone}
+        aria-label={isDone ? "Mark as not done" : "Mark as done"}
+        className={cn(
+          "flex h-3 w-3 flex-shrink-0 items-center justify-center rounded-full border transition-colors",
+          isDone
+            ? "border-success bg-success-subtle text-success"
+            : `${borderForStatus} hover:border-accent`,
+        )}
+      >
+        {isDone ? <Check className="h-2.5 w-2.5" aria-hidden="true" /> : null}
+      </button>
+      {href ? (
+        <Link
+          href={href}
+          className="flex flex-1 items-center gap-2 min-w-0"
+        >
+          {linkContent}
+        </Link>
+      ) : (
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          {linkContent}
+        </div>
+      )}
     </li>
-  ) : (
-    <li>{body}</li>
   );
 }
 
