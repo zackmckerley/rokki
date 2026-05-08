@@ -81,7 +81,9 @@ export function TasksCard({
   // with five filter modes plus a default that preserves the old
   // shape under the "Mine" + "Delegated" tabs.
   type Tab = "mine" | "delegated" | "overdue" | "week" | "all";
+  type DashGroupBy = "none" | "terminal" | "priority" | "due" | "assignee";
   const [tab, setTab] = useState<Tab>("mine");
+  const [groupBy, setGroupBy] = useState<DashGroupBy>("none");
 
   const { mineList, delegatedList, overdueList, weekList, allList } =
     useMemo(() => {
@@ -200,12 +202,34 @@ export function TasksCard({
           label="All"
           count={allList.length}
         />
+        {/* Group-by selector. "Terminal" is the headline value here
+            since the dashboard list spans terminals — bucketing per
+            terminal turns the firehose into per-project micro-lists. */}
+        <label className="ml-auto flex items-center gap-1 text-[10px]">
+          <span className="font-mono uppercase tracking-wide text-text-3">
+            Group
+          </span>
+          <select
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value as DashGroupBy)}
+            className="rounded-sm border border-border bg-bg-2 px-1 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-1 outline-none hover:border-border-focus focus:border-border-focus"
+            aria-label="Group tasks by"
+          >
+            <option value="none">None</option>
+            <option value="terminal">Terminal</option>
+            <option value="priority">Priority</option>
+            <option value="due">Due</option>
+            {tab === "delegated" || tab === "all" ? (
+              <option value="assignee">Assignee</option>
+            ) : null}
+          </select>
+        </label>
       </div>
       {visibleAssigned.length === 0 ? (
         <p className="px-3 py-4 text-center text-[11px] text-text-3">
           {emptyForTab(tab)}
         </p>
-      ) : (
+      ) : groupBy === "none" ? (
         <ul className="divide-y divide-border/40">
           {visibleAssigned.slice(0, ROW_LIMIT).map((t) =>
             tab === "delegated" ? (
@@ -225,6 +249,58 @@ export function TasksCard({
             ),
           )}
         </ul>
+      ) : (
+        // Grouped: bucket per `groupBy`, render at most ROW_LIMIT
+        // rows in total across all buckets so the card stays bounded.
+        (() => {
+          const buckets = bucketDashTasks(
+            visibleAssigned,
+            groupBy,
+            tickerById,
+            terminalNameById,
+          );
+          let rowsLeft = ROW_LIMIT;
+          return (
+            <div>
+              {buckets.map((b) => {
+                if (rowsLeft <= 0) return null;
+                const slice = b.tasks.slice(0, rowsLeft);
+                rowsLeft -= slice.length;
+                return (
+                  <section key={b.key}>
+                    <header className="flex items-center justify-between border-b border-border/40 bg-bg-1 px-3 py-0.5">
+                      <span className="font-mono text-[10px] uppercase tracking-wide text-text-2">
+                        {b.label}
+                      </span>
+                      <span className="font-mono text-[10px] text-text-3">
+                        {b.tasks.length}
+                      </span>
+                    </header>
+                    <ul className="divide-y divide-border/40">
+                      {slice.map((t) =>
+                        tab === "delegated" ? (
+                          <DelegatedRow
+                            key={`${b.key}:${t.id}`}
+                            task={t as DelegatedTask}
+                            ticker={tickerById[t.terminal_id]}
+                            terminalName={terminalNameById?.[t.terminal_id]}
+                          />
+                        ) : (
+                          <AssignedRow
+                            key={`${b.key}:${t.id}`}
+                            task={t}
+                            ticker={tickerById[t.terminal_id]}
+                            terminalName={terminalNameById?.[t.terminal_id]}
+                          />
+                        ),
+                      )}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
+          );
+        })()
       )}
       {visibleAssigned.length > ROW_LIMIT ? (
         <p className="px-3 py-1 text-center text-[10px] text-text-3">
@@ -276,6 +352,134 @@ function FilterChip({
       </span>
     </button>
   );
+}
+
+/**
+ * Bucket dashboard tasks for the group-by view.
+ *
+ *   terminal:  one bucket per terminal, label = "TICKER · Name"
+ *   priority:  High → Medium → Low → No priority
+ *   due:       Overdue → Today → This week → Later → No due date
+ *   assignee:  one bucket per assignee (delegated tab only); falls
+ *              back to a single "All" bucket if assignees aren't on
+ *              the row (Mine / Overdue / etc. don't include them).
+ */
+function bucketDashTasks(
+  tasks: AssignedTask[],
+  by: "terminal" | "priority" | "due" | "assignee",
+  tickerById: Record<string, string>,
+  terminalNameById?: Record<string, string>,
+): { key: string; label: string; tasks: AssignedTask[] }[] {
+  if (by === "terminal") {
+    const buckets = new Map<string, AssignedTask[]>();
+    for (const t of tasks) {
+      const key = t.terminal_id;
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key)!.push(t);
+    }
+    return Array.from(buckets.entries())
+      .map(([key, list]) => {
+        const ticker = tickerById[key] ?? "";
+        const name = terminalNameById?.[key] ?? "";
+        const label = ticker
+          ? name
+            ? `${ticker} · ${name}`
+            : ticker
+          : name || "Terminal";
+        return { key, label, tasks: list };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }
+  if (by === "priority") {
+    const buckets: Record<string, AssignedTask[]> = {
+      high: [],
+      med: [],
+      low: [],
+      none: [],
+    };
+    for (const t of tasks) {
+      const k =
+        t.priority === 1
+          ? "high"
+          : t.priority === 2
+            ? "med"
+            : t.priority === 3
+              ? "low"
+              : "none";
+      buckets[k].push(t);
+    }
+    return [
+      { key: "high", label: "High", tasks: buckets.high },
+      { key: "med", label: "Medium", tasks: buckets.med },
+      { key: "low", label: "Low", tasks: buckets.low },
+      { key: "none", label: "No priority", tasks: buckets.none },
+    ].filter((g) => g.tasks.length > 0);
+  }
+  if (by === "due") {
+    const now = new Date();
+    const startOfDay = new Date(now);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+    const endOfWeek = new Date(startOfDay);
+    endOfWeek.setDate(endOfWeek.getDate() + 7);
+    const buckets: Record<string, AssignedTask[]> = {
+      overdue: [],
+      today: [],
+      week: [],
+      later: [],
+      none: [],
+    };
+    for (const t of tasks) {
+      let key: string;
+      if (!t.due_date) key = "none";
+      else {
+        const d = new Date(t.due_date).getTime();
+        if (d < startOfDay.getTime()) key = "overdue";
+        else if (d < endOfDay.getTime()) key = "today";
+        else if (d < endOfWeek.getTime()) key = "week";
+        else key = "later";
+      }
+      buckets[key].push(t);
+    }
+    return [
+      { key: "overdue", label: "Overdue", tasks: buckets.overdue },
+      { key: "today", label: "Today", tasks: buckets.today },
+      { key: "week", label: "This week", tasks: buckets.week },
+      { key: "later", label: "Later", tasks: buckets.later },
+      { key: "none", label: "No due date", tasks: buckets.none },
+    ].filter((g) => g.tasks.length > 0);
+  }
+  // assignee — only delegated rows carry the list
+  const buckets = new Map<string, { label: string; tasks: AssignedTask[] }>();
+  for (const t of tasks) {
+    const list = (t as DelegatedTask).assignees ?? [];
+    if (list.length === 0) {
+      const acc = buckets.get("__none__") ?? {
+        label: "Unassigned",
+        tasks: [],
+      };
+      acc.tasks.push(t);
+      buckets.set("__none__", acc);
+      continue;
+    }
+    for (const a of list) {
+      const key = a.user_id;
+      const acc = buckets.get(key) ?? {
+        label: a.full_name?.trim() || "Someone",
+        tasks: [],
+      };
+      acc.tasks.push(t);
+      buckets.set(key, acc);
+    }
+  }
+  return Array.from(buckets.entries())
+    .map(([key, v]) => ({ key, label: v.label, tasks: v.tasks }))
+    .sort((a, b) => {
+      if (a.key === "__none__") return 1;
+      if (b.key === "__none__") return -1;
+      return a.label.localeCompare(b.label);
+    });
 }
 
 function emptyForTab(tab: "mine" | "delegated" | "overdue" | "week" | "all"): string {
