@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { emitEvent } from "@/lib/events";
 import { withObservability } from "@/lib/observability";
 import { validateRecurrenceRule } from "@/lib/task-recurrence";
+import { normalizeEmails } from "@/lib/normalize-emails";
 import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
 interface Props {
@@ -292,32 +293,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
   });
 
   return NextResponse.json({ data }, { status: 201 });
-}
-
-/**
- * Normalize a caller-provided list of email addresses. Trims,
- * lower-cases, dedupes, and validates the shape. Returns the
- * canonical list, or the literal string "invalid" if any entry
- * fails the basic shape check (which the API surfaces as a 400).
- *
- * Empty / whitespace-only entries are silently dropped so a UI
- * with a stale chip can't accidentally poison the row.
- */
-function normalizeEmails(input: unknown): string[] | "invalid" {
-  if (!Array.isArray(input)) return "invalid";
-  const out = new Set<string>();
-  // Permissive: anything with `<local>@<domain>.<tld>` and no spaces.
-  // The deeper validation (existence, deliverability) belongs in
-  // the invite email step, not here.
-  const re = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-  for (const raw of input) {
-    if (typeof raw !== "string") continue;
-    const v = raw.trim().toLowerCase();
-    if (!v) continue;
-    if (!re.test(v)) return "invalid";
-    out.add(v);
-  }
-  return Array.from(out);
 }
 
 async function resolveProject(
