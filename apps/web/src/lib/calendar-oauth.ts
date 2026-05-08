@@ -46,7 +46,27 @@ export function providerConfig(p: Provider): ProviderConfig | null {
   }
   const clientId = process.env.MICROSOFT_OAUTH_CLIENT_ID;
   const clientSecret = process.env.MICROSOFT_OAUTH_CLIENT_SECRET;
-  const tenant = process.env.MICROSOFT_OAUTH_TENANT ?? "common";
+  // Validate the tenant value. Microsoft accepts three short aliases —
+  // `common` (any work/school + personal), `organizations` (any
+  // work/school), `consumers` (personal only) — or a specific tenant
+  // GUID. Setting this to a tenant GUID restricts sign-in to users
+  // who exist in THAT directory, which is what triggers AADSTS50020
+  // for everyone else ("does not exist in tenant 'X'").
+  //
+  // Rokki is a multi-tenant app (the registration says so on the Azure
+  // side), so the only sane default is one of the aliases. If a GUID
+  // sneaks into the env var by mistake, fall back to `organizations`
+  // rather than silently locking the app to one directory.
+  const ALLOWED_TENANT_ALIASES = new Set([
+    "common",
+    "organizations",
+    "consumers",
+  ]);
+  const rawTenant = process.env.MICROSOFT_OAUTH_TENANT;
+  const tenant =
+    rawTenant && ALLOWED_TENANT_ALIASES.has(rawTenant)
+      ? rawTenant
+      : "organizations";
   if (!clientId || !clientSecret) return null;
   return {
     clientId,
