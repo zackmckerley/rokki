@@ -80,6 +80,16 @@ jobs:
         # `--update-snapshots` writes any failing baseline rather
         # than diffing against it. With CI's deterministic env this
         # produces stable PNGs we can commit.
+        #
+        # `continue-on-error: true` is intentional. In refresh mode
+        # we WANT every successful capture to land regardless of
+        # whether one or two tests are flaky (e.g. a synthetic 500
+        # route that times out waiting for fonts). The next step
+        # commits whatever snapshots Playwright managed to write —
+        # baselines for the flaky tests stay at their old values
+        # until they stabilize. Without this, a single flaky test
+        # aborts the whole refresh and Zack ends up with nothing.
+        continue-on-error: true
         run: pnpm -C apps/web test:e2e --project=visual --update-snapshots
         env:
           CI: "true"
