@@ -222,7 +222,16 @@ function withToolTips(items: TickerItem[]): TickerItem[] {
   const out: TickerItem[] = [];
   items.forEach((it, idx) => {
     out.push(it);
-    if ((idx + 1) % 10 === 0) out.push(tips[(idx / 10) % tips.length]);
+    // Every 10th item, sprinkle a tip. Use Math.floor so we land on
+    // an integer array index — `(idx / 10) % 3` evaluates to 0.9,
+    // 1.9, 2.9 at idx=9,19,29, and `tips[0.9]` is `undefined`. Once
+    // the activity stream crosses 10 rows, that undefined gets
+    // pushed into the ticker and the renderer trips on `item.id`,
+    // which is what the recent dashboard 500s were.
+    if ((idx + 1) % 10 === 0) {
+      const tip = tips[Math.floor(idx / 10) % tips.length];
+      if (tip) out.push(tip);
+    }
   });
   return out;
 }
