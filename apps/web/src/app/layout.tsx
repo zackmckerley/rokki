@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { cookies } from "next/headers";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
 import { Newsreader } from "next/font/google";
@@ -70,26 +71,47 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Read theme + density from cookies at SSR time so the rendered HTML
+  // already carries the correct `data-theme` / `data-density` from the
+  // first byte. This is what kills the white-flash-then-dark on cold
+  // load: previously the server emitted no `data-theme`, the browser
+  // painted using the CSS-variable default, and the bootstrap script
+  // only set the attribute after parsing its own tag. For users with
+  // OS-level light preference + saved dark theme, the gap was
+  // perceptible — Zack reported it as "loads in white, then turns
+  // dark." Cookies are read at request time so navigation between
+  // routes also paints the correct theme without needing client JS.
+  //
+  // The bootstrap script below is kept as a fallback for users who
+  // don't yet have the cookie (first visit), and to reconcile against
+  // localStorage if the cookie was cleared but localStorage wasn't.
+  const cookieStore = await cookies();
+  const themeCookie = cookieStore.get("rokki_theme")?.value;
+  const densityCookie = cookieStore.get("rokki_density")?.value;
+  const resolvedTheme: "dark" | "light" =
+    themeCookie === "light" ? "light" : "dark";
+  const resolvedDensity: "cozy" | "compact" =
+    densityCookie === "compact" ? "compact" : "cozy";
+
   return (
-    // No `data-theme` on <html> here. The bootstrap script in <head>
-    // owns that attribute — it reads localStorage before first paint
-    // and assigns "light", "dark", or the resolved system preference.
-    // Putting `data-theme="dark"` in JSX caused React to silently
-    // overwrite the script's value back to dark on subsequent
-    // renders, which is what manifested as "the page keeps flipping
-    // back to dark even though I set light." Same pattern that
-    // `data-density` already follows (also script-managed, never in
-    // JSX). `suppressHydrationWarning` keeps React from warning when
-    // the SSR HTML and the script-mutated DOM differ on either
-    // attribute.
+    // `data-theme` and `data-density` are now seeded server-side from
+    // the cookies. The bootstrap script in <head> still runs on first
+    // visit (no cookie) and reconciles against localStorage; on
+    // subsequent visits the cookie path means the HTML is already
+    // correct before the script runs.
+    // `suppressHydrationWarning` keeps React quiet when the script
+    // mutates the attributes between SSR and CSR.
     <html
       lang="en"
       className={`${GeistSans.variable} ${GeistMono.variable} ${Newsreader_.variable}`}
+      data-theme={resolvedTheme}
+      data-density={resolvedDensity}
+      style={{ colorScheme: resolvedTheme }}
       suppressHydrationWarning
     >
       <head>
@@ -130,8 +152,11 @@ export default function RootLayout({
                  the same window. Real text colors land with the real
                  stylesheet a few ms later. */}
         <style>{`
-          html { color-scheme: dark; }
-          html, body { background: #000; color: #f5f5f5; }
+          html { color-scheme: ${resolvedTheme}; }
+          html, body {
+            background: ${resolvedTheme === "light" ? "#fafafa" : "#000"};
+            color: ${resolvedTheme === "light" ? "#0a0a0b" : "#f5f5f5"};
+          }
           :root {
             --font-sans: ${GeistSans.style.fontFamily};
             --font-mono: ${GeistMono.style.fontFamily};
@@ -159,13 +184,38 @@ export default function RootLayout({
                   document.documentElement.dataset.theme = resolved;
                   // Mirror the resolved theme onto color-scheme so the
                   // browser repaints native chrome (scrollbars, form
-                  // controls) the moment localStorage is read. The
-                  // inline <style> above defaults to dark; flip to light
-                  // here when needed before any further paint.
+                  // controls) the moment localStorage is read.
                   document.documentElement.style.colorScheme = resolved;
                   var d = localStorage.getItem("rokki_density");
                   if (d === "compact" || d === "cozy") {
                     document.documentElement.dataset.density = d;
+                  }
+                  // Mirror localStorage into cookies so the next
+                  // server-render (any navigation) paints the correct
+                  // theme from the first byte and we stop seeing the
+                  // white-then-dark flash. Set ONLY if the cookie isn't
+                  // already in sync — repeated writes are cheap but
+                  // adding a guard makes the network panel cleaner.
+                  function readCookie(name) {
+                    var m = document.cookie.match(
+                      new RegExp("(?:^|; )" + name + "=([^;]*)")
+                    );
+                    return m ? decodeURIComponent(m[1]) : null;
+                  }
+                  function setCookie(name, value) {
+                    // 1 year, root path, lax. Not HttpOnly because we
+                    // need to read it from JS as well; not Secure
+                    // because we want it on localhost too. The value
+                    // is non-sensitive (theme name), so plain is fine.
+                    document.cookie =
+                      name + "=" + encodeURIComponent(value) +
+                      "; max-age=31536000; path=/; samesite=lax";
+                  }
+                  if (readCookie("rokki_theme") !== resolved) {
+                    setCookie("rokki_theme", resolved);
+                  }
+                  if (d && readCookie("rokki_density") !== d) {
+                    setCookie("rokki_density", d);
                   }
                 } catch (e) {}
               })();
