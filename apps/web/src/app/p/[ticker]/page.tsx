@@ -13,6 +13,7 @@ import {
   loadDashSpaces,
   loadDashTerminals,
 } from "@/lib/dashboard-queries";
+import { summarizeActivity } from "@/lib/activity-summary";
 import { CORE_MODULE_CARDS, SPACE_TAGLINE } from "@/lib/project-templates";
 import type { ProjectStatus } from "@rokki/db";
 
@@ -97,6 +98,8 @@ interface ActivityRow {
   id: string;
   action: string;
   metadata: Record<string, unknown>;
+  before_json: Record<string, unknown> | null;
+  after_json: Record<string, unknown> | null;
   created_at: string;
 }
 
@@ -139,7 +142,7 @@ export default async function ProjectTerminalPage({ params }: Props) {
   ] = await Promise.all([
     supabase
       .from("activity")
-      .select("id, action, metadata, created_at")
+      .select("id, action, metadata, before_json, after_json, created_at")
       .eq("terminal_id", p.id)
       .order("created_at", { ascending: false })
       .limit(10),
@@ -205,7 +208,12 @@ export default async function ProjectTerminalPage({ params }: Props) {
 
   const tickerItems = activities.map((a) => ({
     id: a.id,
-    text: humanizeAction(a.action, a.metadata),
+    text: summarizeActivity({
+      action: a.action,
+      metadata: a.metadata,
+      before_json: a.before_json,
+      after_json: a.after_json,
+    }),
     when: relativeTime(a.created_at),
   }));
 
@@ -400,57 +408,3 @@ function relativeTime(iso: string): string {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-function humanizeAction(
-  action: string,
-  metadata: Record<string, unknown>,
-): string {
-  // Same source-of-truth as the dashboard's `summarizeActivity` —
-  // dotted-versus-underscored variants both supported because the
-  // diff trigger emits `task_updated` while API code emits
-  // `task.update`. Rich phrasing replaces the old terse default
-  // (`action.replace(/\./g, " ")`) which produced unhelpful
-  // strings like "task update" or "tasks updated".
-  const m = metadata as Record<string, unknown>;
-  const s = (k: string): string | null =>
-    typeof m?.[k] === "string" ? (m[k] as string) : null;
-  switch (action) {
-    case "task.create":
-      return `Task "${s("title") ?? "(untitled)"}" created`;
-    case "task.complete":
-      return `Task "${s("title") ?? "(untitled)"}" completed`;
-    case "task.update":
-    case "task_updated":
-      return `Task "${s("title") ?? ""}" updated`.trim();
-    case "task.delete":
-      return `Task "${s("title") ?? "(untitled)"}" deleted`;
-    case "task.assigned":
-      return `Task "${s("title") ?? ""}" assigned`.trim();
-    case "terminal.create":
-      return `Terminal created`;
-    case "terminal.update":
-    case "terminal_updated":
-      return `Terminal updated`;
-    case "terminal.archive":
-      return `Terminal archived`;
-    case "file.upload":
-      return `${s("filename") ?? "File"} uploaded`;
-    case "file.delete":
-      return `${s("filename") ?? "File"} deleted`;
-    case "file.update":
-    case "file_updated":
-      return `File ${s("filename") ?? ""} updated`.trim();
-    case "comment.create":
-      return `New comment on ${s("entity_kind") ?? "a task"}`;
-    case "comment.update":
-    case "comment_updated":
-      return `Comment edited`;
-    case "member.invite":
-      return `${s("email") ?? "Someone"} invited`;
-    case "member.join":
-      return `${s("name") ?? "Someone"} joined`;
-    case "member.remove":
-      return `${s("name") ?? "Member"} removed`;
-    default:
-      return action.replace(/[._]/g, " ");
-  }
-}
