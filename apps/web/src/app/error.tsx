@@ -24,26 +24,13 @@ export default function ErrorBoundary({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Sentry is now the single sink for runtime errors. The
+    // parallel `_debug_error_log` table + endpoint that lived here
+    // were diagnostic-only — added to chase down the ticker
+    // undefined-tip bug (PR #119) and the navigation-stuck root
+    // cause before that. Both root causes are identified and fixed;
+    // the secondary sink isn't worth its surface area anymore.
     Sentry.captureException(error);
-    // Server-side log so we can see the actual error message + stack
-    // remotely — Sentry covers this in theory, but having a parallel
-    // sink decoupled from Sentry config makes the next "what threw"
-    // debugging session a single SQL query.
-    try {
-      void fetch("/api/v1/health/error-log", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          url: typeof window !== "undefined" ? window.location.href : null,
-          digest: error.digest ?? null,
-          message: error.message ?? null,
-          stack: error.stack?.split("\n").slice(0, 20).join("\n") ?? null,
-        }),
-        keepalive: true,
-      });
-    } catch {
-      /* ignore */
-    }
   }, [error]);
 
   const digest = error.digest ?? "—";
