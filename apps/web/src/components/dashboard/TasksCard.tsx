@@ -31,12 +31,16 @@ interface TasksCardProps {
   /** Optional terminal_id → display name. Rendered after the ticker chip. */
   terminalNameById?: Record<string, string>;
   /**
-   * Open the dashboard quick-task dialog. Wired up by DashboardClient
-   * so the "+ New task" affordance lives next to its own list — the
-   * same button used to live in the page topbar but read as global
-   * chrome rather than a Tasks affordance.
+   * URL the "+ New task" button navigates to. Defaults to `/?new=task`,
+   * which DashboardClient's existing `useSearchParams` effect catches
+   * and opens the QuickTaskDialog. URL-based instead of a callback so
+   * this card can be rendered as a Server Component slot (Server
+   * Components can't accept event handlers as props).
+   *
+   * Pass `null` to hide the button entirely (e.g. on a page where
+   * dialog wiring isn't available).
    */
-  onCreateTask?: () => void;
+  createHref?: string | null;
   /** Disable the create button (e.g. user has zero terminals). */
   createDisabled?: boolean;
 }
@@ -59,7 +63,7 @@ export function TasksCard({
   delegated,
   tickerById,
   terminalNameById,
-  onCreateTask,
+  createHref = "/?new=task",
   createDisabled,
 }: TasksCardProps) {
   // Show ~10 rows per the spec; users with more get a "see all" link to a
@@ -140,29 +144,29 @@ export function TasksCard({
       count={assigned.length + delegated.length}
       expandHref="/tasks/mine"
       headerRight={
-        onCreateTask ? (
-          <button
-            type="button"
-            onClick={onCreateTask}
-            disabled={createDisabled}
-            title={
-              createDisabled
-                ? "No terminals yet — create a terminal first"
-                : "New task (⌘N)"
-            }
-            className={cn(
-              "flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-0.5 text-[10px] uppercase tracking-wide",
-              createDisabled
-                ? "cursor-not-allowed text-text-3 opacity-60"
-                : "text-text-1 hover:border-accent/40 hover:bg-bg-3",
-            )}
-          >
-            <Plus className="h-3 w-3" aria-hidden="true" />
-            <span>New task</span>
-            <kbd className="ml-1 hidden font-mono text-[9px] text-text-3 sm:inline">
-              ⌘N
-            </kbd>
-          </button>
+        createHref ? (
+          createDisabled ? (
+            <span
+              title="No terminals yet — create a terminal first"
+              className="flex cursor-not-allowed items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-3 opacity-60"
+              aria-disabled="true"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              <span>New task</span>
+            </span>
+          ) : (
+            <Link
+              href={createHref}
+              title="New task (⌘N)"
+              className="flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-1 hover:border-accent/40 hover:bg-bg-3"
+            >
+              <Plus className="h-3 w-3" aria-hidden="true" />
+              <span>New task</span>
+              <kbd className="ml-1 hidden font-mono text-[9px] text-text-3 sm:inline">
+                ⌘N
+              </kbd>
+            </Link>
+          )
         ) : null
       }
     >
