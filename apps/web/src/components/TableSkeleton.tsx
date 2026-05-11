@@ -104,14 +104,53 @@ export function TableSkeleton({
 interface CardSkeletonProps {
   /** Optional className passthrough for layout overrides. */
   className?: string;
+  /**
+   * Optional row count. When supplied, the component renders a
+   * dashboard-card-style placeholder (header chip + N stacked rows)
+   * instead of the default single stat-tile. The two shapes share
+   * one export so loading skeletons don't have to import two
+   * different components for the same visual purpose.
+   */
+  rows?: number;
 }
 
 /**
  * Stat-tile skeleton matching the cards on the admin overview. Same border,
  * padding, and inner stack as `Stat` in `app/admin/page.tsx` so the page
  * doesn't shift when real numbers load.
+ *
+ * When `rows` is provided, renders a card-with-list shape instead —
+ * used by dashboard / space / messages loading skeletons.
  */
-export function CardSkeleton({ className }: CardSkeletonProps) {
+export function CardSkeleton({ className, rows }: CardSkeletonProps) {
+  if (typeof rows === "number" && rows > 0) {
+    return (
+      <div
+        className={cn(
+          "flex flex-col gap-1 rounded border border-border bg-bg-1 p-3",
+          className,
+        )}
+        aria-busy="true"
+        aria-label="Loading"
+      >
+        <span className="mb-1 h-3 w-24 animate-pulse rounded-sm bg-bg-3" />
+        {Array.from({ length: rows }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center gap-2 py-1"
+          >
+            <span className="h-3 w-3 flex-shrink-0 animate-pulse rounded-full bg-bg-3" />
+            <span className="h-3 flex-1 animate-pulse rounded-sm bg-bg-3" />
+            <span className="h-3 w-12 animate-pulse rounded-sm bg-bg-3" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return CardStatSkeleton({ className });
+}
+
+function CardStatSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
