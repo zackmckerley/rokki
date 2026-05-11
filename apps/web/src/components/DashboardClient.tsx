@@ -1,15 +1,13 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams, useRouter } from "next/navigation";
 import { DashboardShell } from "./dashboard/DashboardShell";
 import { ExplorerRail } from "./dashboard/ExplorerRail";
-import { WeekCard } from "./dashboard/WeekCard";
-import { TasksCard } from "./dashboard/TasksCard";
 import { MessagesCard } from "./dashboard/MessagesCard";
 import { TopBar } from "./TopBar";
-import { TickerTape } from "./TickerTape";
 import { DensityProvider, type Density } from "@/lib/density";
 import { TimezoneProbe } from "./TimezoneProbe";
 import { BriefingCard } from "./dashboard/BriefingCard";
@@ -41,18 +39,11 @@ const CreateProjectDialog = dynamic(
 import type {
   DashSpace,
   DashTerminal,
-  AssignedTask,
-  DelegatedTask,
-  WeekItem,
 } from "@/lib/dashboard-queries";
 
 interface DashboardClientProps {
   spaces: DashSpace[];
   terminals: DashTerminal[];
-  assigned: AssignedTask[];
-  delegated: DelegatedTask[];
-  weekItems: WeekItem[];
-  tickerItems: { id: string; text: string; when: string }[];
   toolCount: number;
   userId: string;
   userName: string;
@@ -61,20 +52,34 @@ interface DashboardClientProps {
   initialDensity: Density;
   savedTimezone: string | null;
   briefingDismissedOn: string | null;
+  /**
+   * Streamed slots. Each is rendered by the route as a Suspense
+   * boundary so the dashboard's shell + fast cards (Briefing, Explorer,
+   * Messages) paint at ~50ms while the slow ones (Tasks, Week, Ticker)
+   * stream in over the wire. The slots come in as ReactNodes (rather
+   * than raw data) so this Client Component doesn't have to await
+   * anything itself — Suspense lives in the parent Server Component
+   * and resolves before React hydrates the eventual content here.
+   */
+  tickerSlot: ReactNode;
+  weekSlot: ReactNode;
+  tasksSlot: ReactNode;
 }
 
 /**
- * The dashboard composition root. Owns the layout shell and the two
- * creation dialogs. Server data comes in via props; interactive pieces
- * (ticker, cards) manage their own realtime subscriptions.
+ * Dashboard composition root. Owns the layout shell, dialog state,
+ * keyboard shortcuts, and `?new=…` URL handling. Card content
+ * (tasks, week-items, ticker) streams in as Suspended slots from the
+ * parent route — see `app/page.tsx` for the boundary wiring.
+ *
+ * Data still arrives via props for the shell-level concerns
+ * (spaces/terminals fed into ExplorerRail; userName/email for the
+ * top bar). Those queries are fast and need to be ready before the
+ * shell renders so the rail isn't a placeholder.
  */
 export function DashboardClient({
   spaces,
   terminals,
-  assigned,
-  delegated,
-  weekItems,
-  tickerItems,
   toolCount,
   userId,
   userName,
@@ -83,6 +88,9 @@ export function DashboardClient({
   initialDensity,
   savedTimezone,
   briefingDismissedOn,
+  tickerSlot,
+  weekSlot,
+  tasksSlot,
 }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -130,13 +138,6 @@ export function DashboardClient({
     return () => window.removeEventListener("keydown", onKey);
   }, [terminals.length]);
 
-  const tickerById: Record<string, string> = {};
-  const terminalNameById: Record<string, string> = {};
-  for (const t of terminals) {
-    tickerById[t.id] = t.ticker;
-    terminalNameById[t.id] = t.name;
-  }
-
   return (
     <DensityProvider initial={initialDensity}>
       <DashboardShell
@@ -164,7 +165,7 @@ export function DashboardClient({
                 global chrome. ⌘N still works globally. */}
           </TopBar>
         }
-        ticker={<TickerTape items={tickerItems} />}
+        ticker={tickerSlot}
         left={
           <ExplorerRail
             spaces={spaces}
@@ -181,15 +182,8 @@ export function DashboardClient({
               userName={userName}
               dismissedOn={briefingDismissedOn}
             />
-            <WeekCard items={weekItems} />
-            <TasksCard
-              assigned={assigned}
-              delegated={delegated}
-              tickerById={tickerById}
-              terminalNameById={terminalNameById}
-              onCreateTask={() => setTaskDialog(true)}
-              createDisabled={terminals.length === 0}
-            />
+            {weekSlot}
+            {tasksSlot}
           </div>
         }
         right={
