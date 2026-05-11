@@ -17,29 +17,19 @@ export default async function DashboardPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  // Pure-admin shortcut: a user who is platform admin AND has zero space
-  // memberships has nothing to do on the user dashboard. Send them
-  // straight to /admin so the operator console is their landing.
-  const adminCheck = await supabase
-    .from("profiles")
-    .select("is_platform_admin")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const isAdmin = Boolean(
-    (adminCheck.data as { is_platform_admin?: boolean } | null)
-      ?.is_platform_admin,
-  );
-  if (isAdmin) {
-    const { count: spaceCount } = await supabase
-      .from("space_members")
-      .select("space_id", { count: "exact", head: true })
-      .eq("user_id", user.id);
-    if ((spaceCount ?? 0) === 0) {
-      redirect("/admin");
-    }
-  }
-
-  // Parallelise: every card fetches independently against RLS.
+  // ONE round-trip for everything we need to render the dashboard
+  // shell + cards + admin-shortcut decision. Previously we did three
+  // sequential queries (profile admin check → space_members count →
+  // big Promise.all), which serialized 2-3 RTTs onto the cold-load
+  // critical path. Profile was also queried twice (once for the
+  // admin check, once in the parallel block).
+  //
+  // Now: kick off everything in parallel and decide on the admin
+  // redirect after the results land. For non-admin users (the common
+  // case) we save the two extra RTTs. For pure-admin-zero-spaces
+  // we waste the eight other fetches but immediately redirect, so
+  // the user never sees the wasted work. Net: faster dashboard for
+  // everyone who lands on it.
   const [
     spaces,
     terminals,
@@ -81,6 +71,15 @@ export default async function DashboardPage() {
         timezone: string | null;
       }
     | null;
+
+  // Pure-admin shortcut: a user who is platform admin AND has zero
+  // space memberships has nothing to do on the user dashboard. Send
+  // them to /admin so the operator console is their landing.
+  // `spaces.length` already came back from the parallel fetch above,
+  // saving a dedicated count() round-trip.
+  if ((profile?.is_platform_admin ?? false) && spaces.length === 0) {
+    redirect("/admin");
+  }
   const userName =
     profile?.full_name ?? user.email?.split("@")[0] ?? "there";
   const savedDensity =
