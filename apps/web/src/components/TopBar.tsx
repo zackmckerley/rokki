@@ -1,9 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Wordmark } from "./Wordmark";
 import { TopBarSearch } from "./TopBarSearch";
+
+// Lazy-load the bell so its realtime subscription + dropdown body
+// only ship when the user is past authentication. Saves ~12 KB off
+// the login page bundle, which doesn't need notification chrome at
+// all. SSR off because the closed dropdown has no useful server
+// render and the unread count is realtime-driven anyway.
+const NotificationBell = dynamic(
+  () =>
+    import("./NotificationBell").then((m) => ({
+      default: m.NotificationBell,
+    })),
+  { ssr: false },
+);
 
 interface TopBarProps {
   children?: React.ReactNode;
@@ -44,6 +58,14 @@ export function TopBar({ children }: TopBarProps) {
       </div>
       <div className="flex items-center gap-2">
         <TopBarSearch />
+        {/* Bell is hidden on the login / signup / public-help routes
+            (everything outside /admin and /(auth)). The component
+            itself no-ops when there's no auth'd user, but
+            short-circuiting here keeps the topbar visually clean on
+            those pages too. */}
+        {pathname && !pathname.startsWith("/login") ? (
+          <NotificationBell />
+        ) : null}
       </div>
     </header>
   );
