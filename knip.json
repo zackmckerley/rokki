@@ -1,0 +1,52 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.{mjs,js,cjs}"],
+      "project": ["scripts/**/*.{mjs,js,cjs}"]
+    },
+    "apps/web": {
+      "entry": [
+        "src/app/**/page.{ts,tsx}",
+        "src/app/**/layout.{ts,tsx}",
+        "src/app/**/loading.{ts,tsx}",
+        "src/app/**/error.{ts,tsx}",
+        "src/app/**/not-found.{ts,tsx}",
+        "src/app/**/route.{ts,tsx}",
+        "src/app/**/opengraph-image.{ts,tsx}",
+        "src/app/**/twitter-image.{ts,tsx}",
+        "src/app/**/icon.{ts,tsx}",
+        "src/app/**/manifest.{ts,tsx}",
+        "src/app/**/sitemap.{ts,tsx}",
+        "src/app/**/robots.{ts,tsx}",
+        "src/app/global-error.{ts,tsx}",
+        "src/middleware.ts",
+        "next.config.{js,mjs,ts}",
+        "sentry.{client,server,edge}.config.ts",
+        "vitest.config.ts",
+        "vitest.rls.config.ts",
+        "playwright.config.ts",
+        "tailwind.config.{js,ts}",
+        "postcss.config.{js,mjs}",
+        "scripts/**/*.{mjs,js,cjs,ts}"
+      ],
+      "project": ["src/**/*.{ts,tsx}", "scripts/**/*.{mjs,js,cjs}"],
+      "ignore": [
+        "public/sw.js",
+        "tests/load/**",
+        "tests/**/__snapshots__/**"
+      ],
+      "ignoreDependencies": [
+        "playwright"
+      ]
+    },
+    "apps/indexer": {},
+    "apps/mcp-server": {},
+    "apps/tool-executor": {},
+    "packages/db": {
+      "ignore": ["src/generated.ts"]
+    },
+    "packages/sdk": {},
+    "packages/cli": {}
+  }
+}
