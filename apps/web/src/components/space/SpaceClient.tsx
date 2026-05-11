@@ -2,12 +2,23 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { DashboardShell } from "@/components/dashboard/DashboardShell";
 import { TopBar } from "@/components/TopBar";
 import { TickerTape } from "@/components/TickerTape";
 import { ExplorerRail } from "@/components/dashboard/ExplorerRail";
-import { CreateProjectDialog } from "@/components/CreateProjectDialog";
 import { DensityProvider, type Density } from "@/lib/density";
+
+// Same lazy-load pattern as the dashboard — the dialog code (forms,
+// validation, member fetch) only ships once the user clicks
+// "+ Terminal". Saves a chunk on the space landing's initial JS.
+const CreateProjectDialog = dynamic(
+  () =>
+    import("@/components/CreateProjectDialog").then((m) => ({
+      default: m.CreateProjectDialog,
+    })),
+  { ssr: false },
+);
 import { TerminalsGrid } from "./TerminalsGrid";
 import { SpaceTasksCard } from "./SpaceTasksCard";
 import { SpaceMembersCard } from "./SpaceMembersCard";
@@ -150,12 +161,14 @@ export function SpaceClient({
           </div>
         }
       />
-      <CreateProjectDialog
-        open={createTerminalOpen}
-        onClose={() => setCreateTerminalOpen(false)}
-        orgs={spaces}
-        preferredSlug={space.slug}
-      />
+      {createTerminalOpen ? (
+        <CreateProjectDialog
+          open={createTerminalOpen}
+          onClose={() => setCreateTerminalOpen(false)}
+          orgs={spaces}
+          preferredSlug={space.slug}
+        />
+      ) : null}
     </DensityProvider>
   );
 }
