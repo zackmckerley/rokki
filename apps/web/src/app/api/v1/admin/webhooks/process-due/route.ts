@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { claimAndProcess } from "@/lib/jobs";
+import { withObservability } from "@/lib/observability";
 import {
   WEBHOOK_DELIVERY_QUEUE,
   webhookDeliveryHandler,
@@ -18,7 +19,7 @@ import {
  */
 export const dynamic = "force-dynamic";
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const cronHeader = request.headers.get("x-cron-secret");
   const expected = process.env.CRON_SECRET;
   let allowed = !!cronHeader && !!expected && cronHeader === expected;
@@ -48,3 +49,8 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/webhooks/process-due",
+);

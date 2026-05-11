@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * POST /api/v1/admin/storage/cleanup-orphans
  *
@@ -15,7 +16,7 @@ import { emitEvent } from "@/lib/events";
  * Returns a count of how many were swept. Does NOT delete bytes from
  * blob storage (that's a separate sweep the indexer can do later).
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -66,3 +67,8 @@ export async function POST(request: NextRequest) {
     },
   });
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/storage/cleanup-orphans",
+);

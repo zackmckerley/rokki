@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 /**
  * POST /api/v1/admin/perf/reset
  *
@@ -8,7 +9,7 @@ import { requireAdmin } from "@/lib/admin-auth";
  * re-baseline the slow-query view after deploying a fix or applying
  * an index.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -36,3 +37,8 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({ data: { reset: true } });
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/perf/reset",
+);

@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 import { revokeSessions } from "@/lib/revocations";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ userId: string }>;
 }
@@ -16,7 +17,7 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/;
  *                                                      email_confirm?, is_platform_admin? }
  * DELETE /api/v1/admin/users/:userId                — hard delete (cascades)
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -74,7 +75,7 @@ export async function GET(request: NextRequest, { params }: Props) {
   });
 }
 
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -155,7 +156,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data: { user_id: userId } });
 }
 
-export async function DELETE(request: NextRequest, { params }: Props) {
+async function handleDelete(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -197,3 +198,16 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/admin/users/:userId",
+);
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/admin/users/:userId",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/admin/users/:userId",
+);

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -10,7 +11,7 @@ interface Props {
  * PATCH  /api/v1/admin/webhooks/:id  { active?, events?, url?, description? }
  * DELETE /api/v1/admin/webhooks/:id
  */
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -53,7 +54,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data: { id, ...patch } });
 }
 
-export async function DELETE(request: NextRequest, { params }: Props) {
+async function handleDelete(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -85,3 +86,12 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/admin/webhooks/:id",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/admin/webhooks/:id",
+);

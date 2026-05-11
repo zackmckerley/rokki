@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/admin/users
  *   ?q=              search by email or full_name
@@ -20,7 +21,7 @@ import { emitEvent } from "@/lib/events";
  * password hashing are handled correctly. If `is_platform_admin` is true
  * we flip the profile flag after the user is created.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -124,7 +125,7 @@ export async function GET(request: NextRequest) {
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 const TZ_RE = /^[A-Za-z]+(?:[_+\-][A-Za-z0-9]+)*(?:\/[A-Za-z]+(?:[_+\-][A-Za-z0-9]+)*)*$/;
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -244,3 +245,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/users",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/users",
+);

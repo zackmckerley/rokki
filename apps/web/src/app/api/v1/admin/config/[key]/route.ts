@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ key: string }>;
 }
@@ -12,7 +13,7 @@ interface Props {
  *
  * Used by the legal pages, branding picker, default-prefs editor.
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { key } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -25,7 +26,7 @@ export async function GET(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data: data ?? null });
 }
 
-export async function PUT(request: NextRequest, { params }: Props) {
+async function handlePut(request: NextRequest, { params }: Props) {
   const { key } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -63,3 +64,12 @@ export async function PUT(request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data: { key } });
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/admin/config/:key",
+);
+export const PUT = withObservability<Props>(
+  handlePut,
+  "PUT /api/v1/admin/config/:key",
+);

@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/admin/rate-limits
  *   ?bucket=  filter by bucket name
@@ -11,7 +12,7 @@ import { emitEvent } from "@/lib/events";
  * DELETE /api/v1/admin/rate-limits?bucket=...&token=...
  *   Flushes hits matching the predicate (so a stuck user can sign in again).
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: rolledUp, meta: { total_hits: data?.length ?? 0 } });
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDelete(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -110,3 +111,12 @@ export async function DELETE(request: NextRequest) {
 
   return new NextResponse(null, { status: 204 });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/rate-limits",
+);
+export const DELETE = withObservability(
+  handleDelete,
+  "DELETE /api/v1/admin/rate-limits",
+);

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/admin/quotas/near-cap
  *   ?threshold=  default 0.9 (90% used). Returns rows where
@@ -9,7 +10,7 @@ import { requireAdmin } from "@/lib/admin-auth";
  * Used by the admin Quotas page to show who's about to be blocked,
  * before they file a support ticket.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -94,3 +95,8 @@ export async function GET(request: NextRequest) {
     meta: { threshold },
   });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/quotas/near-cap",
+);
