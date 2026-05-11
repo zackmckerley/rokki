@@ -52,15 +52,13 @@ export default async function SpaceLandingPage({ params }: Props) {
   if (!space) notFound();
   const s = space as { id: string; slug: string; name: string };
 
-  const { data: me } = await supabase
-    .from("space_members")
-    .select("role")
-    .eq("space_id", s.id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-  const myRole = (me as { role?: SpaceRole } | null)?.role ?? null;
-  if (!myRole) notFound();
-
+  // The membership check used to gate the Promise.all on a separate
+  // RTT. Now it runs ALONGSIDE the data fetches. Non-members never
+  // reach the render (notFound() short-circuits after the parallel
+  // resolves), so the only "wasted" case is someone hitting a space
+  // URL they don't belong to — which should be rare and is cheap to
+  // throw away. RLS already filters the actual data rows.
+  //
   // All the heavy lifting in parallel — same pattern as the
   // dashboard's loaders. The week-calendar / files-vault loaders
   // were dropped after the v1 ship per UX feedback ("remove the
@@ -75,6 +73,7 @@ export default async function SpaceLandingPage({ params }: Props) {
     explorerTerminals,
     toolsResult,
     profileResult,
+    membershipResult,
   ] = await Promise.all([
     loadSpaceTerminals(supabase, s.id),
     loadSpaceTasks(supabase, s.id),
@@ -92,7 +91,17 @@ export default async function SpaceLandingPage({ params }: Props) {
       .select("full_name, is_platform_admin, settings")
       .eq("user_id", user.id)
       .maybeSingle(),
+    supabase
+      .from("space_members")
+      .select("role")
+      .eq("space_id", s.id)
+      .eq("user_id", user.id)
+      .maybeSingle(),
   ]);
+
+  const myRole =
+    (membershipResult.data as { role?: SpaceRole } | null)?.role ?? null;
+  if (!myRole) notFound();
 
   const profile = profileResult.data as
     | {
