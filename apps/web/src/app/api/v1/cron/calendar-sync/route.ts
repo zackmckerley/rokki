@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { runCalendarSyncTick } from "@/lib/calendar-sync";
+import { withObservability } from "@/lib/observability";
 
 /**
  * POST /api/v1/cron/calendar-sync
@@ -20,7 +21,7 @@ import { runCalendarSyncTick } from "@/lib/calendar-sync";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   if (!authorize(request)) return unauthorized();
 
   const result = await runCalendarSyncTick();
@@ -29,11 +30,20 @@ export async function POST(request: NextRequest) {
 
 // Also accept GET so a curl smoke test works without a body. The
 // secret check still gates it.
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   if (!authorize(request)) return unauthorized();
   const result = await runCalendarSyncTick();
   return NextResponse.json({ data: result });
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/cron/calendar-sync",
+);
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/cron/calendar-sync",
+);
 
 function authorize(request: NextRequest): boolean {
   const expected = process.env.CRON_SECRET;

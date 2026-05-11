@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
+import { withObservability } from "@/lib/observability";
 import type { Database } from "@rokki/db";
 
 /**
@@ -39,18 +40,21 @@ interface TickResult {
   errors: number;
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   if (!authorize(request)) return unauthorized();
   const result = await runRemindersTick();
   return NextResponse.json({ data: result });
 }
 
 // GET for smoke-test convenience. Same auth gate.
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   if (!authorize(request)) return unauthorized();
   const result = await runRemindersTick();
   return NextResponse.json({ data: result });
 }
+
+export const POST = withObservability(handlePost, "POST /api/v1/cron/reminders");
+export const GET = withObservability(handleGet, "GET /api/v1/cron/reminders");
 
 async function runRemindersTick(): Promise<TickResult> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
