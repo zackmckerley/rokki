@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withObservability } from "@/lib/observability";
 
 /**
  * GET /api/v1/briefing
@@ -8,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
  * LLM calls. The dashboard card renders this with a "Good morning, X …"
  * intro line. Keep the computation cheap: 4 small queries, ~50 ms total.
  */
-export async function GET() {
+async function handleGet() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -131,3 +132,5 @@ export async function GET() {
     },
   });
 }
+
+export const GET = withObservability(handleGet, "GET /api/v1/briefing");

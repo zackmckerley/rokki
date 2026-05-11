@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withObservability } from "@/lib/observability";
 
 /**
  * GET  /api/v1/messages/threads    — threads I can see, newest first
@@ -8,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
  *   { kind: "terminal", terminal_id }             → create or reuse the terminal's single thread
  */
 
-export async function GET() {
+async function handleGet() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -198,7 +199,7 @@ export async function GET() {
   return NextResponse.json({ data: decorated });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -299,3 +300,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/messages/threads",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/messages/threads",
+);

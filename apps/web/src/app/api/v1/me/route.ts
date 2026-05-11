@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { validateBearer } from "@/lib/api-auth";
+import { withObservability } from "@/lib/observability";
 
 /**
  * GET   /api/v1/me                 — my profile + preferences
@@ -10,7 +11,7 @@ import { validateBearer } from "@/lib/api-auth";
  * so partial updates don't clobber unrelated keys.
  */
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   // Accept cookie OR bearer so the CLI can call /me. Bearer uses admin
   // client but we still filter by user_id.
   const bearer = await validateBearer(request);
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function PATCH(request: NextRequest) {
+async function handlePatch(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -157,3 +158,6 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(handleGet, "GET /api/v1/me");
+export const PATCH = withObservability(handlePatch, "PATCH /api/v1/me");

@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { mentionedUserIds, renderMentionsAsText } from "@/lib/mentions";
 import { sendEmail } from "@/lib/email";
+import { withObservability } from "@/lib/observability";
 import type { Database } from "@rokki/db";
 
 /**
@@ -29,7 +30,7 @@ interface CommentRow {
   created_by: string;
 }
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -77,7 +78,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: decorated });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -238,3 +239,6 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(handleGet, "GET /api/v1/comments");
+export const POST = withObservability(handlePost, "POST /api/v1/comments");

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { withObservability } from "@/lib/observability";
 
 /**
  * GET  /api/v1/notifications?unread=1&limit=50  — your notifications feed
@@ -8,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
  *     their own rows (RLS enforced).
  */
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -85,7 +86,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function PATCH(request: NextRequest) {
+async function handlePatch(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -134,3 +135,9 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(handleGet, "GET /api/v1/notifications");
+export const PATCH = withObservability(
+  handlePatch,
+  "PATCH /api/v1/notifications",
+);

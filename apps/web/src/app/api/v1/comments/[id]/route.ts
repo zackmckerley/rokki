@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { mentionedUserIds } from "@/lib/mentions";
+import { withObservability } from "@/lib/observability";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -10,7 +11,7 @@ interface Props {
  * PATCH /api/v1/comments/:id  { body }   — edit your own comment
  * DELETE /api/v1/comments/:id            — soft delete (sets deleted_at)
  */
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -85,7 +86,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -127,3 +128,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/comments/:id",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/comments/:id",
+);
