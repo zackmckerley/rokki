@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/me/push-subscriptions          — list this user's subs
  * POST /api/v1/me/push-subscriptions  { endpoint, keys: { p256dh, auth } }
  *
  * Idempotent on (user_id, endpoint) — re-subscribing updates `last_seen_at`.
  */
-export async function GET() {
+async function handleGet() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -23,7 +24,7 @@ export async function GET() {
   return NextResponse.json({ data: data ?? [] });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -87,7 +88,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ data: { subscribed: true } }, { status: 201 });
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDelete(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -116,3 +117,16 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/me/push-subscriptions",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/me/push-subscriptions",
+);
+export const DELETE = withObservability(
+  handleDelete,
+  "DELETE /api/v1/me/push-subscriptions",
+);

@@ -12,6 +12,7 @@ import {
 import { encryptToken } from "@/lib/token-crypto";
 import type { Database } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ provider: string }>;
 }
@@ -24,7 +25,7 @@ interface Props {
  * calendar_connection. Redirects back to /settings/calendars with a
  * status flag so the UI can render success or error inline.
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { provider: raw } = await params;
   const appUrl =
     process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -132,3 +133,8 @@ export async function GET(request: NextRequest, { params }: Props) {
 
   return settings("connected", provider);
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/calendar/callback/:provider",
+);

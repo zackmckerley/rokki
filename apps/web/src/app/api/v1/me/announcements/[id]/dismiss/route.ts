@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -9,7 +10,7 @@ interface Props {
  * POST /api/v1/me/announcements/:id/dismiss
  *   Marks the announcement dismissed for the current user.
  */
-export async function POST(_request: NextRequest, { params }: Props) {
+async function handlePost(_request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -30,3 +31,8 @@ export async function POST(_request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data: { dismissed: true } });
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/me/announcements/:id/dismiss",
+);

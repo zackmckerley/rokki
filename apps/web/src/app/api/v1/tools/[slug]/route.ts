@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -13,7 +14,7 @@ interface Props {
  * DELETE /api/v1/tools/:slug           — soft delete
  */
 
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { slug } = await params;
   const supabase = await createClient();
   const {
@@ -47,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   });
 }
 
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const supabase = await createClient();
   const {
@@ -132,7 +133,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data: { slug, ...patch } });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { slug } = await params;
   const supabase = await createClient();
   const {
@@ -195,3 +196,16 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/tools/:slug",
+);
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/tools/:slug",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/tools/:slug",
+);

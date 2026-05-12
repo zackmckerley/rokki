@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getSignedDownloadUrl } from "@/lib/storage";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -14,7 +15,7 @@ interface Props {
  *
  * RLS ensures the caller can see the file before we hand out a URL.
  */
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -45,3 +46,8 @@ export async function GET(_req: NextRequest, { params }: Props) {
     data: { url, mime_type: file.mime_type, filename: file.filename },
   });
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/files/:id/signed-url",
+);

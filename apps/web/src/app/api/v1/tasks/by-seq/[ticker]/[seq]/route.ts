@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ ticker: string; seq: string }>;
 }
@@ -16,7 +17,7 @@ interface Props {
  *
  * Scoped by RLS: if the caller can't see the terminal, they get 404.
  */
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { ticker, seq: seqStr } = await params;
   const seq = Number(seqStr);
   if (!Number.isInteger(seq))
@@ -211,3 +212,8 @@ function notFound() {
     { status: 404 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/tasks/by-seq/:ticker/:seq",
+);

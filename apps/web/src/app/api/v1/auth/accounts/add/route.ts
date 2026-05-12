@@ -14,6 +14,7 @@ import {
 } from "@/lib/account-ring";
 import { rateLimitCheck, rateLimitToken } from "@/lib/ratelimit";
 
+import { withObservability } from "@/lib/observability";
 interface CookieToSet {
   name: string;
   value: string;
@@ -37,7 +38,7 @@ const USERNAME_MAP: Record<string, string> = {
   admin: "admin@rokki.local",
 };
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     username?: string;
     email?: string;
@@ -188,3 +189,8 @@ function forbidden(msg: string) {
     { status: 403 },
   );
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/auth/accounts/add",
+);

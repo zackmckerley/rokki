@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { runCalendarSyncForUser } from "@/lib/calendar-sync";
 
+import { withObservability } from "@/lib/observability";
 /**
  * POST /api/v1/calendar/sync-now
  *
@@ -14,7 +15,7 @@ import { runCalendarSyncForUser } from "@/lib/calendar-sync";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-export async function POST(_req: NextRequest) {
+async function handlePost(_req: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -28,3 +29,8 @@ export async function POST(_req: NextRequest) {
   const result = await runCalendarSyncForUser(user.id);
   return NextResponse.json({ data: result });
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/calendar/sync-now",
+);

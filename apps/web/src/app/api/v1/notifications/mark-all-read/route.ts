@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 /**
  * PATCH /api/v1/notifications/mark-all-read
  * Sets read_at = now() for every unread notification belonging to the
@@ -10,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
  * Returns 204 on success. Single-shot, idempotent — repeated calls are
  * cheap (a no-op once everything is read).
  */
-export async function PATCH() {
+async function handlePatch() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -37,3 +38,8 @@ export async function PATCH() {
 
   return new NextResponse(null, { status: 204 });
 }
+
+export const PATCH = withObservability(
+  handlePatch,
+  "PATCH /api/v1/notifications/mark-all-read",
+);

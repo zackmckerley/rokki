@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { deleteObject } from "@/lib/storage";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -12,7 +13,7 @@ interface Props {
  * trash (deleted_at IS NOT NULL) to prevent accidental skipping of the bin.
  * RLS still enforces uploader-or-manager.
  */
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -95,3 +96,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/files/:id/permanent",
+);

@@ -6,6 +6,7 @@ import {
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 interface CookieToSet {
   name: string;
   value: string;
@@ -19,7 +20,7 @@ interface CookieToSet {
  *
  * Returns 404 in production. Refuses any email not on @test.rokki.ai.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ errors: [{ code: "not_found" }] }, { status: 404 });
   }
@@ -108,3 +109,8 @@ export async function POST(request: NextRequest) {
 
   return response;
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/dev/session-as",
+);

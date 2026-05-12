@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/me/flags
  *   Returns a `{ key: value }` map for the current user, resolving
@@ -10,7 +11,7 @@ import { createClient } from "@/lib/supabase/server";
  *   Rollout percentage is applied at this layer using a stable hash
  *   of (user_id + key) so a user always gets the same answer.
  */
-export async function GET() {
+async function handleGet() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -91,3 +92,8 @@ function stableBucket(seed: string): number {
   }
   return h % 100;
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/me/flags",
+);
