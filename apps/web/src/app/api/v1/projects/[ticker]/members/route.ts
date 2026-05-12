@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database, ProjectRole } from "@rokki/db";
 import crypto from "node:crypto";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ ticker: string }>;
 }
@@ -19,7 +20,7 @@ interface Props {
  *      scoped so that when the recipient clicks it, /auth/callback auto-accepts
  *      the invite (see apps/web/src/app/auth/callback/route.ts).
  */
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const {
@@ -84,7 +85,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const {
@@ -270,3 +271,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/projects/:ticker/members",
+);
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/projects/:ticker/members",
+);

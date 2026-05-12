@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import crypto from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -12,7 +13,7 @@ interface Props {
  *   { label?, expires_in_days?, max_views?, require_email? }
  */
 
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -54,7 +55,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   return NextResponse.json({ data: decorated });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -107,3 +108,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/files/:id/share-links",
+);
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/files/:id/share-links",
+);

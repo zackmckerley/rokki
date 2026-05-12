@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/me/announcements
  *   Returns active announcements visible to the caller, with the
@@ -11,7 +12,7 @@ import { createClient } from "@/lib/supabase/server";
  *     - audience='admins' → only platform admins
  *     - audience='space'  → only members of the targeted space
  */
-export async function GET(_request: NextRequest) {
+async function handleGet(_request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -96,3 +97,8 @@ export async function GET(_request: NextRequest) {
     data: visible.map((v) => ({ ...v, dismissed: dismissed.has(v.id) })),
   });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/me/announcements",
+);

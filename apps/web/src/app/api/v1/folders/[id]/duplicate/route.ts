@@ -6,6 +6,7 @@ import { joinPath } from "@/lib/folder-path";
 import type { Database } from "@rokki/db";
 import crypto from "node:crypto";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -19,7 +20,7 @@ interface Props {
  * can't individually insert via RLS; entry is authorized by the caller's RLS
  * check on the source folder.
  */
-export async function POST(_req: NextRequest, { params }: Props) {
+async function handlePost(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -225,3 +226,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/folders/:id/duplicate",
+);

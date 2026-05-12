@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -11,7 +12,7 @@ interface Props {
  *
  * Only space owners/admins of the approval's `approver_space_id` may act.
  */
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -124,3 +125,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/approvals/:id",
+);

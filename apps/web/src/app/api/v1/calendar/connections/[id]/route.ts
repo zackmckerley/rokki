@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -11,7 +12,7 @@ interface Props {
  * user can see what we used to sync, then a background job can hard-delete
  * after 30 days.
  */
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -36,3 +37,8 @@ export async function DELETE(_req: NextRequest, { params }: Props) {
     );
   return new NextResponse(null, { status: 204 });
 }
+
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/calendar/connections/:id",
+);

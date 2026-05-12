@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/orgs           — list my orgs
  * POST /api/v1/orgs           — create a new org (caller becomes owner via trigger)
  *
  * See docs/02_API.md §2.5.
  */
-export async function GET() {
+async function handleGet() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -23,7 +24,7 @@ export async function GET() {
   return NextResponse.json({ data });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -109,3 +110,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/orgs",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/orgs",
+);

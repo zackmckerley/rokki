@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -9,7 +10,7 @@ interface Props {
  * DELETE /api/v1/share-links/:id  — revoke (soft). Any existing holder of
  * the link will immediately see a "link expired" page.
  */
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -33,3 +34,8 @@ export async function DELETE(_req: NextRequest, { params }: Props) {
     );
   return new NextResponse(null, { status: 204 });
 }
+
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/share-links/:id",
+);

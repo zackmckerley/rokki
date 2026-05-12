@@ -4,6 +4,7 @@ import { emitEvent } from "@/lib/events";
 import { revokeSessions } from "@/lib/revocations";
 import type { ProjectRole } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ ticker: string; userId: string }>;
 }
@@ -27,7 +28,7 @@ const VALID_ROLES: ProjectRole[] = [
   "guest",
 ];
 
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { ticker, userId } = await params;
   const supabase = await createClient();
   const {
@@ -78,7 +79,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data: { user_id: userId, role: body.role } });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { ticker, userId } = await params;
   const supabase = await createClient();
   const {
@@ -206,3 +207,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/projects/:ticker/members/:userId",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/projects/:ticker/members/:userId",
+);
