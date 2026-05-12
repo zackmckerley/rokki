@@ -14,6 +14,7 @@ import {
   ChevronDown,
   Circle,
   Flag,
+  Repeat,
   Tag,
   UserPlus,
   X,
@@ -23,6 +24,7 @@ import {
   formatDueLabel,
   parseDueDate,
 } from "@/lib/parse-due-date";
+import type { TaskRecurrenceRule } from "@rokki/db";
 
 export interface TaskComposerMember {
   user_id: string;
@@ -41,6 +43,13 @@ export interface TaskComposerSubmit {
    * Server side these land on `tasks.external_assignee_emails`.
    */
   external_assignee_emails: string[];
+  /**
+   * Recurrence pattern. Null means one-shot task. Composer only
+   * surfaces the four canonical patterns (None/Daily/Weekly/Monthly,
+   * interval=1); the more elaborate weekdays/end_date variants are
+   * served from the task detail page when we build that out.
+   */
+  recurrence_rule: TaskRecurrenceRule | null;
 }
 
 interface TaskComposerProps {
@@ -65,6 +74,8 @@ interface TaskComposerProps {
   currentUserId?: string;
   /** Pre-fill labels. */
   initialLabels?: string[];
+  /** Pre-fill the recurrence chip. Default null (one-shot). */
+  initialRecurrence?: TaskRecurrenceRule | null;
   /**
    * Render variant. `inline` uses a tight horizontal layout suited to
    * the task list itself; `dialog` uses a roomier vertical layout.
@@ -118,6 +129,7 @@ export function TaskComposer({
   initialExternalEmails = [],
   currentUserId,
   initialLabels = [],
+  initialRecurrence = null,
   variant = "inline",
   autoFocus = true,
   placeholder = "New task… Enter to save, Esc to cancel",
@@ -145,6 +157,8 @@ export function TaskComposer({
   );
   const [labels, setLabels] = useState<string[]>(initialLabels);
   const [labelDraft, setLabelDraft] = useState("");
+  const [recurrence, setRecurrence] =
+    useState<TaskRecurrenceRule | null>(initialRecurrence);
   const [showAssignees, setShowAssignees] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +201,7 @@ export function TaskComposer({
         labels: labelsFinal,
         assignee_ids: assigneeIds,
         external_assignee_emails: externalEmails,
+        recurrence_rule: recurrence,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create");
@@ -264,6 +279,11 @@ export function TaskComposer({
           onRemove={(l) =>
             setLabels((prev) => prev.filter((x) => x !== l))
           }
+          disabled={submitting}
+        />
+        <RecurrenceChip
+          rule={recurrence}
+          onChange={setRecurrence}
           disabled={submitting}
         />
 
@@ -898,5 +918,121 @@ function LabelsChip({
         disabled={disabled}
       />
     </span>
+  );
+}
+
+/* --------------------------------------------------------------- */
+/* RecurrenceChip — None / Daily / Weekly / Monthly                  */
+/* --------------------------------------------------------------- */
+
+const RECURRENCE_LABEL: Record<"daily" | "weekly" | "monthly", string> = {
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+};
+
+/**
+ * Single-select repeat chip. Maps the 3 canonical patterns to chip
+ * options + a "None" option that clears the rule. Always uses
+ * interval=1 — the more elaborate variants (interval > 1, weekdays
+ * subset, end_date) are surfaced from task detail when we build
+ * that out.
+ */
+function RecurrenceChip({
+  rule,
+  onChange,
+  disabled,
+}: {
+  rule: TaskRecurrenceRule | null;
+  onChange: (next: TaskRecurrenceRule | null) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Close on outside click.
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const label =
+    rule == null
+      ? "Repeat"
+      : (RECURRENCE_LABEL[rule.pattern] ?? "Custom") +
+        (rule.interval > 1 ? ` ×${rule.interval}` : "");
+
+  function setPattern(pattern: "daily" | "weekly" | "monthly" | null) {
+    if (pattern == null) {
+      onChange(null);
+    } else {
+      onChange({ pattern, interval: 1 });
+    }
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={disabled}
+        title={rule == null ? "One-shot — click to make recurring" : `Repeats ${label}`}
+        className={cn(
+          "flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 text-[11px]",
+          rule == null
+            ? "text-text-3 hover:bg-bg-3 hover:text-text-1"
+            : "text-text-1 hover:bg-bg-3",
+          disabled && "opacity-50",
+        )}
+      >
+        <Repeat className="h-3 w-3" aria-hidden="true" />
+        <span>{label}</span>
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-20 mt-1 flex w-32 flex-col rounded-sm border border-border bg-bg-1 py-1 text-xs shadow-lg"
+        >
+          {(
+            [
+              { val: null, label: "None" },
+              { val: "daily", label: "Daily" },
+              { val: "weekly", label: "Weekly" },
+              { val: "monthly", label: "Monthly" },
+            ] as const
+          ).map((opt) => {
+            const active =
+              (rule == null && opt.val == null) || rule?.pattern === opt.val;
+            return (
+              <button
+                key={String(opt.val)}
+                type="button"
+                onClick={() => setPattern(opt.val)}
+                role="menuitemradio"
+                aria-checked={active}
+                className={cn(
+                  "flex items-center justify-between px-2 py-1 text-left text-text-1 hover:bg-bg-2 hover:text-text-0",
+                  active && "bg-bg-2 text-text-0",
+                )}
+              >
+                <span>{opt.label}</span>
+                {active ? (
+                  <span aria-hidden="true" className="text-accent">
+                    ✓
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
   );
 }
