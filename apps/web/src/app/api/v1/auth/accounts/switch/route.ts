@@ -4,6 +4,7 @@ import {
   type CookieOptions,
 } from "@supabase/ssr";
 import type { Database } from "@rokki/db";
+import { withObservability } from "@/lib/observability";
 import {
   RING_COOKIE,
   parseRing,
@@ -30,7 +31,7 @@ interface CookieToSet {
  * (Supabase rotates them) so the next switch back to this account also
  * works.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
     user_id?: string;
   };
@@ -129,3 +130,8 @@ export async function POST(request: NextRequest) {
 
   return response;
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/auth/accounts/switch",
+);

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/approvals?scope=mine|inbox
  *
@@ -8,7 +9,7 @@ import { createClient } from "@/lib/supabase/server";
  *   - scope=inbox → approvals awaiting my action (I'm an owner/admin of
  *                   the approver_space_id)
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const url = new URL(request.url);
   const scope = (url.searchParams.get("scope") ?? "mine") as "mine" | "inbox";
 
@@ -60,3 +61,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/approvals",
+);

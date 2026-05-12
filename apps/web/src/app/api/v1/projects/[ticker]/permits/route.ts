@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ ticker: string }>;
 }
@@ -9,7 +10,7 @@ interface Props {
  * GET  /api/v1/projects/:ticker/permits
  * POST /api/v1/projects/:ticker/permits  { kind, number?, authority?, status?, applied_on?, expires_on? }
  */
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const terminal = await resolveTerminal(supabase, ticker);
@@ -27,7 +28,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const {
@@ -110,3 +111,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/projects/:ticker/permits",
+);
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/projects/:ticker/permits",
+);

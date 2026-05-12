@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getObjectStream } from "@/lib/storage";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -11,7 +12,7 @@ interface Props {
  * enforcing RLS via the file's visibility policy. Phase 1: simple proxy.
  * Phase 2 will redirect to a signed URL for direct-to-storage download.
  */
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -108,3 +109,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/files/:id/download",
+);

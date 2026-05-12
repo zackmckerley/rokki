@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ fileId: string }>;
 }
@@ -11,7 +12,7 @@ interface Props {
  *
  * RLS scopes this to members of the file's terminal.
  */
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { fileId } = await params;
   const supabase = await createClient();
   const {
@@ -60,7 +61,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { fileId } = await params;
   const supabase = await createClient();
   const {
@@ -130,3 +131,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/drawings/:fileId/annotations",
+);
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/drawings/:fileId/annotations",
+);

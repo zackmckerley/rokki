@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -9,7 +10,7 @@ interface Props {
  * POST /api/v1/files/:id/restore — un-trash a soft-deleted file.
  * Bytes are still in storage because the original delete was soft only.
  */
-export async function POST(_req: NextRequest, { params }: Props) {
+async function handlePost(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -80,3 +81,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/files/:id/restore",
+);

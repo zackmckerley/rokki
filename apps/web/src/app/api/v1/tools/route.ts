@@ -4,13 +4,14 @@ import { validateBearer } from "@/lib/api-auth";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/tools                  — tools visible to the caller
  * POST /api/v1/tools  { name, slug?, description, input_schema, output_schema?,
  *                       code, timeout_seconds?, tags? }
  *                                     — register a new tool, publishes v1.0.0
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const bearer = await validateBearer(request);
 
   let supabase: SupabaseClient<Database>;
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   // Accept either a signed-in cookie session OR a personal access token
   // via Authorization: Bearer. The CLI uses Bearer; the web UI uses cookies.
   let supabase: SupabaseClient<Database>;
@@ -173,3 +174,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/tools",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/tools",
+);

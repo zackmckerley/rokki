@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { emitEvent } from "@/lib/events";
 import { revokeSessions } from "@/lib/revocations";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ slug: string; userId: string }>;
 }
@@ -20,7 +21,7 @@ const VALID_ROLES: SpaceRole[] = ["owner", "admin", "member"];
  * via CASCADE — that's intentional.
  */
 
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { slug, userId } = await params;
   const supabase = await createClient();
   const {
@@ -75,7 +76,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data: { user_id: userId, role: body.role } });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { slug, userId } = await params;
   const supabase = await createClient();
   const {
@@ -185,3 +186,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/orgs/:slug/members/:userId",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/orgs/:slug/members/:userId",
+);

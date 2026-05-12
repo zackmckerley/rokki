@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -9,7 +10,7 @@ interface Props {
  * GET  /api/v1/orgs/:slug/vendors
  * POST /api/v1/orgs/:slug/vendors  { name, contact_name?, contact_email?, contact_phone?, website?, tags?, notes? }
  */
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { slug } = await params;
   const supabase = await createClient();
   const space = await resolveSpace(supabase, slug);
@@ -25,7 +26,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const supabase = await createClient();
   const {
@@ -107,3 +108,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/orgs/:slug/vendors",
+);
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/orgs/:slug/vendors",
+);

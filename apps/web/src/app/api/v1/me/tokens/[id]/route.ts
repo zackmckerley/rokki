@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -10,7 +11,7 @@ interface Props {
  * Active MCP sessions using the token are disconnected within 30s
  * (MCP server re-validates on every keep-alive ping).
  */
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -44,3 +45,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/me/tokens/:id",
+);

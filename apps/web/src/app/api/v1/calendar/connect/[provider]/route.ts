@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
 import { createClient } from "@/lib/supabase/server";
+import { withObservability } from "@/lib/observability";
 import {
   authorizeUrl,
   providerConfig,
@@ -19,7 +20,7 @@ interface Props {
  * and redirects to the provider. The callback route verifies the state
  * and completes the exchange.
  */
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { provider: raw } = await params;
   if (raw !== "google" && raw !== "microsoft") {
     return NextResponse.json(
@@ -65,3 +66,8 @@ function unavailable(provider: Provider) {
   url.searchParams.set("provider", provider);
   return NextResponse.redirect(url);
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/calendar/connect/:provider",
+);
