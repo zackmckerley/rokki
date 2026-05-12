@@ -127,6 +127,13 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
   const [sortMode, setSortMode] = useState<SortMode>("auto");
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
   /**
+   * Client-side filter query. Matches against title + description +
+   * labels + assignee names + `${ticker}-${seq}`. Empty string =
+   * show everything. Filter happens before the group-by bucket
+   * so headings reflect filtered counts.
+   */
+  const [query, setQuery] = useState("");
+  /**
    * The id of the row currently being dragged (in Manual mode). Used
    * to skip drop highlighting on the source row and to look up its
    * neighbours when computing the new sparse position on drop.
@@ -695,12 +702,19 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
             </select>
           </label>
         </div>
-        <button
-          onClick={() => setCreating(true)}
-          className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
-        >
-          <Plus className="h-3 w-3" /> New task <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
-        </button>
+        <div className="flex items-center gap-2">
+          <TaskSearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder="Filter tasks…"
+          />
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+          >
+            <Plus className="h-3 w-3" /> New task <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
+          </button>
+        </div>
       </div>
 
       {error ? (
@@ -723,13 +737,27 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
         ) : (
           (() => {
             // Manual drag-reorder writes to the position column with no
-            // bucket semantics — disable it when grouped to avoid a
-            // confusing "drag worked but the row didn't move" UX.
-            const dragEnabled = sortMode === "manual" && groupMode === "none";
-            const groups = groupTasks(tasks, groupMode);
+            // bucket semantics — disable it when grouped OR filtered to
+            // avoid a confusing "drag worked but the row didn't move"
+            // UX.
+            const filtered = filterTasks(tasks, query, ticker);
+            const dragEnabled =
+              sortMode === "manual" && groupMode === "none" && !query.trim();
+            const groups = groupTasks(filtered, groupMode);
             // Map task.id → its index in the global `tasks` array so
             // selectedIdx (driven by j/k) keeps working across buckets.
             const idxById = new Map(tasks.map((t, i) => [t.id, i]));
+            if (filtered.length === 0 && query.trim()) {
+              return (
+                <p className="px-4 py-10 text-center text-xs text-text-3">
+                  No tasks match{" "}
+                  <span className="font-mono text-text-1">
+                    &ldquo;{query.trim()}&rdquo;
+                  </span>
+                  .
+                </p>
+              );
+            }
             return (
               <div>
                 {groups.map((group) => (
@@ -1229,3 +1257,117 @@ function sortTasks(tasks: Task[], mode: SortMode = "auto"): Task[] {
 }
 
 
+
+/* --------------------------------------------------------------- */
+/* Task search                                                       */
+/* --------------------------------------------------------------- */
+
+/**
+ * Client-side filter. Searches title, description, labels, assignee
+ * names, and the `TICKER-N` deep-link identifier. All matching is
+ * case-insensitive substring. Returns the original `tasks` array
+ * when query is empty so React reference-equality lets the parent
+ * skip unchanged work.
+ *
+ * Deliberately client-only — at our current per-terminal volume
+ * (hundreds of tasks max) this is faster than a round-trip and
+ * lets us highlight matches without a refetch.
+ */
+function filterTasks(tasks: Task[], query: string, ticker: string): Task[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return tasks;
+  return tasks.filter((t) => {
+    if (t.title.toLowerCase().includes(q)) return true;
+    if (t.description?.toLowerCase().includes(q)) return true;
+    if (t.labels?.some((l) => l.toLowerCase().includes(q))) return true;
+    if (
+      t.assignees?.some((a) =>
+        (a.full_name ?? "").toLowerCase().includes(q),
+      )
+    )
+      return true;
+    // TICKER-N: e.g. "HELIOS-42" or just "42". Tolerate either.
+    const tickerSeq = `${ticker}-${t.ticker_seq}`.toLowerCase();
+    if (tickerSeq.includes(q)) return true;
+    return false;
+  });
+}
+
+/**
+ * Toolbar search input. Visible always so the affordance is
+ * discoverable; `f` from anywhere outside an input focuses it.
+ * `Escape` clears the query and blurs.
+ */
+function TaskSearchInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder?: string;
+}) {
+  const ref = useRef<HTMLInputElement | null>(null);
+
+  // Window-level `f` shortcut to focus this input. Guards against
+  // firing while typing in another input/textarea so it doesn't
+  // steal a real keystroke.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "f") return;
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t?.tagName === "INPUT" ||
+        t?.tagName === "TEXTAREA" ||
+        t?.tagName === "SELECT" ||
+        t?.isContentEditable
+      ) {
+        return;
+      }
+      e.preventDefault();
+      ref.current?.focus();
+      ref.current?.select();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  return (
+    <div className="relative flex items-center">
+      <input
+        ref={ref}
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onChange("");
+            ref.current?.blur();
+          }
+        }}
+        placeholder={placeholder ?? "Filter…"}
+        aria-label="Filter tasks"
+        className="w-44 rounded-sm border border-border bg-bg-1 px-2 py-1 pr-6 text-xs text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus"
+      />
+      {value ? (
+        <button
+          type="button"
+          onClick={() => {
+            onChange("");
+            ref.current?.focus();
+          }}
+          aria-label="Clear filter"
+          className="absolute right-1 rounded-sm p-0.5 text-text-3 hover:bg-bg-3 hover:text-text-0"
+        >
+          ×
+        </button>
+      ) : (
+        <kbd className="absolute right-1 font-mono text-[10px] text-text-3">
+          f
+        </kbd>
+      )}
+    </div>
+  );
+}
