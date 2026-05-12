@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ userId: string }>;
 }
@@ -9,7 +10,7 @@ interface Props {
  * GET  /api/v1/admin/users/:userId/notes  → list of admin notes + author email
  * POST /api/v1/admin/users/:userId/notes  { body }
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest, { params }: Props) {
   });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { userId } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -83,3 +84,12 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/admin/users/:userId/notes",
+);
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/admin/users/:userId/notes",
+);

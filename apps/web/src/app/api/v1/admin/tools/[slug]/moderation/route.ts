@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -16,7 +17,7 @@ interface Props {
  */
 const STATUSES = ["approved", "pending", "disabled", "featured"] as const;
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -66,3 +67,8 @@ export async function POST(request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data });
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/admin/tools/:slug/moderation",
+);

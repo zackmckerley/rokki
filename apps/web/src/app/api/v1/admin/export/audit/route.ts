@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { toCsv } from "@/lib/csv";
 import { redactPII } from "@/lib/pii-redact";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/admin/export/audit?since_days=30&include_pii=false
  *
@@ -18,7 +19,7 @@ import { redactPII } from "@/lib/pii-redact";
  * in the response filename so the recipient can tell which version
  * they're holding.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -148,3 +149,8 @@ export async function GET(request: NextRequest) {
     },
   });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/export/audit",
+);

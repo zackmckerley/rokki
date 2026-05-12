@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/admin/tools
  *   ?moderation= "approved" | "pending" | "disabled" | "featured" | (all)
@@ -9,7 +10,7 @@ import { emitEvent } from "@/lib/events";
  * The list returns marketplace-wide; the per-slug actions live in
  * /api/v1/admin/tools/[slug]/{approve,disable,feature}.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -39,3 +40,8 @@ export async function GET(request: NextRequest) {
     );
   return NextResponse.json({ data: data ?? [] });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/tools",
+);

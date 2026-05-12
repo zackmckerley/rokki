@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/admin/health
  *   Returns counts and pulses across the platform: row counts per
  *   public table, pending queues, last-touched timestamps for the
  *   indexer + scanner.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -73,3 +74,8 @@ export async function GET(request: NextRequest) {
     },
   });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/health",
+);

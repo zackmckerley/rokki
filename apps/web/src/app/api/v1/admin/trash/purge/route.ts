@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * POST /api/v1/admin/trash/purge   { cutoff_days?: number = 30 }
  *
@@ -10,7 +11,7 @@ import { emitEvent } from "@/lib/events";
  * endpoint just exposes the function so a manual run, an external cron,
  * or pg_cron can all invoke it.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -55,3 +56,8 @@ export async function POST(request: NextRequest) {
     data: { cutoff_days: days, total, by_table: rows },
   });
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/trash/purge",
+);
