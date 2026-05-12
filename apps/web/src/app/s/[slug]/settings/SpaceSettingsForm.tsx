@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Check, UserMinus, UserPlus, Mail } from "lucide-react";
+import { AlertTriangle, Check, UserMinus, UserPlus, Mail } from "lucide-react";
 import { Avatar } from "@/components/primitives";
 import { cn } from "@/lib/utils";
 
@@ -78,6 +78,9 @@ export function SpaceSettingsForm({
         canManage={canManage}
         onAdd={(invite) => setInvites((prev) => [invite, ...prev])}
       />
+      {myRole === "owner" ? (
+        <DangerZoneCard slug={slug} spaceName={initial.name} />
+      ) : null}
     </div>
   );
 }
@@ -564,4 +567,139 @@ async function messageOf(r: Response): Promise<string> {
   } catch {
     return `HTTP ${r.status}`;
   }
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Owner-only "Danger zone" card. Soft-deletes the space (sets
+ * spaces.archived_at = now()) and lets the DB cascade trigger fan
+ * the archive down to every terminal / task / file in the space.
+ *
+ * Two-step confirmation: the primary "Delete space" button reveals
+ * a typed-confirmation prompt. The user has to type the exact
+ * space name to enable the final action — same pattern GitHub /
+ * Vercel / Linear use for destructive ops, and the right ratio of
+ * friction for a side-effect this wide.
+ *
+ * On success, navigates to "/" — the deleted space won't show up
+ * in the explorer rail any longer (queries filter
+ * `archived_at IS NULL`), so leaving the user on the now-stale
+ * settings URL would be jarring.
+ */
+function DangerZoneCard({
+  slug,
+  spaceName,
+}: {
+  slug: string;
+  spaceName: string;
+}) {
+  const [armed, setArmed] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const confirmed = typed.trim() === spaceName;
+
+  async function submit() {
+    if (!confirmed || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/v1/orgs/${slug}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        setError(await messageOf(r));
+        setSubmitting(false);
+        return;
+      }
+      // Hard browser navigation to "/" — the soft-archived space
+      // would still be cached by the App Router's RSC layer for a
+      // moment, and we want to be on a fresh dashboard.
+      window.location.assign("/");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <section className="overflow-hidden rounded border border-danger/40 bg-danger-subtle/30">
+      <header className="flex items-center gap-2 border-b border-danger/40 bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-danger">
+        <AlertTriangle className="h-3 w-3" />
+        Danger zone
+      </header>
+      <div className="flex flex-col gap-3 p-4">
+        <div>
+          <h3 className="text-sm font-semibold text-text-0">Delete this space</h3>
+          <p className="mt-1 text-xs text-text-2">
+            Archives <span className="font-mono text-text-1">{spaceName}</span>{" "}
+            and every terminal, task, file, and message inside it. Members
+            lose access immediately. A platform admin can restore within
+            the retention window; after that it&apos;s purged permanently.
+          </p>
+        </div>
+        {!armed ? (
+          <div>
+            <button
+              type="button"
+              onClick={() => setArmed(true)}
+              className="rounded-sm border border-danger bg-bg-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-danger hover:bg-danger/10"
+            >
+              Delete space
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 rounded-sm border border-danger/60 bg-bg-1 p-3">
+            <label className="text-xs text-text-2" htmlFor="space-delete-confirm">
+              Type{" "}
+              <span className="font-mono text-text-0">{spaceName}</span>{" "}
+              to confirm:
+            </label>
+            <input
+              id="space-delete-confirm"
+              type="text"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              autoFocus
+              autoComplete="off"
+              spellCheck={false}
+              disabled={submitting}
+              className="rounded-sm border border-border bg-bg-0 px-2 py-1 font-mono text-sm text-text-0 outline-none focus:border-border-focus disabled:opacity-50"
+            />
+            {error ? (
+              <p className="text-xs text-danger">{error}</p>
+            ) : null}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={!confirmed || submitting}
+                className={cn(
+                  "rounded-sm bg-danger px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-bg-0",
+                  (!confirmed || submitting) &&
+                    "cursor-not-allowed opacity-40",
+                )}
+              >
+                {submitting ? "Deleting…" : "Delete permanently"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setArmed(false);
+                  setTyped("");
+                  setError(null);
+                }}
+                disabled={submitting}
+                className="rounded-sm border border-border bg-bg-2 px-3 py-1.5 text-xs uppercase tracking-wide text-text-1 hover:bg-bg-3"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }
