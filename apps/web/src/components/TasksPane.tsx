@@ -11,6 +11,7 @@ import {
   MessageSquare,
   Maximize2,
   ListTodo,
+  Repeat,
   Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,7 +26,11 @@ const CommentThread = dynamic(
   () => import("./CommentThread").then((m) => ({ default: m.CommentThread })),
   { ssr: false },
 );
-import { TaskComposer, type TaskComposerMember } from "./TaskComposer";
+import {
+  TaskComposer,
+  type TaskComposerMember,
+  type TaskComposerSubmit,
+} from "./TaskComposer";
 import { SubtasksList, type Subtask } from "./SubtasksList";
 import {
   PriorityDots,
@@ -33,7 +38,7 @@ import {
   DueChip,
 } from "./primitives";
 import { groupTasks, type TaskGroupMode } from "@/lib/task-grouping";
-import type { TaskStatus } from "@rokki/db";
+import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
 interface TaskAssignee {
   user_id: string;
@@ -55,6 +60,7 @@ interface Task {
   latest_status_at?: string | null;
   assignees?: TaskAssignee[];
   external_assignee_emails?: string[];
+  recurrence_rule?: TaskRecurrenceRule | null;
   /**
    * Sparse-integer manual-sort position. May be null for legacy rows
    * created before the column existed; the GET endpoint coerces NULLs
@@ -531,14 +537,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
    * success. Throws on failure so the composer can surface the error
    * inline.
    */
-  async function createTask(input: {
-    title: string;
-    priority: number | null;
-    due_date: string | null;
-    labels: string[];
-    assignee_ids: string[];
-    external_assignee_emails: string[];
-  }) {
+  async function createTask(input: TaskComposerSubmit) {
     const r = await offlineFetch(`/api/v1/projects/${ticker}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -553,6 +552,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
           input.external_assignee_emails.length > 0
             ? input.external_assignee_emails
             : undefined,
+        recurrence_rule: input.recurrence_rule,
       }),
       label: `Create task: ${input.title}`,
     });
@@ -982,10 +982,37 @@ function TaskRow({
         <Send className="h-3 w-3" />
       </button>
       {task.due_date ? <DueChip date={task.due_date} /> : null}
+      {task.recurrence_rule ? (
+        <span
+          className="flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-[10px] uppercase tracking-wide text-text-2"
+          title={`Repeats ${recurrenceLabel(task.recurrence_rule)}`}
+        >
+          <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
+          {recurrenceShortLabel(task.recurrence_rule)}
+        </span>
+      ) : null}
       <PriorityDots priority={task.priority} />
       <StatusPill status={task.status} />
     </div>
   );
+}
+
+/** Long form for tooltips: "Daily", "Weekly", "Monthly ×2". */
+function recurrenceLabel(rule: TaskRecurrenceRule): string {
+  const base =
+    rule.pattern === "daily"
+      ? "Daily"
+      : rule.pattern === "weekly"
+        ? "Weekly"
+        : "Monthly";
+  return rule.interval > 1 ? `${base} ×${rule.interval}` : base;
+}
+
+/** Single-char chip glyph: "D", "W", "M" (+ optional interval). */
+function recurrenceShortLabel(rule: TaskRecurrenceRule): string {
+  const letter =
+    rule.pattern === "daily" ? "D" : rule.pattern === "weekly" ? "W" : "M";
+  return rule.interval > 1 ? `${letter}${rule.interval}` : letter;
 }
 
 function SkeletonList() {
