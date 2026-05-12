@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -464,6 +464,60 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
   }
 
   /**
+   * Rename a task in-place from the list. Called when the user hits
+   * Enter on the inline editor or blurs with a different title than
+   * the original. PATCHes `title` only; uses the row's
+   * `updated_at` as an optimistic-concurrency token so a stale
+   * keypress can't clobber someone else's concurrent edit.
+   *
+   * Optimistic UI: title flips on call, server-truth wins on
+   * response (rolls back on 4xx/5xx). The realtime channel
+   * reconciles the rest.
+   */
+  async function renameTask(task: Task, nextTitle: string) {
+    const trimmed = nextTitle.trim();
+    if (!trimmed || trimmed === task.title) return;
+    if (trimmed.length > 300) {
+      setError("title must be ≤ 300 characters");
+      return;
+    }
+    // Optimistic flip.
+    setTasks((prev) =>
+      prev.map((t) => (t.id === task.id ? { ...t, title: trimmed } : t)),
+    );
+    try {
+      const r = await fetch(`/api/v1/tasks/${task.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: trimmed }),
+      });
+      if (!r.ok) {
+        if (r.status === 409) {
+          // Someone else's edit landed first. Reload the list to
+          // pull the canonical title and let the user retry.
+          setError(
+            "Title was edited elsewhere — reloading. Please retry.",
+          );
+        } else {
+          const body = (await r.json().catch(() => ({}))) as {
+            errors?: { message: string }[];
+          };
+          setError(
+            body.errors?.[0]?.message ?? `Rename failed (HTTP ${r.status})`,
+          );
+        }
+        await load();
+      } else {
+        setError(null);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error");
+      await load();
+    }
+  }
+
+  /**
    * Ping the task's assignees with a "what's the status?" message
    * via the messenger. Backend creates/reuses a `status_thread` and
    * delivers a notification to each assignee. UX is intentionally
@@ -769,6 +823,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
                               }
                               onToggleExpand={() => toggleExpand(t.id)}
                               onRequestUpdate={() => requestUpdate(t)}
+                              onRename={(next) => renameTask(t, next)}
                             />
                             {expanded ? (
                               <SubtasksList
@@ -831,6 +886,7 @@ function TaskRow({
   onOpenComments,
   onToggleExpand,
   onRequestUpdate,
+  onRename,
 }: {
   task: Task;
   ticker: string;
@@ -842,6 +898,12 @@ function TaskRow({
   onOpenComments: () => void;
   onToggleExpand: () => void;
   onRequestUpdate: () => void;
+  /**
+   * Persist a renamed title. Called when the user blurs / hits
+   * Enter on the inline-edit input. Receives the trimmed new title;
+   * implementation handles validation + PATCH + optimistic rollback.
+   */
+  onRename: (nextTitle: string) => void;
 }) {
   const done = task.status === "done";
   const subtaskTotal = task.subtask_total ?? 0;
@@ -913,14 +975,11 @@ function TaskRow({
         {done ? <Check className="h-3 w-3" aria-hidden="true" /> : null}
       </button>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span
-          className={cn(
-            "truncate text-sm",
-            done ? "text-text-3 line-through" : "text-text-0",
-          )}
-        >
-          {task.title}
-        </span>
+        <InlineTitleEditor
+          title={task.title}
+          done={done}
+          onCommit={onRename}
+        />
         {status ? (
           <span
             className="flex items-center gap-1 truncate text-[11px] leading-tight text-text-2"
@@ -985,6 +1044,115 @@ function TaskRow({
       <PriorityDots priority={task.priority} />
       <StatusPill status={task.status} />
     </div>
+  );
+}
+
+/**
+ * Inline title editor for a task row. Renders as a plain `<span>` in
+ * its default state — double-click (or hit Enter when the row is
+ * selected) flips to a focused `<input>`. Enter commits, Escape
+ * cancels, blur commits the current value.
+ *
+ * Commit semantics:
+ *   - Trim → compare to original. If unchanged: silent revert.
+ *   - If changed and ≤ 300 chars: call onCommit. Parent owns the
+ *     PATCH + optimistic update + rollback on failure.
+ *   - If empty after trim: silent revert (no destructive rename).
+ *
+ * Doesn't bubble Enter / clicks while editing — those would
+ * otherwise toggle the parent row's complete state or open
+ * comments. `stopPropagation` on the key + click handlers
+ * isolates the input.
+ */
+function InlineTitleEditor({
+  title,
+  done,
+  onCommit,
+}: {
+  title: string;
+  done: boolean;
+  onCommit: (next: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(title);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Reset the draft whenever the upstream title changes — handles the
+  // case where another collaborator renames the row while we're not
+  // editing (realtime push lands).
+  useEffect(() => {
+    if (!editing) setDraft(title);
+  }, [title, editing]);
+
+  // Auto-select on focus so a double-click → type-to-replace flow
+  // feels native (matches Finder rename, GitHub issue titles, etc.).
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [editing]);
+
+  function commit() {
+    const next = draft.trim();
+    setEditing(false);
+    if (!next || next === title) {
+      // Empty or unchanged — silent revert.
+      setDraft(title);
+      return;
+    }
+    onCommit(next);
+  }
+
+  function cancel() {
+    setDraft(title);
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <span
+        className={cn(
+          "truncate text-sm",
+          done ? "text-text-3 line-through" : "text-text-0",
+        )}
+        title="Double-click to rename"
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          setEditing(true);
+        }}
+      >
+        {title}
+      </span>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type="text"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") {
+          e.preventDefault();
+          commit();
+        } else if (e.key === "Escape") {
+          e.preventDefault();
+          cancel();
+        }
+      }}
+      onBlur={commit}
+      maxLength={300}
+      aria-label="Task title"
+      className={cn(
+        "min-w-0 flex-1 truncate rounded-sm border border-border-focus bg-bg-0 px-1 py-0.5 text-sm text-text-0 outline-none",
+        done && "line-through",
+      )}
+    />
   );
 }
 
