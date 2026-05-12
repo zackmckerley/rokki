@@ -4,7 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog } from "./Dialog";
-import { TaskComposer, type TaskComposerMember } from "./TaskComposer";
+import {
+  TaskComposer,
+  type TaskComposerMember,
+  type TaskComposerSubmit,
+} from "./TaskComposer";
 import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
 
 interface QuickTaskDialogProps {
@@ -105,14 +109,7 @@ export function QuickTaskDialog({
     [terminalId, terminals],
   );
 
-  async function handleSubmit(input: {
-    title: string;
-    priority: number | null;
-    due_date: string | null;
-    labels: string[];
-    assignee_ids: string[];
-    external_assignee_emails: string[];
-  }) {
+  async function handleSubmit(input: TaskComposerSubmit) {
     if (!selectedTerminal) {
       throw new Error("Pick a terminal first");
     }
@@ -133,6 +130,7 @@ export function QuickTaskDialog({
             input.external_assignee_emails.length > 0
               ? input.external_assignee_emails
               : undefined,
+          recurrence_rule: input.recurrence_rule,
         }),
       },
     );
