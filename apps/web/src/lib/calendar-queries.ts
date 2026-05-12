@@ -42,6 +42,20 @@ export interface CalendarItem {
   terminal_ticker: string | null;
   /** Task only — for the detail link. */
   ticker_seq?: number;
+  /**
+   * Event-only: ISO end-time. Used by the day/week hour grid to size
+   * each event block proportionally. Tasks-as-due don't have a real
+   * duration and leave this null.
+   */
+  ends_at?: string | null;
+  /**
+   * Event-only fields surfaced by the details drawer. Pulled with
+   * the same SELECT so opening the drawer doesn't need a follow-up
+   * fetch.
+   */
+  description?: string | null;
+  location?: string | null;
+  html_link?: string | null;
 }
 
 export interface CalendarSource {
@@ -163,7 +177,7 @@ async function fetchEvents(
   const { data: rows } = await supabase
     .from("calendar_events")
     .select(
-      "id, connection_id, title, starts_at, all_day, terminal_id, terminals(ticker)",
+      "id, connection_id, title, description, location, starts_at, ends_at, all_day, html_link, terminal_id, terminals(ticker)",
     )
     .in("connection_id", visibleConnIds)
     .gte("starts_at", range.startIso)
@@ -174,8 +188,12 @@ async function fetchEvents(
     id: string;
     connection_id: string;
     title: string;
+    description: string | null;
+    location: string | null;
     starts_at: string;
+    ends_at: string | null;
     all_day: boolean;
+    html_link: string | null;
     terminal_id: string | null;
     terminals:
       | { ticker: string }
@@ -184,7 +202,7 @@ async function fetchEvents(
   };
   return ((rows ?? []) as EventRow[]).map((r) => ({
     id: r.id,
-    kind: "event",
+    kind: "event" as const,
     title: r.title,
     when: r.starts_at,
     date: r.starts_at.slice(0, 10),
@@ -193,6 +211,10 @@ async function fetchEvents(
     terminal_id: r.terminal_id,
     terminal_ticker: extractTicker(r.terminals),
     ticker_seq: undefined,
+    ends_at: r.ends_at,
+    description: r.description,
+    location: r.location,
+    html_link: r.html_link,
   }));
 }
 
