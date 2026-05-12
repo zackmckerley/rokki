@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 interface ActorRow {
   actor_id: string;
 }
@@ -24,7 +25,7 @@ interface ActionRow {
  * each query is a small, indexed scan over the tail of `activity` plus a
  * single profile/terminal lookup per id.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -115,3 +116,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/activity/facets",
+);

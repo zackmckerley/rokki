@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/admin/emergency
  *   Lists emergency-access grants. ?active=true filters to currently
@@ -17,7 +18,7 @@ import { emitEvent } from "@/lib/events";
  *   terminal_members (role: guest) until `active_until` so RLS lets them
  *   read. Revocation removes the membership row + sets revoked_at.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -151,3 +152,12 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/emergency",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/emergency",
+);

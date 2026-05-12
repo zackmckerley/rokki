@@ -11,6 +11,7 @@ import {
 } from "@/lib/webhooks";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * POST /api/v1/admin/jobs/process
  *
@@ -43,7 +44,7 @@ interface ProcessBody {
   batchSize?: number;
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   if (!(await authorize(request))) return unauthorized();
 
   const body = (await request.json().catch(() => ({}))) as ProcessBody;
@@ -120,3 +121,8 @@ function unauthorized(): NextResponse {
     { status: 401 },
   );
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/jobs/process",
+);

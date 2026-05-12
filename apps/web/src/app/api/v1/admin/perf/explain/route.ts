@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 /**
  * POST /api/v1/admin/perf/explain
  * Body: { query: string }
@@ -10,7 +11,7 @@ import { requireAdmin } from "@/lib/admin-auth";
  * ($1, $2, ...) are substituted with NULL inside the RPC. SELECT/WITH
  * statements only.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -56,3 +57,8 @@ export async function POST(request: NextRequest) {
     data: { plan: (data ?? []).map((r) => r.line).join("\n") },
   });
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/perf/explain",
+);

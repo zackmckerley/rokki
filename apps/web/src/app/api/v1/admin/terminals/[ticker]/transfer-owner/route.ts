@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ ticker: string }>;
 }
@@ -14,7 +15,7 @@ interface Props {
  * and demote existing owners to manager. (Multiple owners are allowed by
  * schema, but the convention is one.)
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -81,3 +82,8 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/admin/terminals/:ticker/transfer-owner",
+);

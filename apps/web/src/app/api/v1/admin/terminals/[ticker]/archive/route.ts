@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ ticker: string }>;
 }
@@ -13,7 +14,7 @@ interface Props {
  * Admin variant: bypasses the terminal-owner/manager check that the
  * non-admin route enforces.
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -61,7 +62,7 @@ export async function POST(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data: { archived: true } });
 }
 
-export async function DELETE(request: NextRequest, { params }: Props) {
+async function handleDelete(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -106,3 +107,12 @@ export async function DELETE(request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data: { restored: true } });
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/admin/terminals/:ticker/archive",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/admin/terminals/:ticker/archive",
+);

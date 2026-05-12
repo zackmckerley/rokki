@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 import crypto from "node:crypto";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/admin/webhooks
  * POST /api/v1/admin/webhooks  { url, events[], owner_space_id?, description?, active? }
@@ -14,7 +15,7 @@ import crypto from "node:crypto";
  * Failed deliveries retry on exponential backoff before dead-lettering;
  * see `/api/v1/admin/webhooks/process-due`.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -91,3 +92,12 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/webhooks",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/webhooks",
+);

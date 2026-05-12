@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -13,7 +14,7 @@ const SLUG_RE = /^[a-z][a-z0-9-]{1,38}[a-z0-9]$/;
  * PATCH  /api/v1/admin/spaces/:slug      { name?, slug?, description? }
  * DELETE /api/v1/admin/spaces/:slug      → archive (soft, sets archived_at)
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest, { params }: Props) {
   });
 }
 
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -166,7 +167,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data });
 }
 
-export async function DELETE(request: NextRequest, { params }: Props) {
+async function handleDelete(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -225,3 +226,16 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/admin/spaces/:slug",
+);
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/admin/spaces/:slug",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/admin/spaces/:slug",
+);

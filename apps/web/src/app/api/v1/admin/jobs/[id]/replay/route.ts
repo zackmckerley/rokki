@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { replayDeadJob } from "@/lib/jobs";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -16,7 +17,7 @@ interface Props {
  */
 export const dynamic = "force-dynamic";
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -56,3 +57,8 @@ export async function POST(request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data: { id, replayed: true } });
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/admin/jobs/:id/replay",
+);

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,7 @@ export const dynamic = "force-dynamic";
  * can distinguish dead-lettered, in-flight, and delivered without
  * three round-trips.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -45,3 +46,8 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({ data: data ?? [] });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/webhooks/deliveries",
+);
