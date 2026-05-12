@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { emitEvent } from "@/lib/events";
 import type { ProjectStatus } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ ticker: string }>;
 }
@@ -27,7 +28,7 @@ const VALID_STATUSES: ProjectStatus[] = [
   "archived",
 ];
 
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const {
@@ -47,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   return NextResponse.json({ data });
 }
 
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const {
@@ -118,7 +119,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   return NextResponse.json({ data });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { ticker } = await params;
   const supabase = await createClient();
   const {
@@ -241,3 +242,16 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/projects/:ticker",
+);
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/projects/:ticker",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/projects/:ticker",
+);

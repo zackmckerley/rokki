@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generateToken } from "@/lib/tokens";
 import type { TokenScope } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/me/tokens          — list my active tokens (prefix only; plaintext never stored)
  * POST /api/v1/me/tokens { name, scopes?, expires_in_days? }
@@ -10,7 +11,7 @@ import type { TokenScope } from "@rokki/db";
  *
  * See docs/04_AUTH_SECURITY.md §4.2.
  */
-export async function GET() {
+async function handleGet() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -28,7 +29,7 @@ export async function GET() {
   return NextResponse.json({ data: data ?? [] });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -108,3 +109,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/me/tokens",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/me/tokens",
+);

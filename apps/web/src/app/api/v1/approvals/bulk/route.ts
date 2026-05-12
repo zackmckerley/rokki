@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface ApprovalRow {
   id: string;
   type: string;
@@ -34,7 +35,7 @@ interface ItemResult {
  * Returns a per-id result so the UI can show what succeeded vs. what was
  * skipped (e.g. "you don't admin that space" or "already resolved").
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -195,3 +196,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/approvals/bulk",
+);

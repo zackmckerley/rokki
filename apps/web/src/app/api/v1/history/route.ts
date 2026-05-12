@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/history?entity_type=task|terminal|space|file|comment&entity_id=<uuid>&limit=50
  *
@@ -18,7 +19,7 @@ import { createClient } from "@/lib/supabase/server";
 
 const VALID_ENTITY_TYPES = new Set(["task", "terminal", "space", "file", "comment"]);
 
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -71,3 +72,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/history",
+);

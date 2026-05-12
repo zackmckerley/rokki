@@ -3,6 +3,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { getSignedDownloadUrl } from "@/lib/storage";
 import type { Database } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ token: string }>;
 }
@@ -17,7 +18,7 @@ interface Props {
  *
  * ?download=1 marks the access as a download instead of a view.
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { token } = await params;
   const admin = createAdminClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -123,3 +124,8 @@ function friendly(reason: string): string {
       return "Access denied.";
   }
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/share/:token",
+);

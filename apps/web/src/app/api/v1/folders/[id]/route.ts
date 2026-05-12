@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isValidFolderName, joinPath, parentOf } from "@/lib/folder-path";
 import type { Database } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -17,7 +18,7 @@ interface Props {
  * Cascades run through the service-role client because the caller's RLS only
  * grants update on their own files/folders, not on every descendant.
  */
-export async function PATCH(request: NextRequest, { params }: Props) {
+async function handlePatch(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -128,7 +129,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
   });
 }
 
-export async function DELETE(_req: NextRequest, { params }: Props) {
+async function handleDelete(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -227,3 +228,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const PATCH = withObservability<Props>(
+  handlePatch,
+  "PATCH /api/v1/folders/:id",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/folders/:id",
+);

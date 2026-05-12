@@ -4,13 +4,14 @@ import { isValidTicker, suggestTicker, uniqueTicker } from "@/lib/ticker";
 import { emitEvent } from "@/lib/events";
 import type { ProjectStatus } from "@rokki/db";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/projects                       — all accessible projects
  * POST /api/v1/projects  { space_id, name, ticker?, description?, type?, metadata? }
  *
  * See docs/02_API.md §2.6.
  */
-export async function GET() {
+async function handleGet() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -29,7 +30,7 @@ export async function GET() {
   return NextResponse.json({ data });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -178,3 +179,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/projects",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/projects",
+);

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -14,7 +15,7 @@ interface Props {
  * The RLS policies on task_dependencies require the caller to see both
  * tasks involved.
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { id: taskId } = await params;
   const supabase = await createClient();
   const {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest, { params }: Props) {
   return new NextResponse(null, { status: 204 });
 }
 
-export async function DELETE(request: NextRequest, { params }: Props) {
+async function handleDelete(request: NextRequest, { params }: Props) {
   const { id: taskId } = await params;
   const supabase = await createClient();
   const {
@@ -89,3 +90,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/tasks/:id/dependencies",
+);
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/tasks/:id/dependencies",
+);

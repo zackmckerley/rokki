@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildBlobKey, copyObject } from "@/lib/storage";
 import crypto from "node:crypto";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -15,7 +16,7 @@ interface Props {
  * the payload. Destination defaults to the source's folder and "(copy)"-suffixed
  * filename; both can be overridden.
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
   const {
@@ -158,3 +159,8 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/files/:id/duplicate",
+);

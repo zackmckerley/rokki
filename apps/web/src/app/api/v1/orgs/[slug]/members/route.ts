@@ -5,6 +5,7 @@ import { emitEvent } from "@/lib/events";
 import type { Database } from "@rokki/db";
 import crypto from "node:crypto";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -22,7 +23,7 @@ type SpaceRole = "owner" | "admin" | "member";
  */
 const VALID_ROLES: SpaceRole[] = ["owner", "admin", "member"];
 
-export async function GET(_req: NextRequest, { params }: Props) {
+async function handleGet(_req: NextRequest, { params }: Props) {
   const { slug } = await params;
   const supabase = await createClient();
   const {
@@ -82,7 +83,7 @@ export async function GET(_req: NextRequest, { params }: Props) {
   });
 }
 
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const supabase = await createClient();
   const {
@@ -235,3 +236,12 @@ function internal(msg: string) {
     { status: 500 },
   );
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/orgs/:slug/members",
+);
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/orgs/:slug/members",
+);

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-export async function GET() {
+import { withObservability } from "@/lib/observability";
+async function handleGet() {
   const checks: Record<string, { ok: boolean; error?: string }> = {};
 
   try {
@@ -27,3 +28,8 @@ export async function GET() {
     { status: allOk ? 200 : 503 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/health",
+);

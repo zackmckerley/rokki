@@ -6,13 +6,14 @@ import {
 } from "@/lib/account-ring";
 import { createClient } from "@/lib/supabase/server";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/auth/accounts
  *   Returns the public view of the account ring + which one is currently
  *   active (matched against the Supabase session). Used by the
  *   AccountSwitcher dropdown.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const ring = parseRing(request.cookies.get(RING_COOKIE)?.value);
 
   let activeUserId: string | null = null;
@@ -33,3 +34,8 @@ export async function GET(request: NextRequest) {
     },
   });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/auth/accounts",
+);
