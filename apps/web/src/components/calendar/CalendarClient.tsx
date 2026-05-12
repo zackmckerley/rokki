@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   CalendarDays,
+  Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Diamond,
@@ -222,7 +224,7 @@ function ViewToggle({
       aria-label="Calendar view"
       className="flex overflow-hidden rounded-sm border border-border"
     >
-      {options.map((o) => (
+      {options.map((o, i) => (
         <button
           key={o.value}
           type="button"
@@ -230,10 +232,15 @@ function ViewToggle({
           aria-selected={current === o.value}
           onClick={() => onPick(o.value)}
           className={cn(
-            "px-2.5 py-1 text-[11px] uppercase tracking-wide",
+            "px-3 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors",
+            // Visible separators between buttons — without these the
+            // three labels collide into one unreadable "DAYWEEKMONTH"
+            // mash on the dark theme. The container border alone is
+            // outside the buttons; this draws the inside dividers.
+            i > 0 && "border-l border-border",
             current === o.value
-              ? "bg-bg-3 text-text-0"
-              : "bg-bg-2 text-text-2 hover:bg-bg-3 hover:text-text-1",
+              ? "bg-accent text-bg-0"
+              : "bg-bg-2 text-text-2 hover:bg-bg-3 hover:text-text-0",
           )}
         >
           {o.label}
@@ -252,54 +259,110 @@ function SourceFilter({
   hidden: Set<string>;
   onToggle: (id: string) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const visibleCount = sources.length - hidden.size;
+
+  // Close on outside click. Native `<details>` doesn't give us
+  // enough hover/focus control to read as "filter", so this is a
+  // custom popover. Same dismissal pattern the other Rokki menus
+  // use.
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
   return (
-    <details className="relative">
-      <summary
-        className="flex cursor-pointer items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] uppercase tracking-wide text-text-1 hover:bg-bg-3 [&::-webkit-details-marker]:hidden"
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="true"
         title="Filter calendar sources"
+        className={cn(
+          "flex items-center gap-1.5 rounded-sm border border-border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors",
+          open
+            ? "bg-bg-3 text-text-0"
+            : "bg-bg-2 text-text-1 hover:bg-bg-3 hover:text-text-0",
+        )}
       >
         <Filter className="h-3 w-3" />
-        <span>
-          {visibleCount}/{sources.length} sources
+        <span>Filter</span>
+        <span className="rounded-sm bg-bg-3 px-1 font-mono text-[10px] text-text-2">
+          {visibleCount}/{sources.length}
         </span>
-      </summary>
-      <ul className="absolute right-0 top-full z-20 mt-1 w-64 overflow-hidden rounded-sm border border-border bg-bg-1 py-1 text-xs shadow-lg">
-        {sources.map((s) => {
-          const isHidden = hidden.has(s.id);
-          return (
-            <li key={s.id}>
-              <button
-                type="button"
-                onClick={() => onToggle(s.id)}
-                className={cn(
-                  "flex w-full items-center gap-2 px-3 py-1.5 text-left text-text-1 hover:bg-bg-2",
-                  isHidden && "text-text-3",
-                )}
-              >
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    "h-2 w-2 flex-shrink-0 rounded-full",
-                    sourceTone(s),
-                    isHidden && "opacity-30",
-                  )}
-                />
-                <span className="flex-1 truncate">{s.label}</span>
-                {s.kind === "connection" ? (
-                  <span className="font-mono text-[10px] uppercase text-text-3">
-                    {s.provider === "google" ? "Google" : "Outlook"}
-                  </span>
-                ) : null}
-                <span className="text-[10px] uppercase text-text-3">
-                  {isHidden ? "Off" : "On"}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-    </details>
+        <ChevronDown
+          className={cn(
+            "h-3 w-3 transition-transform",
+            open && "rotate-180",
+          )}
+          aria-hidden="true"
+        />
+      </button>
+      {open ? (
+        <div className="absolute right-0 top-full z-20 mt-1 w-72 overflow-hidden rounded-sm border border-border bg-bg-1 shadow-lg">
+          <header className="flex items-center justify-between border-b border-border bg-bg-2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+            <span>Calendars</span>
+            <span className="font-mono text-text-2">
+              {visibleCount} of {sources.length} shown
+            </span>
+          </header>
+          <ul className="max-h-80 overflow-y-auto py-1 text-xs">
+            {sources.map((s) => {
+              const isHidden = hidden.has(s.id);
+              return (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => onToggle(s.id)}
+                    className={cn(
+                      "flex w-full items-center gap-2 px-3 py-2 text-left text-text-1 hover:bg-bg-2",
+                      isHidden && "text-text-3",
+                    )}
+                  >
+                    {/* Checkbox-style indicator — reads as "click to
+                        toggle" much more clearly than the previous
+                        On/Off label did. */}
+                    <span
+                      className={cn(
+                        "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm border",
+                        isHidden
+                          ? "border-border bg-bg-0"
+                          : "border-accent bg-accent text-bg-0",
+                      )}
+                      aria-hidden="true"
+                    >
+                      {!isHidden ? <Check className="h-3 w-3" /> : null}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        "h-2 w-2 flex-shrink-0 rounded-full",
+                        sourceTone(s),
+                        isHidden && "opacity-30",
+                      )}
+                    />
+                    <span className="flex-1 truncate">{s.label}</span>
+                    {s.kind === "connection" ? (
+                      <span className="font-mono text-[10px] uppercase text-text-3">
+                        {s.provider === "google" ? "Google" : "Outlook"}
+                      </span>
+                    ) : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
