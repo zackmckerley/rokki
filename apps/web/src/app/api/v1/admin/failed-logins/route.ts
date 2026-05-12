@@ -1,13 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/admin/failed-logins
  *   Aggregates rate_limit_hits in the password_login + magic_link_email
  *   buckets to surface accounts under attempted abuse. Each row is one
  *   (token, attempt-count) pair where the token is "ip:email".
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -60,3 +61,8 @@ export async function GET(request: NextRequest) {
     meta: { since },
   });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/failed-logins",
+);

@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { replayDelivery } from "@/lib/webhooks";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ interface Props {
  * Returns 409 if the delivery isn't currently dead-lettered (replaying
  * a successful or in-flight delivery would create a duplicate).
  */
-export async function POST(request: NextRequest, { params }: Props) {
+async function handlePost(request: NextRequest, { params }: Props) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { userId } = gate;
@@ -48,3 +49,8 @@ export async function POST(request: NextRequest, { params }: Props) {
 
   return NextResponse.json({ data: { id, replayed: true } });
 }
+
+export const POST = withObservability<Props>(
+  handlePost,
+  "POST /api/v1/admin/webhooks/deliveries/:id/replay",
+);

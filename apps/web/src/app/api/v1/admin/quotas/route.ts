@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET  /api/v1/admin/quotas
  *   Lists every quota row with the tool slug joined for readability.
@@ -16,7 +17,7 @@ import { emitEvent } from "@/lib/events";
  * DELETE /api/v1/admin/quotas?id=...
  *   Removes a quota row.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -60,7 +61,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ data });
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDelete(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -175,3 +176,16 @@ function nextResetAt(period: "day" | "month"): string {
   );
   return next.toISOString();
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/quotas",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/quotas",
+);
+export const DELETE = withObservability(
+  handleDelete,
+  "DELETE /api/v1/admin/quotas",
+);

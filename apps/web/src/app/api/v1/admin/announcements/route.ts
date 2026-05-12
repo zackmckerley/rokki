@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 const AUDIENCES = ["all", "admins", "space"] as const;
 
 /**
@@ -9,7 +10,7 @@ const AUDIENCES = ["all", "admins", "space"] as const;
  * POST /api/v1/admin/announcements        { body, audience, audience_space_id?,
  *                                           starts_at?, ends_at?, dismissible? }
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({ data: data ?? [] });
 }
 
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -81,3 +82,12 @@ function bad(msg: string) {
     { status: 400 },
   );
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/announcements",
+);
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/announcements",
+);

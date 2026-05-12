@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 import { revokeSessions } from "@/lib/revocations";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/admin/tokens
  *   Lists every access_tokens row with the owner's email joined.
@@ -12,7 +13,7 @@ import { revokeSessions } from "@/lib/revocations";
  *   Revokes a token by setting revoked_at, and fires session_revocations
  *   so the user's clients log out.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
   });
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDelete(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -109,3 +110,12 @@ export async function DELETE(request: NextRequest) {
 
   return new NextResponse(null, { status: 204 });
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/tokens",
+);
+export const DELETE = withObservability(
+  handleDelete,
+  "DELETE /api/v1/admin/tokens",
+);

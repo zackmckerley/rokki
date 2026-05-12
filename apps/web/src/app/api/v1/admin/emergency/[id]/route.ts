@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ id: string }>;
 }
@@ -11,7 +12,7 @@ interface Props {
  *   Revokes the grant: removes the admin from the targeted terminal /
  *   space, sets revoked_at + revoked_by + ended_at on the event row.
  */
-export async function DELETE(request: NextRequest, { params }: Props) {
+async function handleDelete(request: NextRequest, { params }: Props) {
   const { id } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -78,3 +79,8 @@ export async function DELETE(request: NextRequest, { params }: Props) {
 
   return new NextResponse(null, { status: 204 });
 }
+
+export const DELETE = withObservability<Props>(
+  handleDelete,
+  "DELETE /api/v1/admin/emergency/:id",
+);

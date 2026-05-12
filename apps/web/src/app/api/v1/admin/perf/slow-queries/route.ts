@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 /**
  * GET /api/v1/admin/perf/slow-queries
  *
@@ -12,7 +13,7 @@ import { requireAdmin } from "@/lib/admin-auth";
  * Platform-admin only. The wrapping RPC `public.get_slow_queries` is
  * SECURITY DEFINER and only granted to service_role.
  */
-export async function GET(request: NextRequest) {
+async function handleGet(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin } = gate;
@@ -58,3 +59,8 @@ interface SlowQueryRow {
   total_exec_time: number;
   rows: number;
 }
+
+export const GET = withObservability(
+  handleGet,
+  "GET /api/v1/admin/perf/slow-queries",
+);

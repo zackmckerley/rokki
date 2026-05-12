@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 
+import { withObservability } from "@/lib/observability";
 interface Props {
   params: Promise<{ slug: string }>;
 }
@@ -15,7 +16,7 @@ interface Props {
  * Suitable for migrations, support archeology, or fulfilling a
  * tenant-side data-portability request.
  */
-export async function GET(request: NextRequest, { params }: Props) {
+async function handleGet(request: NextRequest, { params }: Props) {
   const { slug } = await params;
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
@@ -104,3 +105,8 @@ export async function GET(request: NextRequest, { params }: Props) {
     },
   });
 }
+
+export const GET = withObservability<Props>(
+  handleGet,
+  "GET /api/v1/admin/export/space/:slug",
+);

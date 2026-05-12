@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
+import { withObservability } from "@/lib/observability";
 /**
  * POST /api/v1/admin/storage/rescan
  *   ?scope=stuck   re-queues files in 'pending' for >1h (assume stuck)
@@ -12,7 +13,7 @@ import { emitEvent } from "@/lib/events";
  * picks them up on the next tick. Two-step (count → update) so the
  * response can report how many rows actually changed.
  */
-export async function POST(request: NextRequest) {
+async function handlePost(request: NextRequest) {
   const gate = await requireAdmin(request);
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
@@ -75,3 +76,8 @@ export async function POST(request: NextRequest) {
     data: { requeued: count ?? 0 },
   });
 }
+
+export const POST = withObservability(
+  handlePost,
+  "POST /api/v1/admin/storage/rescan",
+);
