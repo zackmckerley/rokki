@@ -54,9 +54,19 @@ export function TasksCardSkeleton() {
   );
 }
 
-export function WeekCardSkeleton() {
+export function WeekCardSkeleton({
+  range = "week",
+}: {
+  range?: "today" | "week" | "month";
+}) {
+  const title =
+    range === "today"
+      ? "Today"
+      : range === "month"
+        ? "Next 30 days"
+        : "This week";
   return (
-    <CardChrome title="This week">
+    <CardChrome title={title}>
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="flex items-center gap-2 py-1">
           <span className="h-3 w-10 flex-shrink-0 animate-pulse rounded-sm bg-bg-3" />

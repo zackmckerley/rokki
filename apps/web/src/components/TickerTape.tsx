@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -8,6 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { summarizeActivity } from "@/lib/activity-summary";
 import { withToolTips } from "@/lib/ticker-tips";
+
+type ActivityRange = "today" | "week" | "all";
 
 interface TickerItem {
   id: string;
@@ -39,6 +42,13 @@ interface TickerTapeProps {
    * streams into the tape. Omit to hear about everything the caller can see.
    */
   projectId?: string;
+  /**
+   * Time window for the initial fetch. The toggle on the tape's right
+   * edge mutates the URL (`?activity_range=`); the server re-renders
+   * and feeds a narrowed initial item list. Realtime updates are not
+   * filtered by date — new rows always stream in.
+   */
+  range?: ActivityRange;
 }
 
 type SyncStatus = "connected" | "reconnecting" | "offline";
@@ -54,9 +64,15 @@ type SyncStatus = "connected" | "reconnecting" | "offline";
  *   - a rotating "💡 Try …" tool tip every ~10 items so tools stay
  *     discoverable without a dedicated card
  */
-export function TickerTape({ items: initial, projectId }: TickerTapeProps) {
+export function TickerTape({
+  items: initial,
+  projectId,
+  range = "all",
+}: TickerTapeProps) {
   const [liveRows, setLiveRows] = useState<TickerItem[]>([]);
   const [sync, setSync] = useState<SyncStatus>("connected");
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useRealtimeTable<ActivityRow>(
     {
@@ -120,6 +136,14 @@ export function TickerTape({ items: initial, projectId }: TickerTapeProps) {
     offline: "Offline — showing cached activity",
   }[sync];
 
+  /** Push a new ?activity_range= without touching other params. */
+  function selectRange(next: ActivityRange) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "all") params.delete("activity_range");
+    else params.set("activity_range", next);
+    router.push(`/${params.size ? `?${params.toString()}` : ""}`);
+  }
+
   if (combined.length === 0) {
     return (
       <div className="flex h-8 flex-shrink-0 items-center gap-2 border-b border-border bg-bg-1 px-3 text-xs text-text-3">
@@ -129,7 +153,16 @@ export function TickerTape({ items: initial, projectId }: TickerTapeProps) {
           aria-label={dotTitle}
         />
         <Activity className="h-3 w-3" aria-hidden="true" />
-        <span>No recent activity.</span>
+        <span>
+          {range === "today"
+            ? "No activity today yet."
+            : range === "week"
+              ? "No activity this week."
+              : "No recent activity."}
+        </span>
+        <div className="ml-auto flex-shrink-0">
+          <RangeToggle range={range} onSelect={selectRange} />
+        </div>
       </div>
     );
   }
@@ -150,7 +183,7 @@ export function TickerTape({ items: initial, projectId }: TickerTapeProps) {
       />
       <div
         className={cn(
-          "flex gap-6 whitespace-nowrap",
+          "flex min-w-0 flex-1 gap-6 overflow-hidden whitespace-nowrap",
           "animate-[scroll_90s_linear_infinite] [&:hover]:[animation-play-state:paused]",
         )}
       >
@@ -158,12 +191,55 @@ export function TickerTape({ items: initial, projectId }: TickerTapeProps) {
           <TickerRow key={`${item.id}-${i}`} item={item} />
         ))}
       </div>
+      <div className="flex-shrink-0">
+        <RangeToggle range={range} onSelect={selectRange} />
+      </div>
       <style>{`
         @keyframes scroll {
           from { transform: translateX(0); }
           to { transform: translateX(-50%); }
         }
       `}</style>
+    </div>
+  );
+}
+
+/**
+ * Compact segmented control rendered on the right edge of the tape.
+ * Mirrors the Week card's RangeToggle visually but at a smaller scale
+ * so it fits inside the 32px-tall tape without crowding the scroll.
+ */
+function RangeToggle({
+  range,
+  onSelect,
+}: {
+  range: ActivityRange;
+  onSelect: (r: ActivityRange) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Activity time range"
+      className="flex overflow-hidden rounded-sm border border-border bg-bg-2"
+    >
+      {(["today", "week", "all"] as const).map((r, i) => (
+        <button
+          key={r}
+          type="button"
+          role="tab"
+          aria-selected={range === r}
+          onClick={() => onSelect(r)}
+          className={cn(
+            "px-1.5 py-0 text-[9px] font-semibold uppercase tracking-wide transition-colors",
+            i > 0 && "border-l border-border",
+            range === r
+              ? "bg-accent text-bg-0"
+              : "text-text-3 hover:bg-bg-3 hover:text-text-1",
+          )}
+        >
+          {r === "today" ? "1d" : r === "week" ? "7d" : "All"}
+        </button>
+      ))}
     </div>
   );
 }
