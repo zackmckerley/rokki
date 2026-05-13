@@ -12,6 +12,10 @@ import * as Sentry from "@sentry/nextjs";
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {
     await import("../sentry.server.config");
+    // Register the module-system manifests at server boot. Importing
+    // for the side effect (the index file calls `registerModule(...)`
+    // for each manifest); no symbols are consumed from the import.
+    await import("./modules");
   }
   if (process.env.NEXT_RUNTIME === "edge") {
     await import("../sentry.edge.config");

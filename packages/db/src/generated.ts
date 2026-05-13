@@ -1312,6 +1312,170 @@ export type Database = {
           },
         ]
       }
+      modules_catalog: {
+        Row: {
+          slug: string
+          name: string
+          description: string
+          icon: string | null
+          scopes: string[]
+          vertical: string | null
+          enabled_by_default: boolean
+          created_at: string
+        }
+        Insert: {
+          slug: string
+          name: string
+          description: string
+          icon?: string | null
+          scopes: string[]
+          vertical?: string | null
+          enabled_by_default?: boolean
+          created_at?: string
+        }
+        Update: {
+          slug?: string
+          name?: string
+          description?: string
+          icon?: string | null
+          scopes?: string[]
+          vertical?: string | null
+          enabled_by_default?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      space_modules: {
+        Row: {
+          id: string
+          space_id: string
+          slug: string
+          display_order: number
+          config: Json
+          installed_by: string
+          installed_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          space_id: string
+          slug: string
+          display_order?: number
+          config?: Json
+          installed_by: string
+          installed_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          space_id?: string
+          slug?: string
+          display_order?: number
+          config?: Json
+          installed_by?: string
+          installed_at?: string
+          archived_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "space_modules_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "space_modules_slug_fkey"
+            columns: ["slug"]
+            isOneToOne: false
+            referencedRelation: "modules_catalog"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      terminal_modules: {
+        Row: {
+          id: string
+          terminal_id: string
+          slug: string
+          display_order: number
+          config: Json
+          installed_by: string
+          installed_at: string
+          archived_at: string | null
+        }
+        Insert: {
+          id?: string
+          terminal_id: string
+          slug: string
+          display_order?: number
+          config?: Json
+          installed_by: string
+          installed_at?: string
+          archived_at?: string | null
+        }
+        Update: {
+          id?: string
+          terminal_id?: string
+          slug?: string
+          display_order?: number
+          config?: Json
+          installed_by?: string
+          installed_at?: string
+          archived_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terminal_modules_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "terminal_modules_slug_fkey"
+            columns: ["slug"]
+            isOneToOne: false
+            referencedRelation: "modules_catalog"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
+      user_module_pins: {
+        Row: {
+          user_id: string
+          scope_kind: string
+          scope_id: string | null
+          slug: string
+          display_order: number
+          fn_key: number | null
+        }
+        Insert: {
+          user_id: string
+          scope_kind: string
+          scope_id?: string | null
+          slug: string
+          display_order: number
+          fn_key?: number | null
+        }
+        Update: {
+          user_id?: string
+          scope_kind?: string
+          scope_id?: string | null
+          slug?: string
+          display_order?: number
+          fn_key?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_module_pins_slug_fkey"
+            columns: ["slug"]
+            isOneToOne: false
+            referencedRelation: "modules_catalog"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           actor_id: string | null

@@ -744,3 +744,97 @@ Stories serve as a visual regression test target via Chromatic or Percy.
 - **Loading spinners for operations < 300ms are worse than nothing.** Use optimistic UI for fast operations; reserve spinners for operations ≥ 500ms. For operations whose duration you can't predict, show a spinner after a 300ms delay (not immediately).
 - **Empty states are prime places for over-design.** Rokki empty states are a single line and a button. Reject anything with illustrations beyond a tiny icon.
 - **When you change typography or spacing tokens,** audit every view. A 1px shift can break alignment in dense tables.
+
+## 8.15 Pane shell + module tab pattern
+
+Added 2026-05-13. The pane shell is the primary content surface in the
+module-system UI (gated by `pane_shell_enabled`). It replaces the
+previous "sidebar with module links" pattern; see ADR 0004 for the
+rationale.
+
+### 8.15.1 Sidebar = scope only
+
+The left rail shows **where you are**, not **what you're doing**. Three
+levels:
+
+- **Home** — your cross-space landing.
+- **Space rows** — collapsible. Hover reveals two icon buttons:
+  `+` (new terminal) and `⚙` (space settings — modules, members,
+  integrations).
+- **Terminal rows** — flat under their space. Hover reveals `⚙`
+  (terminal settings).
+
+No module links in the sidebar. Adding modules to the rail recreates
+the muddle the pane-tab pattern fixed.
+
+### 8.15.2 Pane shell
+
+```
+┌ scope crumb ─────────── ⚙ × ┐
+│ Tab Tab [Tab] Tab Tab  ⋯ ＋ │   ← tab strip
+├──────────────────────────────┤
+│                              │
+│   active module's content    │
+│                              │
+└──────────────────────────────┘
+```
+
+Components live under `apps/web/src/components/pane/`:
+
+- `PaneShell.tsx` — wraps one pane (scope crumb + tab strip + module content)
+- `PaneTabStrip.tsx` — pinned-modules row + `⋯ More` overflow + `＋` add
+- `PaneOverflowMenu.tsx` — the dropdown for non-pinned modules
+- `PaneArea.tsx` — multi-pane container (single / split-2 / grid-4)
+- `usePinnedModules.ts` — reads `user_module_pins`, returns `{ pinned, overflow }`
+
+### 8.15.3 Tab strip rules
+
+- The active module's tab is highlighted with `bg-bg-3 text-text-0`.
+- Pinned modules render in `user_module_pins.display_order`.
+- The strip shows as many tabs as fit; the rest go into `⋯ More(N)`
+  with N = overflow count.
+- The trailing `＋` button opens the module marketplace for the current
+  scope. Disabled with tooltip if the user lacks install permission.
+- "Overview" is **not** a module — it's a synthesized landing view the
+  shell renders when no specific module is active. Never appears in
+  `modules_catalog`.
+
+### 8.15.4 Multi-pane
+
+A `PaneArea` may host 1, 2, or 4 panes. Switcher in the area's
+top-right (`▢` / `▢▢` / `⊞`). Each pane has independent scope +
+active module. The focused pane has a 1px accent ring; F-key
+shortcuts target the focused pane.
+
+Shortcuts:
+- `⌘1` — single pane
+- `⌘2` — split 2
+- `⌘4` — grid 4
+- `⌘[` / `⌘]` — cycle focus between panes
+
+### 8.15.5 F-key shelf
+
+Bottom 28px strip:
+
+- `F1` Help (always)
+- `F2` Tasks (always)
+- `F3` Files (always)
+- `F4` Tools (greyed in v1 — locked decision in `MODULE_PLAN.md §8`)
+- `F5`–`F10` — user-pinnable. `user_module_pins.fn_key` stores the binding.
+- `⌘K` Search (always)
+- `⌘2` Split layout shortcut hint
+- Ticker right-aligned (live activity highlights)
+
+### 8.15.6 Common pitfalls (this pattern)
+
+- **Never put module links in the sidebar.** The whole point of this
+  redesign is that scope and module are orthogonal — keep them visually
+  orthogonal too.
+- **The marketplace `＋` is install-only.** Uninstall/manage flows live
+  in space/terminal settings, not the tab strip — destructive actions
+  don't belong on hot affordances.
+- **Pin reordering writes to `user_module_pins.display_order`** and
+  must be debounced; a drag-to-reorder fires many writes per second.
+- **Empty pane** (no module loaded for a scope) renders the synthesized
+  Overview, not a "pick a module" placeholder. The user picked the
+  scope already; show them something.

@@ -84,3 +84,22 @@ export function createRokkiClient(config: RokkiClientConfig): RokkiClient {
 export { isErr, isOk };
 export type { RokkiClientConfig };
 export type * from "./types.js";
+
+// ─── Module system ────────────────────────────────────────────────
+// Manifest contract + in-process registry for the pluggable module
+// system. See `Claude/rokki-goals/MODULE_PLAN.md` for the design.
+export type {
+  ModuleManifest,
+  ModuleScope,
+  ModuleVertical,
+  InstallContext,
+} from "./modules.js";
+export { manifestSupportsScope } from "./modules.js";
+export {
+  registerModule,
+  getModuleManifest,
+  listModuleManifests,
+  listManifestsForScope,
+  routeForScope,
+  __resetModuleRegistryForTests,
+} from "./module-registry.js";

@@ -25,6 +25,7 @@
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
     "@rokki/db": "workspace:*",
+    "@rokki/sdk": "workspace:*",
     "@sentry/nextjs": "^10.50.0",
     "@supabase/ssr": "^0.5.1",
     "@supabase/supabase-js": "^2.45.4",

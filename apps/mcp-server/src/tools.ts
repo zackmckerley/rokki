@@ -3309,6 +3309,330 @@ const TOOLS: ToolDefinition[] = [
       return textResult(lines.join("\n"));
     },
   },
+
+  /* ───────────────── Module system (Phase 0) ───────────────── */
+  // Mirrors the REST endpoints under /api/v1/{spaces|terminals}/[id]/modules
+  // so an LLM client can install / archive / list modules on the same
+  // surface a UI user can. Per ADR 0003 + the API+MCP-parity rule in
+  // CLAUDE.md, every UI-available module action MUST be MCP-callable.
+
+  {
+    name: "rokki_module_list_for_scope",
+    description:
+      "List modules installed on a scope. Pass either { space: <slug-or-name> } for a space, or { terminal: <ticker> } for a terminal. Archived modules are excluded.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        space: {
+          type: "string",
+          description: "Space slug or name (for space-scope listings).",
+        },
+        terminal: {
+          type: "string",
+          description: "Terminal ticker or name (for terminal-scope listings).",
+        },
+      },
+      additionalProperties: false,
+    },
+    handler: async (args, session) => {
+      const spaceHint = typeof args.space === "string" ? args.space.trim() : "";
+      const terminalHint =
+        typeof args.terminal === "string" ? args.terminal.trim() : "";
+      if (!spaceHint && !terminalHint)
+        return textResult("Pass either `space` or `terminal`.", true);
+      if (spaceHint && terminalHint)
+        return textResult("Pass exactly one of `space` or `terminal`.", true);
+
+      if (terminalHint) {
+        const terminal = await resolveProject(session, terminalHint);
+        if (!terminal)
+          return textResult(`Terminal "${terminalHint}" not found.`, true);
+        const { data } = await admin
+          .from("terminal_modules")
+          .select("slug, installed_at, modules_catalog(name)")
+          .eq("terminal_id", terminal.id)
+          .is("archived_at", null)
+          .order("display_order", { ascending: true });
+        type Row = {
+          slug: string;
+          installed_at: string;
+          modules_catalog: { name: string } | null;
+        };
+        const rows = (data ?? []) as Row[];
+        if (rows.length === 0)
+          return textResult(`${terminal.name} has no modules installed.`);
+        return textResult(
+          `${terminal.name} — installed modules:\n` +
+            rows
+              .map(
+                (r) =>
+                  `• ${r.modules_catalog?.name ?? r.slug} (${r.slug}) — installed ${r.installed_at.slice(0, 10)}`,
+              )
+              .join("\n"),
+        );
+      }
+
+      const space = await resolveSpaceByHint(session.userId, spaceHint);
+      if (!space)
+        return textResult(`Space "${spaceHint}" not found.`, true);
+      const { data } = await admin
+        .from("space_modules")
+        .select("slug, installed_at, modules_catalog(name)")
+        .eq("space_id", space.id)
+        .is("archived_at", null)
+        .order("display_order", { ascending: true });
+      type Row = {
+        slug: string;
+        installed_at: string;
+        modules_catalog: { name: string } | null;
+      };
+      const rows = (data ?? []) as Row[];
+      if (rows.length === 0)
+        return textResult(`${space.name} has no modules installed.`);
+      return textResult(
+        `${space.name} — installed modules:\n` +
+          rows
+            .map(
+              (r) =>
+                `• ${r.modules_catalog?.name ?? r.slug} (${r.slug}) — installed ${r.installed_at.slice(0, 10)}`,
+            )
+            .join("\n"),
+      );
+    },
+  },
+
+  {
+    name: "rokki_module_install",
+    description:
+      "Install a module on a scope. Pass { space, slug } to install on a space (caller must be owner/admin), or { terminal, slug } for a terminal (caller must be owner/manager). Reinstalling a previously-archived module restores its data. Requires write scope.",
+    requiresWrite: true,
+    inputSchema: {
+      type: "object",
+      properties: {
+        space: { type: "string", description: "Space slug or name." },
+        terminal: { type: "string", description: "Terminal ticker or name." },
+        slug: {
+          type: "string",
+          description:
+            "Module slug from modules_catalog (e.g. 'tasks', 'files', 'goals').",
+        },
+      },
+      required: ["slug"],
+      additionalProperties: false,
+    },
+    handler: async (args, session) => {
+      const slug = String(args.slug ?? "").trim();
+      if (!slug) return textResult("`slug` is required.", true);
+      const spaceHint =
+        typeof args.space === "string" ? args.space.trim() : "";
+      const terminalHint =
+        typeof args.terminal === "string" ? args.terminal.trim() : "";
+      if (!spaceHint && !terminalHint)
+        return textResult("Pass either `space` or `terminal`.", true);
+      if (spaceHint && terminalHint)
+        return textResult(
+          "Pass exactly one of `space` or `terminal`.",
+          true,
+        );
+
+      // Confirm the catalog has this slug. (FK would catch this too, but
+      // a clearer error helps the LLM client.)
+      const { data: catalog } = await admin
+        .from("modules_catalog")
+        .select("slug, name, scopes")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!catalog)
+        return textResult(
+          `No module "${slug}" in the catalog. Use rokki_module_list_for_scope to discover what's available.`,
+          true,
+        );
+
+      if (spaceHint) {
+        if (!(catalog.scopes as string[]).includes("space"))
+          return textResult(
+            `Module "${slug}" doesn't support space scope.`,
+            true,
+          );
+        const space = await resolveSpaceByHint(session.userId, spaceHint);
+        if (!space)
+          return textResult(`Space "${spaceHint}" not found.`, true);
+        const member = await isSpaceAdmin(session.userId, space.id);
+        if (!member)
+          return textResult(
+            `Only space owners or admins can install modules on ${space.name}.`,
+            true,
+          );
+
+        const { data: existing } = await admin
+          .from("space_modules")
+          .select("id, archived_at")
+          .eq("space_id", space.id)
+          .eq("slug", slug)
+          .maybeSingle();
+        if (existing) {
+          if (existing.archived_at) {
+            await admin
+              .from("space_modules")
+              .update({ archived_at: null })
+              .eq("id", existing.id);
+            return textResult(
+              `Reinstalled ${catalog.name} on ${space.name} (previous data preserved).`,
+            );
+          }
+          return textResult(
+            `${catalog.name} is already installed on ${space.name}.`,
+            true,
+          );
+        }
+        const ins = await admin
+          .from("space_modules")
+          .insert({
+            space_id: space.id,
+            slug,
+            installed_by: session.userId,
+          })
+          .select("id")
+          .single();
+        if (ins.error)
+          return textResult(`Install failed: ${ins.error.message}`, true);
+        return textResult(`Installed ${catalog.name} on ${space.name}.`);
+      }
+
+      // terminal scope
+      if (!(catalog.scopes as string[]).includes("terminal"))
+        return textResult(
+          `Module "${slug}" doesn't support terminal scope.`,
+          true,
+        );
+      const terminal = await resolveProject(session, terminalHint);
+      if (!terminal)
+        return textResult(`Terminal "${terminalHint}" not found.`, true);
+      const ok = await isTerminalManager(session.userId, terminal.id);
+      if (!ok)
+        return textResult(
+          `Only terminal owners or managers can install modules on ${terminal.name}.`,
+          true,
+        );
+
+      const { data: existing } = await admin
+        .from("terminal_modules")
+        .select("id, archived_at")
+        .eq("terminal_id", terminal.id)
+        .eq("slug", slug)
+        .maybeSingle();
+      if (existing) {
+        if (existing.archived_at) {
+          await admin
+            .from("terminal_modules")
+            .update({ archived_at: null })
+            .eq("id", existing.id);
+          return textResult(
+            `Reinstalled ${catalog.name} on ${terminal.name} (previous data preserved).`,
+          );
+        }
+        return textResult(
+          `${catalog.name} is already installed on ${terminal.name}.`,
+          true,
+        );
+      }
+      const ins = await admin
+        .from("terminal_modules")
+        .insert({
+          terminal_id: terminal.id,
+          slug,
+          installed_by: session.userId,
+        })
+        .select("id")
+        .single();
+      if (ins.error)
+        return textResult(`Install failed: ${ins.error.message}`, true);
+      return textResult(`Installed ${catalog.name} on ${terminal.name}.`);
+    },
+  },
+
+  {
+    name: "rokki_module_archive",
+    description:
+      "Archive (uninstall) a module from a scope. Pass { space|terminal, slug }. Data the module wrote stays — reinstalling restores it. Requires write scope.",
+    requiresWrite: true,
+    inputSchema: {
+      type: "object",
+      properties: {
+        space: { type: "string", description: "Space slug or name." },
+        terminal: { type: "string", description: "Terminal ticker or name." },
+        slug: { type: "string", description: "Module slug to archive." },
+      },
+      required: ["slug"],
+      additionalProperties: false,
+    },
+    handler: async (args, session) => {
+      const slug = String(args.slug ?? "").trim();
+      if (!slug) return textResult("`slug` is required.", true);
+      const spaceHint =
+        typeof args.space === "string" ? args.space.trim() : "";
+      const terminalHint =
+        typeof args.terminal === "string" ? args.terminal.trim() : "";
+      if (!spaceHint && !terminalHint)
+        return textResult("Pass either `space` or `terminal`.", true);
+      if (spaceHint && terminalHint)
+        return textResult(
+          "Pass exactly one of `space` or `terminal`.",
+          true,
+        );
+
+      if (spaceHint) {
+        const space = await resolveSpaceByHint(session.userId, spaceHint);
+        if (!space)
+          return textResult(`Space "${spaceHint}" not found.`, true);
+        if (!(await isSpaceAdmin(session.userId, space.id)))
+          return textResult(
+            `Only space owners or admins can archive modules on ${space.name}.`,
+            true,
+          );
+        const { data, error } = await admin
+          .from("space_modules")
+          .update({ archived_at: new Date().toISOString() })
+          .eq("space_id", space.id)
+          .eq("slug", slug)
+          .is("archived_at", null)
+          .select("id")
+          .maybeSingle();
+        if (error)
+          return textResult(`Archive failed: ${error.message}`, true);
+        if (!data)
+          return textResult(
+            `${slug} isn't installed on ${space.name}.`,
+            true,
+          );
+        return textResult(`Archived ${slug} from ${space.name}.`);
+      }
+
+      const terminal = await resolveProject(session, terminalHint);
+      if (!terminal)
+        return textResult(`Terminal "${terminalHint}" not found.`, true);
+      if (!(await isTerminalManager(session.userId, terminal.id)))
+        return textResult(
+          `Only terminal owners or managers can archive modules on ${terminal.name}.`,
+          true,
+        );
+      const { data, error } = await admin
+        .from("terminal_modules")
+        .update({ archived_at: new Date().toISOString() })
+        .eq("terminal_id", terminal.id)
+        .eq("slug", slug)
+        .is("archived_at", null)
+        .select("id")
+        .maybeSingle();
+      if (error) return textResult(`Archive failed: ${error.message}`, true);
+      if (!data)
+        return textResult(
+          `${slug} isn't installed on ${terminal.name}.`,
+          true,
+        );
+      return textResult(`Archived ${slug} from ${terminal.name}.`);
+    },
+  },
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -3618,6 +3942,33 @@ async function resolveSpaceByHint(
     rows.find((s) => s.name.toLowerCase().includes(lower)) ??
     null
   );
+}
+
+/** Is the user an owner/admin of the given space? Used by module install/archive. */
+async function isSpaceAdmin(userId: string, spaceId: string): Promise<boolean> {
+  const { data } = await admin
+    .from("space_members")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("space_id", spaceId)
+    .maybeSingle();
+  const role = (data as { role: string } | null)?.role;
+  return role === "owner" || role === "admin";
+}
+
+/** Is the user an owner/manager of the given terminal? Used by module install/archive. */
+async function isTerminalManager(
+  userId: string,
+  terminalId: string,
+): Promise<boolean> {
+  const { data } = await admin
+    .from("terminal_members")
+    .select("role")
+    .eq("user_id", userId)
+    .eq("terminal_id", terminalId)
+    .maybeSingle();
+  const role = (data as { role: string } | null)?.role;
+  return role === "owner" || role === "manager";
 }
 
 function textResult(text: string, isError = false) {
