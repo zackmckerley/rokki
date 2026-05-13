@@ -226,6 +226,9 @@ export async function loadDelegatedTasks(
  *
  * Each row is decorated with a terminal ticker when we can infer one. The
  * list is sorted by `when` in the UI; this function just returns the union.
+ *
+ * When `scopeTerminalId` is set, the events are pre-filtered at the DB
+ * level so a focused dashboard only pulls that terminal's rows.
  */
 export async function loadWeekItems(
   supabase: AnySupabaseClient,
@@ -235,9 +238,14 @@ export async function loadWeekItems(
   // own dedicated Tasks card already, which surfaces the same due
   // dates with richer context).
   _userId: string,
+  scopeTerminalId?: string | null,
 ): Promise<WeekItem[]> {
   return traceSpan(
-    { name: "db.dashboard.week_items", op: "db.query" },
+    {
+      name: "db.dashboard.week_items",
+      op: "db.query",
+      attributes: scopeTerminalId ? { scope: scopeTerminalId } : {},
+    },
     async () => {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
@@ -248,12 +256,16 @@ export async function loadWeekItems(
       // view per UX feedback ("Due dates for tasks are showing up in
       // the calendar. Not necessary."). Tasks live in the Tasks card
       // where their due dates are surfaced more usefully.
-      const { data: events } = await supabase
+      let eventsQuery = supabase
         .from("calendar_events")
         .select("id, title, starts_at, terminal_id")
         .gte("starts_at", start.toISOString())
         .lte("starts_at", end.toISOString())
         .is("deleted_at", null);
+      if (scopeTerminalId) {
+        eventsQuery = eventsQuery.eq("terminal_id", scopeTerminalId);
+      }
+      const { data: events } = await eventsQuery;
       type E = {
         id: string;
         title: string;

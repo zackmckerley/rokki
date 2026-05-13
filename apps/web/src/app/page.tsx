@@ -15,6 +15,15 @@ import {
   TickerTapeSkeleton,
 } from "@/components/dashboard/CardSkeletons";
 
+interface Props {
+  searchParams: Promise<{
+    new?: string;
+    space?: string;
+    /** Dashboard scope filter — focus all cards on a single terminal id. */
+    focus?: string;
+  }>;
+}
+
 /**
  * Dashboard route. Streams the slow cards into the shell so the
  * fast pieces paint immediately and the heavy queries don't gate
@@ -25,8 +34,14 @@ import {
  * own data fetch via Server Components below, wrapped in Suspense.
  * Real-world cold-load drops from "wait for slowest of 8 queries"
  * to "wait for slowest of 4 fast queries" + streaming for the rest.
+ *
+ * `?focus=<terminalId>` narrows Week, Tasks, and the Ticker to a
+ * single terminal. The picker lives in `DashboardClient`'s topbar;
+ * the param is the source of truth so the focus survives reload and
+ * is shareable as a deep link.
  */
-export default async function DashboardPage() {
+export default async function DashboardPage({ searchParams }: Props) {
+  const params = await searchParams;
   const supabase = await createClient();
   const {
     data: { user },
@@ -85,6 +100,15 @@ export default async function DashboardPage() {
     terminalNameById[t.id] = t.name;
   }
 
+  // Validate the focus param against the viewer's terminals. A stale
+  // or invalid id silently degrades to no-focus rather than producing
+  // an empty dashboard. Single-select; "all terminals" is the absence
+  // of the param.
+  const focusTerminalId =
+    params.focus && terminals.some((t) => t.id === params.focus)
+      ? params.focus
+      : null;
+
   return (
     <DashboardClient
       spaces={spaces}
@@ -97,17 +121,22 @@ export default async function DashboardPage() {
       initialDensity={savedDensity}
       savedTimezone={savedTimezone}
       briefingDismissedOn={briefingDismissedOn}
+      focusTerminalId={focusTerminalId}
       // Streamed slots — each is its own Suspense boundary. The
       // shell + fast pieces render at ~50ms; these stream in as
-      // each query resolves.
+      // each query resolves. The focus filter is threaded into each
+      // slot so the queries scope at the DB level where possible.
       tickerSlot={
         <Suspense fallback={<TickerTapeSkeleton />}>
-          <TickerTapeServer />
+          <TickerTapeServer projectId={focusTerminalId ?? undefined} />
         </Suspense>
       }
       weekSlot={
         <Suspense fallback={<WeekCardSkeleton />}>
-          <WeekCardServer userId={user.id} />
+          <WeekCardServer
+            userId={user.id}
+            scopeTerminalId={focusTerminalId}
+          />
         </Suspense>
       }
       tasksSlot={
@@ -117,6 +146,7 @@ export default async function DashboardPage() {
             tickerById={tickerById}
             terminalNameById={terminalNameById}
             createDisabled={terminals.length === 0}
+            scopeTerminalId={focusTerminalId}
           />
         </Suspense>
       }

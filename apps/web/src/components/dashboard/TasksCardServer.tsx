@@ -10,6 +10,12 @@ interface Props {
   tickerById: Record<string, string>;
   terminalNameById: Record<string, string>;
   createDisabled?: boolean;
+  /**
+   * Dashboard-level terminal scope filter. When set, tasks are
+   * pre-filtered to only that terminal's work before being handed to
+   * `TasksCard`. Null/undefined = no filter (show everything).
+   */
+  scopeTerminalId?: string | null;
 }
 
 /**
@@ -22,18 +28,31 @@ interface Props {
  * The card itself is still a Client Component (realtime hook, tab
  * state); we just hoist the data fetch out of the parent route's
  * monolithic Promise.all and into its own awaitable boundary.
+ *
+ * Filtering note: the assigned/delegated loaders are PostgREST joins
+ * where adding a `tasks.terminal_id` filter requires embedded-resource
+ * syntax that conflicts with how the join is shaped today. Cheaper
+ * to post-filter after fetch — a focused dashboard still benefits
+ * because the realtime / tab state stays consistent.
  */
 export async function TasksCardServer({
   userId,
   tickerById,
   terminalNameById,
   createDisabled,
+  scopeTerminalId,
 }: Props) {
   const supabase = await createClient();
-  const [assigned, delegated] = await Promise.all([
+  const [assignedRaw, delegatedRaw] = await Promise.all([
     loadAssignedTasks(supabase, userId),
     loadDelegatedTasks(supabase, userId),
   ]);
+  const assigned = scopeTerminalId
+    ? assignedRaw.filter((t) => t.terminal_id === scopeTerminalId)
+    : assignedRaw;
+  const delegated = scopeTerminalId
+    ? delegatedRaw.filter((t) => t.terminal_id === scopeTerminalId)
+    : delegatedRaw;
   return (
     <TasksCard
       assigned={assigned}
