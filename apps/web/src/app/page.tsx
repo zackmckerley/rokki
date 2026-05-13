@@ -5,6 +5,7 @@ import { DashboardClient } from "@/components/DashboardClient";
 import {
   loadDashSpaces,
   loadDashTerminals,
+  type WeekRange,
 } from "@/lib/dashboard-queries";
 import { TasksCardServer } from "@/components/dashboard/TasksCardServer";
 import { WeekCardServer } from "@/components/dashboard/WeekCardServer";
@@ -21,6 +22,12 @@ interface Props {
     space?: string;
     /** Dashboard scope filter — focus all cards on a single terminal id. */
     focus?: string;
+    /** Week card time window: "today" | "week" | "month". Default "week". */
+    week_range?: string;
+    /** Comma-separated `calendar_connections.id` list to HIDE in Week card. */
+    week_sources?: string;
+    /** Ticker time window: "today" | "week" | "all". Default "all". */
+    activity_range?: string;
   }>;
 }
 
@@ -109,6 +116,24 @@ export default async function DashboardPage({ searchParams }: Props) {
       ? params.focus
       : null;
 
+  // Week card filter state. URL is the source of truth so deep links
+  // and browser-back work for free.
+  const weekRange: WeekRange =
+    params.week_range === "today" || params.week_range === "month"
+      ? (params.week_range as WeekRange)
+      : "week";
+  const weekHiddenSources = (params.week_sources ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // Ticker time window — "today" / "week" / "all". The default keeps
+  // the original "top 30 most recent" behaviour intact.
+  const activityRange: "today" | "week" | "all" =
+    params.activity_range === "today" || params.activity_range === "week"
+      ? (params.activity_range as "today" | "week")
+      : "all";
+
   return (
     <DashboardClient
       spaces={spaces}
@@ -128,14 +153,19 @@ export default async function DashboardPage({ searchParams }: Props) {
       // slot so the queries scope at the DB level where possible.
       tickerSlot={
         <Suspense fallback={<TickerTapeSkeleton />}>
-          <TickerTapeServer projectId={focusTerminalId ?? undefined} />
+          <TickerTapeServer
+            projectId={focusTerminalId ?? undefined}
+            range={activityRange}
+          />
         </Suspense>
       }
       weekSlot={
-        <Suspense fallback={<WeekCardSkeleton />}>
+        <Suspense fallback={<WeekCardSkeleton range={weekRange} />}>
           <WeekCardServer
             userId={user.id}
             scopeTerminalId={focusTerminalId}
+            range={weekRange}
+            hiddenSourceIds={weekHiddenSources}
           />
         </Suspense>
       }

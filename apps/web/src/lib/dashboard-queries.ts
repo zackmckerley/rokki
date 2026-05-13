@@ -53,7 +53,29 @@ export interface WeekItem {
   when: string; // ISO date (full datetime for event, date-only for due)
   terminal_id: string | null;
   terminal_ticker: string | null;
+  /**
+   * Source-id for the source filter chip in the Week card. Either a
+   * `calendar_connections.id` (events) or null (no source — shouldn't
+   * happen for current data but typed permissively).
+   */
+  source_id: string | null;
 }
+
+/**
+ * Calendar source the user can show/hide in the Week card. Mirrors
+ * the shape used by the full /calendar page so the dashboard's
+ * source filter reads identically.
+ */
+export interface WeekSource {
+  /** `calendar_connections.id`. */
+  id: string;
+  /** Display label — the connected account email. */
+  label: string;
+  provider: "google" | "microsoft";
+}
+
+/** Allowed time-window values for the Week card. */
+export type WeekRange = "today" | "week" | "month";
 
 export async function loadDashSpaces(
   supabase: AnySupabaseClient,
@@ -220,15 +242,34 @@ export async function loadDelegatedTasks(
 }
 
 /**
+ * Compute the date window for the Week card based on the user's
+ * range selection. Half-open: `[start, end)`.
+ *
+ *   today → midnight today → midnight tomorrow
+ *   week  → midnight today → +7 days
+ *   month → midnight today → +30 days
+ */
+function rangeWindow(range: WeekRange): { start: Date; end: Date } {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  if (range === "today") end.setDate(end.getDate() + 1);
+  else if (range === "week") end.setDate(end.getDate() + 7);
+  else end.setDate(end.getDate() + 30);
+  return { start, end };
+}
+
+/**
  * Produce the "This Week" list:
- *   - Rokki tasks with a due_date between today and 7 days out
  *   - external calendar events synced from the user's connected providers
  *
  * Each row is decorated with a terminal ticker when we can infer one. The
  * list is sorted by `when` in the UI; this function just returns the union.
  *
- * When `scopeTerminalId` is set, the events are pre-filtered at the DB
- * level so a focused dashboard only pulls that terminal's rows.
+ * Filters applied at the DB level (each a single indexed predicate):
+ *   - `scopeTerminalId`: narrow to one terminal's events
+ *   - `range`: "today" | "week" | "month" controls the date window
+ *   - `hiddenSourceIds`: list of `calendar_connections.id` to EXCLUDE
  */
 export async function loadWeekItems(
   supabase: AnySupabaseClient,
@@ -239,18 +280,23 @@ export async function loadWeekItems(
   // dates with richer context).
   _userId: string,
   scopeTerminalId?: string | null,
+  range: WeekRange = "week",
+  hiddenSourceIds: string[] = [],
 ): Promise<WeekItem[]> {
   return traceSpan(
     {
       name: "db.dashboard.week_items",
       op: "db.query",
-      attributes: scopeTerminalId ? { scope: scopeTerminalId } : {},
+      attributes: {
+        range,
+        ...(scopeTerminalId ? { scope: scopeTerminalId } : {}),
+        ...(hiddenSourceIds.length
+          ? { hidden_sources: hiddenSourceIds.length }
+          : {}),
+      },
     },
     async () => {
-      const start = new Date();
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 7);
+      const { start, end } = rangeWindow(range);
 
       // External calendar events only — tasks were dropped from this
       // view per UX feedback ("Due dates for tasks are showing up in
@@ -258,9 +304,9 @@ export async function loadWeekItems(
       // where their due dates are surfaced more usefully.
       let eventsQuery = supabase
         .from("calendar_events")
-        .select("id, title, starts_at, terminal_id")
+        .select("id, title, starts_at, terminal_id, connection_id")
         .gte("starts_at", start.toISOString())
-        .lte("starts_at", end.toISOString())
+        .lt("starts_at", end.toISOString())
         .is("deleted_at", null);
       if (scopeTerminalId) {
         eventsQuery = eventsQuery.eq("terminal_id", scopeTerminalId);
@@ -271,8 +317,14 @@ export async function loadWeekItems(
         title: string;
         starts_at: string;
         terminal_id: string | null;
+        connection_id: string | null;
       };
-      const eventRows = (events ?? []) as E[];
+      // Post-filter hidden sources. Cheaper than a `not.in(...)` PostgREST
+      // filter for small N and avoids the URL-length cap on long lists.
+      const hidden = new Set(hiddenSourceIds);
+      const eventRows = ((events ?? []) as E[]).filter(
+        (e) => !e.connection_id || !hidden.has(e.connection_id),
+      );
       const terminalIds = new Set(
         eventRows
           .map((e) => e.terminal_id)
@@ -299,6 +351,45 @@ export async function loadWeekItems(
         terminal_ticker: e.terminal_id
           ? (tickerById.get(e.terminal_id) ?? null)
           : null,
+        source_id: e.connection_id,
+      }));
+    },
+  );
+}
+
+/**
+ * Load the viewer's calendar source list — used to render the source
+ * filter chips on the Week card. Returns one row per non-revoked
+ * connection (the same shape /calendar uses). Empty list means the
+ * filter button hides itself.
+ */
+export async function loadWeekSources(
+  supabase: AnySupabaseClient,
+  userId: string,
+): Promise<WeekSource[]> {
+  return traceSpan(
+    {
+      name: "db.dashboard.week_sources",
+      op: "db.query",
+      attributes: { table: "calendar_connections" },
+    },
+    async () => {
+      const { data } = await supabase
+        .from("calendar_connections")
+        .select("id, provider, account_email")
+        .eq("user_id", userId)
+        .is("revoked_at", null)
+        .order("provider", { ascending: true })
+        .order("account_email", { ascending: true });
+      type Row = {
+        id: string;
+        provider: "google" | "microsoft";
+        account_email: string;
+      };
+      return ((data ?? []) as Row[]).map((r) => ({
+        id: r.id,
+        label: r.account_email,
+        provider: r.provider,
       }));
     },
   );
