@@ -5,6 +5,7 @@ import { PaneArea } from "@/components/pane/PaneArea";
 import { PaneShell } from "@/components/pane/PaneShell";
 import { ScopeRail, type ScopeRailSpace } from "@/components/pane/ScopeRail";
 import { usePinnedModules } from "@/components/pane/usePinnedModules";
+import { useFKeyShortcuts } from "@/components/pane/useFKeyShortcuts";
 import type { InstalledModuleEntry, PaneScope } from "@/components/pane/types";
 
 /**
@@ -23,6 +24,25 @@ export function PaneShellFixture() {
     scope,
     maxPinned: 5,
   });
+
+  // F-key shortcuts: F5 → Goals, F6 → Schedule (matching the shelf
+  // labels below). Pin set is hard-coded here for the fixture; the
+  // real dashboard will pull from /api/v1/me/module-pins.
+  useFKeyShortcuts(
+    {
+      kind: scope.kind,
+      key:
+        scope.kind === "space"
+          ? scope.slug
+          : scope.kind === "terminal"
+            ? scope.ticker
+            : undefined,
+    },
+    [
+      { slug: "goals", fnKey: 5 },
+      { slug: "schedule", fnKey: 6 },
+    ],
+  );
 
   return (
     <div className="grid h-[100dvh] grid-cols-[240px_1fr] grid-rows-[44px_1fr_28px] overflow-hidden bg-bg-0">

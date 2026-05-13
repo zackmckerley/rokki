@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Columns2, Grid2x2, Square } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePaneLayoutShortcuts } from "./usePaneLayoutShortcuts";
 
 export type PaneLayout = "single" | "split-2" | "grid-4";
 
@@ -27,6 +28,10 @@ export function PaneArea({
   initialLayout = "single",
 }: PaneAreaProps) {
   const [layout, setLayout] = useState<PaneLayout>(initialLayout);
+  // ⌘1 / ⌘2 / ⌘4 keyboard shortcuts. The handler skips when the
+  // user is in a text field, so a digit key during typing doesn't
+  // accidentally split the layout.
+  usePaneLayoutShortcuts(setLayout);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">

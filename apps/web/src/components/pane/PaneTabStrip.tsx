@@ -11,6 +11,16 @@ interface PaneTabStripProps {
   activeSlug: string | null;
   onSelect?: (slug: string) => void;
   onAddModule?: () => void;
+  /**
+   * Drag handlers from `usePinReorder`. When provided, each pinned
+   * tab becomes draggable. Omit to keep tabs static.
+   */
+  drag?: {
+    onDragStart: (slug: string) => (e: React.DragEvent) => void;
+    onDragOver: (slug: string) => (e: React.DragEvent) => void;
+    onDrop: (slug: string) => (e: React.DragEvent) => void;
+    dragging: string | null;
+  };
 }
 
 /**
@@ -27,6 +37,7 @@ export function PaneTabStrip({
   activeSlug,
   onSelect,
   onAddModule,
+  drag,
 }: PaneTabStripProps) {
   const [overflowOpen, setOverflowOpen] = useState(false);
   const stripRef = useRef<HTMLDivElement>(null);
@@ -60,6 +71,7 @@ export function PaneTabStrip({
     >
       {modules.pinned.map((m) => {
         const active = m.slug === activeSlug;
+        const isDragging = drag?.dragging === m.slug;
         return (
           <button
             key={m.slug}
@@ -67,11 +79,17 @@ export function PaneTabStrip({
             role="tab"
             aria-selected={active}
             onClick={() => handleSelect(m.slug)}
+            draggable={!!drag}
+            onDragStart={drag?.onDragStart(m.slug)}
+            onDragOver={drag?.onDragOver(m.slug)}
+            onDrop={drag?.onDrop(m.slug)}
             className={cn(
               "rounded-sm px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide transition-colors",
               active
                 ? "bg-bg-3 text-text-0"
                 : "text-text-2 hover:bg-bg-2 hover:text-text-0",
+              isDragging && "opacity-50",
+              drag && "cursor-grab active:cursor-grabbing",
             )}
           >
             {m.name}
