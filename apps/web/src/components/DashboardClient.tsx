@@ -3,15 +3,22 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
+import { Focus, X } from "lucide-react";
 import { DashboardShell } from "./dashboard/DashboardShell";
 import { ExplorerRail } from "./dashboard/ExplorerRail";
 import { MessagesCard } from "./dashboard/MessagesCard";
+import { TerminalScopeFilter } from "./dashboard/TerminalScopeFilter";
 import { TopBar } from "./TopBar";
 import { DensityProvider, type Density } from "@/lib/density";
 import { TimezoneProbe } from "./TimezoneProbe";
 import { BriefingCard } from "./dashboard/BriefingCard";
 import { isEditableTarget } from "@/lib/shortcuts";
+import type {
+  DashSpace,
+  DashTerminal,
+} from "@/lib/dashboard-queries";
 
 // Dialogs are heavy (forms, validation, member pickers) but only ever
 // render when the user explicitly opens them via ⌘N, +Terminal, or
@@ -36,10 +43,6 @@ const CreateProjectDialog = dynamic(
     })),
   { ssr: false },
 );
-import type {
-  DashSpace,
-  DashTerminal,
-} from "@/lib/dashboard-queries";
 
 interface DashboardClientProps {
   spaces: DashSpace[];
@@ -52,6 +55,13 @@ interface DashboardClientProps {
   initialDensity: Density;
   savedTimezone: string | null;
   briefingDismissedOn: string | null;
+  /**
+   * Dashboard-level terminal scope — server-resolved from the
+   * `?focus=<id>` URL param. `null` = "all terminals". The filter
+   * button in the topbar mutates the URL; the server re-runs and
+   * passes the new value back in here.
+   */
+  focusTerminalId: string | null;
   /**
    * Streamed slots. Each is rendered by the route as a Suspense
    * boundary so the dashboard's shell + fast cards (Briefing, Explorer,
@@ -88,6 +98,7 @@ export function DashboardClient({
   initialDensity,
   savedTimezone,
   briefingDismissedOn,
+  focusTerminalId,
   tickerSlot,
   weekSlot,
   tasksSlot,
@@ -100,6 +111,13 @@ export function DashboardClient({
   const [preferredSpaceSlug, setPreferredSpaceSlug] = useState<string | null>(
     null,
   );
+
+  // Resolve the active focus's display data for the banner. The
+  // server already validated `focusTerminalId` against the viewer's
+  // visible terminals, so a falsy lookup means "no focus active".
+  const focused = focusTerminalId
+    ? terminals.find((t) => t.id === focusTerminalId) ?? null
+    : null;
 
   // Respect ?new=space / ?new=terminal&space=<slug> / ?new=task from the
   // palette or explorer.
@@ -157,12 +175,18 @@ export function DashboardClient({
             <span className="text-text-1" suppressHydrationWarning>
               {greeting(userName)}
             </span>
-            {/* Topbar right side stays empty here — the TopBarSearch
-                component (rendered by <TopBar />) already shows the
-                ⌘K hint inside the search button. The standalone
-                "+ New task" button moved into the TasksCard header,
-                where it reads as a tasks-affordance instead of
-                global chrome. ⌘N still works globally. */}
+            {/* Focus filter — scopes Week, Tasks, and Ticker to a
+                single terminal. URL-driven via `?focus=<id>`; the
+                server re-renders with the narrowed slot queries.
+                Aligned right so it sits next to the search box without
+                competing with the greeting. */}
+            <div className="ml-auto flex items-center gap-2">
+              <TerminalScopeFilter
+                terminals={terminals}
+                spaces={spaces}
+                scopeTerminalId={focusTerminalId}
+              />
+            </div>
           </TopBar>
         }
         ticker={tickerSlot}
@@ -178,6 +202,13 @@ export function DashboardClient({
         }
         center={
           <div className="card-stack flex flex-col gap-3 p-2 sm:p-3">
+            {focused ? (
+              <FocusBanner
+                ticker={focused.ticker}
+                name={focused.name}
+                searchParams={searchParams}
+              />
+            ) : null}
             <BriefingCard
               userName={userName}
               dismissedOn={briefingDismissedOn}
@@ -232,4 +263,44 @@ function greeting(name: string): string {
   if (h < 12) return `Good morning, ${name}`;
   if (h < 18) return `Good afternoon, ${name}`;
   return `Good evening, ${name}`;
+}
+
+/**
+ * Subtle banner explaining the active focus filter.
+ *
+ * The picker in the topbar already shows the active ticker, but
+ * without this banner an empty Week or Tasks card ("Your week is
+ * clear", "Nothing assigned to you") could be misread as "I have
+ * no work" instead of "this one terminal has no work". The banner
+ * makes the filtered state legible at a glance and gives the user
+ * a one-click escape.
+ */
+function FocusBanner({
+  ticker,
+  name,
+  searchParams,
+}: {
+  ticker: string;
+  name: string;
+  searchParams: URLSearchParams;
+}) {
+  // Build the "clear focus" href by stripping the `focus` param.
+  const cleared = new URLSearchParams(searchParams.toString());
+  cleared.delete("focus");
+  const clearHref = `/${cleared.size ? `?${cleared.toString()}` : ""}`;
+  return (
+    <div className="flex items-center gap-2 rounded border border-accent/30 bg-accent-subtle px-3 py-1.5 text-[11px] text-text-1">
+      <Focus className="h-3 w-3 flex-shrink-0 text-accent" aria-hidden="true" />
+      <span className="text-text-2">Showing only</span>
+      <span className="font-mono text-[10px] text-accent">{ticker}</span>
+      <span className="truncate text-text-1">· {name}</span>
+      <Link
+        href={clearHref}
+        className="ml-auto flex flex-shrink-0 items-center gap-1 rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-2 hover:border-border-focus hover:text-text-0"
+      >
+        <X className="h-3 w-3" aria-hidden="true" />
+        <span>Clear</span>
+      </Link>
+    </div>
+  );
 }
