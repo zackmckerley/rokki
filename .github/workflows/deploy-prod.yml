@@ -1,0 +1,121 @@
+name: Deploy production
+
+# Plan A: production deploys are MANUAL. Trigger this workflow when
+# staging has been verified and you want to promote `main` to
+# https://rokki.ai.
+#
+# What it does:
+#   1. Apply any new migrations to the production Supabase project.
+#   2. Fast-forward the `production` branch to current `main` HEAD.
+#   3. Vercel sees the push to the production branch and auto-builds +
+#      deploys to rokki.ai using the production env vars (prod Supabase).
+#   4. Smoke-test rokki.ai for a healthy response.
+#
+# Requires the `production` GitHub Environment with you as the required
+# reviewer — every run pauses for your approval before applying the
+# migration. Approving = "I have eyes on this; ship it."
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "yes" to confirm production deploy'
+        required: true
+        type: string
+      skip_migrations:
+        description: 'Skip running supabase db push (use only if migrations were already applied out-of-band)'
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Confirm input
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    steps:
+      - name: Verify confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "yes" ]; then
+            echo "::error::Production deploy not confirmed (typed: '${{ inputs.confirm }}', need: 'yes')"
+            exit 1
+          fi
+
+  migrate-prod-db:
+    name: Apply migrations → prod Supabase
+    runs-on: ubuntu-latest
+    needs: preflight
+    environment:
+      name: production
+      url: https://rokki.ai
+    timeout-minutes: 10
+    if: ${{ inputs.skip_migrations != 'true' }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Push migrations to production
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase link --project-ref ${{ vars.SUPABASE_PROD_REF }} \
+            --password "${{ secrets.SUPABASE_PROD_DB_PASSWORD }}"
+          supabase db push --include-all \
+            --password "${{ secrets.SUPABASE_PROD_DB_PASSWORD }}"
+
+  promote-vercel:
+    name: Promote main → production branch (triggers Vercel prod deploy)
+    runs-on: ubuntu-latest
+    needs: [preflight, migrate-prod-db]
+    # The `if` here keeps the dependency on migrate-prod-db symbolic even
+    # when skip_migrations is true — `needs` only enforces order, not
+    # success when the upstream is skipped. always() reduces to "did the
+    # prior jobs not fail or cancel" which matches our intent.
+    if: ${{ always() && needs.preflight.result == 'success' && (needs.migrate-prod-db.result == 'success' || needs.migrate-prod-db.result == 'skipped') }}
+    environment:
+      name: production
+      url: https://rokki.ai
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fast-forward production to main HEAD
+        run: |
+          git config user.name "rokki-deploy[bot]"
+          git config user.email "deploy@rokki.ai"
+          git fetch origin main:main
+          git push origin main:production
+          echo "Pushed main → production. Vercel will auto-build."
+
+  smoke-test-prod:
+    name: Smoke-test rokki.ai
+    runs-on: ubuntu-latest
+    needs: promote-vercel
+    environment:
+      name: production
+      url: https://rokki.ai
+    timeout-minutes: 10
+    steps:
+      - name: Wait for rokki.ai to respond healthy
+        run: |
+          for i in $(seq 1 60); do
+            status=$(curl -sS -o /dev/null -w "%{http_code}" https://rokki.ai/ || echo "000")
+            echo "attempt $i — HTTP $status"
+            if [ "$status" != "000" ] && [ "$status" -lt 500 ]; then
+              echo "✓ production responding"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "✗ production never came up healthy — manual rollback may be needed"
+          exit 1

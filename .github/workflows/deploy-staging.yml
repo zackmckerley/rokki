@@ -1,0 +1,62 @@
+name: Deploy staging
+
+# Plan A: every push to `main` is automatically deployed to
+# https://staging.rokki.ai.
+#
+# - Vercel auto-builds + deploys on the push (`main` is a non-production
+#   git branch on the project, aliased to `staging.rokki.ai`).
+# - This workflow runs the DB-migration side of the deploy: applying any
+#   new SQL in `supabase/migrations/` against the staging Supabase project.
+# - Production deploys are a separate manual workflow (`deploy-prod.yml`).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+jobs:
+  migrate-staging-db:
+    name: Apply migrations → staging Supabase
+    runs-on: ubuntu-latest
+    environment: staging
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Push migrations to staging
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          supabase link --project-ref ${{ vars.SUPABASE_STAGING_REF }} \
+            --password "${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}"
+          supabase db push --include-all \
+            --password "${{ secrets.SUPABASE_STAGING_DB_PASSWORD }}"
+
+  smoke-test:
+    name: Smoke-test staging URL
+    runs-on: ubuntu-latest
+    needs: migrate-staging-db
+    timeout-minutes: 5
+    steps:
+      # Vercel's auto-deploy can take 60-120s to finalize after the push
+      # that triggered this workflow. We poll for the staging URL to
+      # respond with a non-5xx before declaring success.
+      - name: Wait for staging.rokki.ai to respond
+        run: |
+          for i in $(seq 1 30); do
+            status=$(curl -sS -o /dev/null -w "%{http_code}" https://staging.rokki.ai/ || echo "000")
+            echo "attempt $i — HTTP $status"
+            if [ "$status" != "000" ] && [ "$status" -lt 500 ]; then
+              echo "✓ staging responding"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "✗ staging never came up healthy"
+          exit 1
