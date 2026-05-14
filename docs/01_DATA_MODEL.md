@@ -1092,3 +1092,170 @@ All indexes declared inline above. Summary of composite / partial indexes that m
 - **Task `ticker_seq` is set by trigger.** Do not set it from the application. Race conditions are handled by the trigger using `MAX()` — acceptable for low write rate; if you ever exceed ~100 task-inserts/sec per project, switch to a per-project sequence.
 - **`access_tokens.token_hash`** is sha256 of the plaintext token. The plaintext is shown to the user exactly once. Do not store plaintext, do not return plaintext after creation.
 - **Every RLS policy has been reviewed for the "what if the actor is in a different org" case.** Do not add a policy that allows cross-org access without explicit review.
+
+## 1.13 Module system
+
+Added 2026-05-13. Implements pluggable modules per `MODULE_PLAN.md`.
+
+The module system splits "what the user sees" from "where they are." A
+**scope** is a `space` or `terminal` (or the user's global Home).
+**Modules** install into a scope and render as tabs inside that scope's
+pane. Per-user pinning controls which modules show as tabs vs. live in
+the `⋯ More` overflow.
+
+Four tables, all additive — nothing in the existing schema changes.
+
+### 1.13.1 `modules_catalog` — registry of installable module slugs
+
+```sql
+CREATE TABLE modules_catalog (
+  slug TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  icon TEXT,                              -- lucide icon name
+  scopes TEXT[] NOT NULL,                 -- ['user','space','terminal']
+  vertical TEXT NULL,                     -- 'realestate' | 'construction' | NULL
+  enabled_by_default BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE modules_catalog ENABLE ROW LEVEL SECURITY;
+-- Catalog is read-only for everyone authenticated. Writes are seed-only
+-- (migrations + platform-admin tooling, both via service role).
+CREATE POLICY "modules_catalog_read" ON modules_catalog
+  FOR SELECT TO authenticated USING (TRUE);
+```
+
+Seed at migration time with the five v1 slugs: `tasks`, `files`,
+`messenger`, `schedule`, `goals`. Adding a new module slug is a
+migration — never application code.
+
+### 1.13.2 `space_modules` — which modules are installed on a space
+
+```sql
+CREATE TABLE space_modules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  space_id UUID NOT NULL REFERENCES spaces(id) ON DELETE CASCADE,
+  slug TEXT NOT NULL REFERENCES modules_catalog(slug),
+  display_order INT NOT NULL DEFAULT 0,
+  config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  installed_by UUID NOT NULL REFERENCES auth.users(id),
+  installed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  archived_at TIMESTAMPTZ,
+  UNIQUE (space_id, slug)
+);
+
+CREATE INDEX idx_space_modules_space ON space_modules(space_id)
+  WHERE archived_at IS NULL;
+
+ALTER TABLE space_modules ENABLE ROW LEVEL SECURITY;
+-- Members of the space see installed modules.
+CREATE POLICY "space_modules_read" ON space_modules
+  FOR SELECT TO authenticated USING (
+    space_id IN (SELECT space_id FROM space_members WHERE user_id = auth.uid())
+  );
+-- Only owners/admins of the space can install or archive.
+CREATE POLICY "space_modules_write" ON space_modules
+  FOR ALL TO authenticated USING (
+    space_id IN (
+      SELECT space_id FROM space_members
+      WHERE user_id = auth.uid() AND role IN ('owner','admin')
+    )
+  )
+  WITH CHECK (
+    space_id IN (
+      SELECT space_id FROM space_members
+      WHERE user_id = auth.uid() AND role IN ('owner','admin')
+    )
+  );
+```
+
+Archive (`archived_at IS NOT NULL`) is the only "uninstall." Data the
+module wrote stays — reinstalling restores it.
+
+### 1.13.3 `terminal_modules` — which modules are installed on a terminal
+
+```sql
+CREATE TABLE terminal_modules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  terminal_id UUID NOT NULL REFERENCES terminals(id) ON DELETE CASCADE,
+  slug TEXT NOT NULL REFERENCES modules_catalog(slug),
+  display_order INT NOT NULL DEFAULT 0,
+  config JSONB NOT NULL DEFAULT '{}'::jsonb,
+  installed_by UUID NOT NULL REFERENCES auth.users(id),
+  installed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  archived_at TIMESTAMPTZ,
+  UNIQUE (terminal_id, slug)
+);
+
+CREATE INDEX idx_terminal_modules_terminal ON terminal_modules(terminal_id)
+  WHERE archived_at IS NULL;
+
+ALTER TABLE terminal_modules ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "terminal_modules_read" ON terminal_modules
+  FOR SELECT TO authenticated USING (
+    terminal_id IN (SELECT terminal_id FROM terminal_members WHERE user_id = auth.uid())
+  );
+CREATE POLICY "terminal_modules_write" ON terminal_modules
+  FOR ALL TO authenticated USING (
+    terminal_id IN (
+      SELECT terminal_id FROM terminal_members
+      WHERE user_id = auth.uid() AND role IN ('owner','manager')
+    )
+  )
+  WITH CHECK (
+    terminal_id IN (
+      SELECT terminal_id FROM terminal_members
+      WHERE user_id = auth.uid() AND role IN ('owner','manager')
+    )
+  );
+```
+
+### 1.13.4 `user_module_pins` — per-user tab order + F-key bindings
+
+```sql
+CREATE TABLE user_module_pins (
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  scope_kind TEXT NOT NULL CHECK (scope_kind IN ('user','space','terminal')),
+  scope_id UUID NULL,                     -- NULL for scope_kind='user'
+  slug TEXT NOT NULL REFERENCES modules_catalog(slug),
+  display_order INT NOT NULL,
+  fn_key INT NULL CHECK (fn_key IS NULL OR fn_key BETWEEN 5 AND 10),
+  PRIMARY KEY (user_id, scope_kind, scope_id, slug)
+);
+
+ALTER TABLE user_module_pins ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "user_module_pins_own" ON user_module_pins
+  FOR ALL TO authenticated
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+```
+
+Pinning is a personal preference — never visible to other users and
+never enforced cross-user. F-key range is 5..10 because F1-F4 are
+reserved (Help / Tasks / Files / Tools per the UI design).
+
+### 1.13.5 Permissions matrix
+
+| Action | Who |
+|---|---|
+| Install/archive module on a space | Space owner or admin |
+| Install/archive module on a terminal | Terminal owner or manager |
+| Reorder/pin modules (own view) | Any user — `user_module_pins` |
+| Create catalog entries | Migration / platform-admin only |
+
+All enforced by RLS above — no application-layer permission checks.
+
+### 1.13.6 Feature flag
+
+A row in the existing `feature_flags` table gates the new UI cutover:
+
+```sql
+INSERT INTO feature_flags (key, scope, value, rollout_percentage, description)
+VALUES ('pane_shell_enabled', 'global', 'false'::jsonb, 0,
+        'Module system pane shell — gates the new sidebar+tabs UI');
+```
+
+Off (0% rollout) by default. Per-user overrides (scope = `user`,
+`scope_id = <uid>`, `value = true`) let staff dogfood without flipping
+for everyone.

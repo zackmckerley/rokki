@@ -384,3 +384,89 @@ A feature is done when:
 7. Observability: it emits logs + metrics where relevant
 
 Anything less is not done — it's "partially implemented," which is the exact failure mode we set out to avoid.
+
+## 11.13 Module system acceptance (added 2026-05-13)
+
+Phase gates for the work tracked in `MODULE_PLAN.md`. Each phase ships
+behind the `pane_shell_enabled` feature flag (off by default) until
+its acceptance passes.
+
+### 11.13.1 Phase 0 — Foundation
+
+- [ ] `pnpm install && pnpm dev` boots clean off `feature/module-system`
+- [ ] Migration `20260513010000_modules_init.sql` applies cleanly via `supabase db reset`
+- [ ] Paired rollback at `supabase/migrations/rollbacks/20260513010000_modules_init.down.sql` returns the schema to the prior state cleanly (verified by `pnpm migrations:test`)
+- [ ] All four new tables exist with RLS enabled (`modules_catalog`, `space_modules`, `terminal_modules`, `user_module_pins`)
+- [ ] `modules_catalog` seeded with five rows: `tasks`, `files`, `messenger`, `schedule`, `goals`
+- [ ] `feature_flags` row `pane_shell_enabled` exists with `value=false, rollout_percentage=0`
+- [ ] RLS verified by `pnpm test:rls` (or `vitest --config vitest.rls.config.ts`)
+- [ ] `ModuleManifest` type lives in `packages/sdk/src/modules.ts` (no `tools` field per locked decision #5)
+- [ ] Stub manifests exist for all five v1 slugs at `apps/web/src/modules/<slug>/manifest.ts`
+- [ ] `PaneShell`, `PaneTabStrip`, `PaneOverflowMenu`, `PaneArea` render a static fixture matching `Claude/rokki-goals/public/sketch.html`
+- [ ] `paneShellEnabled(userId)` helper at `apps/web/src/lib/featureFlags.ts` returns the flag value
+- [ ] With flag on, sidebar shows only Home + Spaces + Terminals (no module rows). Hover reveals `+ ⚙` on space rows, `⚙` on terminal rows.
+- [ ] With flag off, the old layout renders unchanged (no regressions on `/`, `/tasks`, `/calendar`, `/messages`, `/p/[ticker]`, `/s/[slug]`)
+- [ ] Server actions: `installSpaceModule`, `installTerminalModule`, `archiveModule`, `pinModuleToFnKey`, `reorderPins`
+- [ ] REST endpoints exist and return 2xx for happy path:
+  - `POST /api/v1/spaces/:id/modules`
+  - `DELETE /api/v1/spaces/:id/modules/:slug`
+  - `POST /api/v1/terminals/:id/modules`
+  - `DELETE /api/v1/terminals/:id/modules/:slug`
+  - `GET /api/v1/me/modules`
+- [ ] MCP tools available: `module.install`, `module.archive`, `module.list_for_scope`
+
+**Done when:** the rail is clean, pane shell renders the fixture, and modules install/archive via API even though none mount to a route yet.
+
+### 11.13.2 Phase 1 — Wrap existing modules (Tasks / Schedule / Messenger / Files)
+
+- [ ] Tasks accessible at `/app/tasks` (user), `/s/[slug]/tasks` (space, new), `/p/[ticker]/tasks` (terminal, renamed from `/task/`)
+- [ ] Schedule accessible at `/app/schedule` (user, redirected from old `/calendar`), `/s/[slug]/schedule`, `/p/[ticker]/schedule`
+- [ ] Messenger accessible at all three scopes; terminal view is one thread per terminal
+- [ ] Files module built from scratch with upload UI, folder tree, search, Azure Blob integration per `docs/05_FILES.md`
+- [ ] Each module's tab appears in `PaneTabStrip` when the user navigates to a scope with it installed
+- [ ] Old `/tasks`, `/calendar`, `/messages` paths still respond (redirect or alongside) — no regressions when flag is off
+
+**Done when:** all four modules render inside `PaneShell` at every applicable scope and the old paths still work.
+
+### 11.13.3 Phase 2 — Port Goals from rokki-goals
+
+- [ ] DB migration translates `Claude/rokki-goals/lib/db.ts` schema into Postgres tables
+- [ ] Each Goals table has both `space_id` and `terminal_id` columns; exactly one is set (CHECK constraint)
+- [ ] RLS uses `space_members` / `terminal_members` membership
+- [ ] Routes mounted: `/app/goals` (user), `/s/[slug]/goals`, `/p/[ticker]/goals`
+- [ ] One-off import script at `Claude/rokki-goals/scripts/import-to-supabase.ts` reads `data/rokki-goals.json` and inserts into a chosen space
+- [ ] Installing Goals on HELIOS keeps its data separate from Goals installed on a terminal; `/app/goals` rolls both up with badges
+
+**Done when:** Goals lives at both scopes, the user-aggregated view shows both rolled up, and the JSON-store version can be imported once.
+
+### 11.13.4 Phase 3 — Marketplace + install flow
+
+- [ ] Marketplace UI at `/s/[slug]/settings/modules` and `/p/[ticker]/settings/modules`
+- [ ] Lists `modules_catalog` filtered by `scopes` containing the current scope kind
+- [ ] Install button calls `installSpaceModule` / `installTerminalModule`
+- [ ] Per-module config wizard when a module declares one
+- [ ] Tab strip `＋` button opens the marketplace for the current scope
+- [ ] `⋯ More` overflow footer has "Add module" and "Manage modules" actions
+- [ ] Archive then reinstall preserves data (data tables aren't dropped on archive)
+
+**Done when:** any space owner can install a new module into HELIOS without engineering involvement; same for terminal owners on terminals.
+
+### 11.13.5 Phase 4 — Polish
+
+- [ ] `⌘1` / `⌘2` / `⌘4` switch pane layouts; each pane has independent scope + active module
+- [ ] `⌘[` / `⌘]` cycles focus between panes
+- [ ] F5–F10 user-pinnable per scope; `user_module_pins.fn_key` stores binding
+- [ ] Drag-to-reorder tabs in the pane strip writes to `user_module_pins.display_order` (debounced)
+- [ ] `⌘K` palette resolves "goals" to "load Goals in focused pane"
+- [ ] Templates auto-install module sets at terminal creation
+- [ ] No user-facing route regressions when the flag flips ON globally
+
+**Done when:** the live app matches the v5 mockup (`Claude/rokki-goals/public/sketch.html`) and feels at least as fast as the pre-module shell.
+
+### 11.13.6 Cross-cutting (every phase)
+
+- [ ] Every new endpoint has matching MCP tool (API+MCP parity, ADR 0003)
+- [ ] Every migration ships with paired `.down.sql` (rollback strategy, `MODULE_PLAN.md §11`)
+- [ ] No service-role DB access for user-initiated operations (CLAUDE.md non-negotiable)
+- [ ] No new `TODO`/`FIXME` in shipped code
+- [ ] Docs (this file, `01_DATA_MODEL.md §1.13`, `08_UI_DESIGN.md §8.15`) stay in sync with reality
