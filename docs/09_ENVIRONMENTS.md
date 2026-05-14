@@ -7,10 +7,40 @@
 | Env | URL | Purpose | Data |
 |---|---|---|---|
 | local | `http://localhost:3000` | Developer machine | Local Postgres (via Supabase CLI) |
-| staging | `https://staging.rokki.ai` | Pre-production testing | Separate Supabase + Azure resources |
-| production | `https://rokki.ai` | Live users | Production Supabase + Azure |
+| staging | `https://staging.rokki.ai` | Pre-production testing | Supabase project `rokki-staging` (`hqsdhwlokfwcitfitees`) |
+| production | `https://rokki.ai` | Live users | Supabase project `rokki-production` (`bwtmtpcgilvrkhougjdo`) |
 
 Never share credentials between environments. Never point local/staging at production data.
+
+### 9.1.1 Vercel branch model (Plan A — staging-first promotion)
+
+The Vercel `rokki-web` project is configured so:
+
+- `main` branch → **staging deployment** at `staging.rokki.ai`. Every push to
+  `main` auto-deploys via Vercel + `.github/workflows/deploy-staging.yml`
+  applies any new SQL migrations to the staging Supabase project.
+- `production` branch → **production deployment** at `rokki.ai`. The branch
+  only moves forward when triggered by
+  `.github/workflows/deploy-prod.yml`, which is a manual `workflow_dispatch`
+  with required reviewer (the owner). The workflow:
+  1. Confirms the `confirm=yes` input.
+  2. Applies migrations to the production Supabase project.
+  3. Fast-forwards `production` to `main` HEAD, triggering Vercel's prod build.
+  4. Smoke-tests `https://rokki.ai`.
+- Every PR → standard Vercel preview URL, also pointing at the staging
+  Supabase (via the `preview` env-var scope) so previews never touch prod
+  data.
+
+### 9.1.2 Vercel env-var scopes
+
+| Var | `production` value | `preview` value |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | prod project URL | staging project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | prod anon key | staging anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | prod service-role key | staging service-role key |
+| `NEXT_PUBLIC_APP_URL` | `https://rokki.ai` | `https://staging.rokki.ai` |
+| `NEXT_PUBLIC_API_URL` | `https://rokki.ai/api` | `https://staging.rokki.ai/api` |
+| Sentry, Axiom, Redis, etc. | same value across both targets | same value across both targets |
 
 ## 9.2 Repository layout
 
