@@ -1,0 +1,43 @@
+name: Refresh sandbox from production
+
+# Manually-triggered: copies the production Supabase project's data
+# into the sandbox (rokki-staging) Supabase project so the sandbox
+# mirrors what real users see, while writes stay isolated.
+#
+# Read from prod, write to sandbox. Never the other direction —
+# nothing here can touch prod data (the script only DELETEs and
+# INSERTs on the sandbox project ref).
+#
+# Tables copied are listed in scripts/mirror-prod-to-sandbox.mjs.
+# Sandbox-only tables (modules_catalog, goals_*, etc.) are not
+# touched — they don't exist on prod and stay as-is on sandbox.
+#
+# Scheduled fortnightly so drift never gets too far. You can also
+# trigger it manually any time prod data has changed and you want
+# the sandbox to catch up.
+on:
+  workflow_dispatch:
+  schedule:
+    # Every other Sunday at 09:00 UTC.
+    - cron: "0 9 */14 * 0"
+
+concurrency:
+  group: refresh-sandbox
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror prod → sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run mirror script
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROD_REF: ${{ vars.SUPABASE_PROD_REF }}
+          SANDBOX_REF: ${{ vars.SUPABASE_STAGING_REF }}
+        run: node scripts/mirror-prod-to-sandbox.mjs

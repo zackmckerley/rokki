@@ -7,18 +7,25 @@
 | Env | URL | Purpose | Data |
 |---|---|---|---|
 | local | `http://localhost:3000` | Developer machine | Local Postgres (via Supabase CLI) |
-| staging | `https://staging.rokki.ai` | Pre-production testing | Supabase project `rokki-staging` (`hqsdhwlokfwcitfitees`) |
+| **sandbox** | `https://staging.rokki.ai` | Mirror of prod for safe experimentation | Supabase project `rokki-staging` (`hqsdhwlokfwcitfitees`) — periodically reloaded from prod |
 | production | `https://rokki.ai` | Live users | Supabase project `rokki-production` (`bwtmtpcgilvrkhougjdo`) |
 
-Never share credentials between environments. Never point local/staging at production data.
+**Sandbox model:** the sandbox holds a **copy of prod data** so real users
+can sign in with their existing credentials and see their actual workspace.
+**Writes on sandbox stay on sandbox** — nothing syncs back to prod. The
+mirror runs fortnightly via cron + on-demand via
+`.github/workflows/refresh-sandbox.yml`.
 
-### 9.1.1 Vercel branch model (Plan A — staging-first promotion)
+(The Supabase project is still internally named `rokki-staging` and the
+URL is still `staging.rokki.ai`; the user-facing concept is "sandbox.")
+
+### 9.1.1 Vercel branch model (Plan A — sandbox-first promotion)
 
 The Vercel `rokki-web` project is configured so:
 
-- `main` branch → **staging deployment** at `staging.rokki.ai`. Every push to
+- `main` branch → **sandbox deployment** at `staging.rokki.ai`. Every push to
   `main` auto-deploys via Vercel + `.github/workflows/deploy-staging.yml`
-  applies any new SQL migrations to the staging Supabase project.
+  applies any new SQL migrations to the sandbox Supabase project.
 - `production` branch → **production deployment** at `rokki.ai`. The branch
   only moves forward when triggered by
   `.github/workflows/deploy-prod.yml`, which is a manual `workflow_dispatch`
@@ -27,17 +34,43 @@ The Vercel `rokki-web` project is configured so:
   2. Applies migrations to the production Supabase project.
   3. Fast-forwards `production` to `main` HEAD, triggering Vercel's prod build.
   4. Smoke-tests `https://rokki.ai`.
-- Every PR → standard Vercel preview URL, also pointing at the staging
+- Every PR → standard Vercel preview URL, also pointing at the sandbox
   Supabase (via the `preview` env-var scope) so previews never touch prod
   data.
 
-### 9.1.2 Vercel env-var scopes
+### 9.1.2 Sandbox data refresh
 
-| Var | `production` value | `preview` value |
+The sandbox mirrors production data — same users, spaces, terminals, tasks —
+so anyone with a prod account can log in and play around without affecting
+real data.
+
+- **Refresh script:** `scripts/mirror-prod-to-sandbox.mjs` runs entirely
+  through Supabase's management API (no DB password). For each table in
+  its allow-list, it reads via `SELECT jsonb_agg(t)` from prod and writes
+  via `INSERT … SELECT FROM jsonb_populate_recordset(NULL::t, $)` on the
+  sandbox, with `SET session_replication_role = replica` to keep
+  triggers + FK constraints quiet during the load.
+- **Tables covered:** `auth.users`, `auth.identities`, and every user-data
+  table on prod (profiles, spaces, terminals, tasks, files, comments,
+  message_threads, messages, activity, calendar_*, invites, notifications,
+  access_tokens, api_keys, etc.). See the `TABLES` array in the script for
+  the full list.
+- **Sandbox-only tables stay untouched:** `modules_catalog`, `space_modules`,
+  `terminal_modules`, `user_module_pins`, and the `goals_*` tables don't
+  exist on prod and aren't in the mirror list, so their sandbox state is
+  preserved across refreshes.
+- **Encrypted passwords copy over.** Bcrypt hashes are project-independent
+  so a user's prod password just works on sandbox after a refresh.
+- **Schedule:** every other Sunday at 09:00 UTC (`schedule` cron in
+  `refresh-sandbox.yml`). You can also run it manually via Actions UI.
+
+### 9.1.3 Vercel env-var scopes
+
+| Var | `production` value | `preview` value (= sandbox) |
 |---|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | prod project URL | staging project URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | prod anon key | staging anon key |
-| `SUPABASE_SERVICE_ROLE_KEY` | prod service-role key | staging service-role key |
+| `NEXT_PUBLIC_SUPABASE_URL` | prod project URL | sandbox project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | prod anon key | sandbox anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | prod service-role key | sandbox service-role key |
 | `NEXT_PUBLIC_APP_URL` | `https://rokki.ai` | `https://staging.rokki.ai` |
 | `NEXT_PUBLIC_API_URL` | `https://rokki.ai/api` | `https://staging.rokki.ai/api` |
 | Sentry, Axiom, Redis, etc. | same value across both targets | same value across both targets |
