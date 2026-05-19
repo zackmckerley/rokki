@@ -117,7 +117,7 @@ jobs:
           git status --short
 
       - name: Open refresh PR
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           branch: chore/visual-baseline-refresh
