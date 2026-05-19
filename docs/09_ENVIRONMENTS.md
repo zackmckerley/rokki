@@ -61,8 +61,14 @@ real data.
   preserved across refreshes.
 - **Encrypted passwords copy over.** Bcrypt hashes are project-independent
   so a user's prod password just works on sandbox after a refresh.
-- **Schedule:** every other Sunday at 09:00 UTC (`schedule` cron in
-  `refresh-sandbox.yml`). You can also run it manually via Actions UI.
+- **Triggers** (`refresh-sandbox.yml`):
+  - `workflow_run` after `Deploy production` completes **successfully**
+    — sandbox auto-syncs every time you promote main to prod
+  - `workflow_dispatch` for manual one-off refreshes any other time
+  - No cron — drift is bounded by deploy cadence; if prod data changes
+    via direct DB writes (e.g. from the Supabase dashboard) and you
+    want sandbox to catch up before the next deploy, run the manual
+    dispatch
 
 ### 9.1.3 Vercel env-var scopes
 
