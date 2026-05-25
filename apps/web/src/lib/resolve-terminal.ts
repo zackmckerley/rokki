@@ -18,7 +18,7 @@
 
 // Loose `any` because the SSR-cookie and admin Supabase clients have
 // slightly different generic shapes and we only touch `.from()`.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line
 type AnySupabaseClient = any;
 
 const TICKER_PATTERN = /^[A-Z][A-Z0-9]{1,9}$/;
