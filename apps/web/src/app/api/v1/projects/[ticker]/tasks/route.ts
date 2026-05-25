@@ -226,8 +226,14 @@ async function handlePost(request: NextRequest, { params }: Props) {
       external_assignee_emails: externalEmails,
       created_by: user.id,
     })
+    // Return the same column set the GET list endpoint returns so the
+    // client can drop the new row straight into local state without
+    // faking fields. The optimistic-insert path in TasksPane depends
+    // on this — any field missing here ends up as `undefined` on the
+    // freshly-created row and visibly differs from neighbouring rows
+    // until the next refetch lands.
     .select(
-      "id, ticker_seq, title, description, status, priority, due_date, labels, created_at",
+      "id, ticker_seq, title, description, status, priority, due_date, labels, position, latest_status_text, latest_status_author_id, latest_status_at, status_thread_id, external_assignee_emails, recurrence_rule, created_at, updated_at, completed_at",
     )
     .single();
 
@@ -292,7 +298,37 @@ async function handlePost(request: NextRequest, { params }: Props) {
     },
   });
 
-  return NextResponse.json({ data }, { status: 201 });
+  // Build the response in the same shape the list endpoint returns so
+  // the client can drop it straight into state. For a brand-new task
+  // the assignee list is known (we just inserted it) and the subtask
+  // aggregates are zero — no need for an extra round-trip.
+  const assigneeProfiles = toAssign.length
+    ? ((
+        await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", toAssign)
+      ).data ?? [])
+    : [];
+  const profileById = new Map(
+    (assigneeProfiles as { user_id: string; full_name: string | null }[]).map(
+      (p) => [p.user_id, p.full_name],
+    ),
+  );
+  const responseTask = {
+    ...(data as Record<string, unknown>),
+    assignees: toAssign.map((uid) => ({
+      user_id: uid,
+      full_name: profileById.get(uid) ?? null,
+    })),
+    subtask_total: 0,
+    subtask_done: 0,
+    external_assignee_emails:
+      (data as { external_assignee_emails?: string[] | null })
+        .external_assignee_emails ?? externalEmails,
+  };
+
+  return NextResponse.json({ data: responseTask }, { status: 201 });
 }
 
 async function resolveProject(
