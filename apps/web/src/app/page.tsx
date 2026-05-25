@@ -56,15 +56,12 @@ export default async function DashboardPage({ searchParams }: Props) {
   if (!user) redirect("/login");
 
   // Fast queries the shell needs synchronously: viewer profile +
-  // explorer rail (spaces/terminals) + tools count. None of these
-  // touch the heavy task / week / activity tables.
-  const [spaces, terminals, toolsResult, profileResult] = await Promise.all([
+  // explorer rail (spaces/terminals). None of these touch the heavy
+  // task / week / activity tables. The tools-count query that lived
+  // here was dropped when the Tools tile came out of the explorer.
+  const [spaces, terminals, profileResult] = await Promise.all([
     loadDashSpaces(supabase, user.id),
     loadDashTerminals(supabase),
-    supabase
-      .from("tools")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null),
     supabase
       .from("profiles")
       .select("full_name, is_platform_admin, settings, timezone")
@@ -138,7 +135,6 @@ export default async function DashboardPage({ searchParams }: Props) {
     <DashboardClient
       spaces={spaces}
       terminals={terminals}
-      toolCount={toolsResult.count ?? 0}
       userId={user.id}
       userName={userName}
       userEmail={user.email ?? ""}

@@ -138,7 +138,6 @@ export default async function ProjectTerminalPage({ params }: Props) {
     { data: callerProfile },
     explorerSpaces,
     explorerTerminals,
-    toolsResult,
   ] = await Promise.all([
     supabase
       .from("activity")
@@ -161,10 +160,6 @@ export default async function ProjectTerminalPage({ params }: Props) {
     // rendered below the topbar (instead of beside it as an aside).
     loadDashSpaces(supabase, user.id),
     loadDashTerminals(supabase),
-    supabase
-      .from("tools")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null),
   ]);
 
   const activities = (activity ?? []) as ActivityRow[];
@@ -270,7 +265,6 @@ export default async function ProjectTerminalPage({ params }: Props) {
         <ExplorerRail
           spaces={explorerSpaces}
           terminals={explorerTerminals}
-          toolCount={toolsResult.count ?? 0}
           userName={callerName}
           userEmail={user.email ?? ""}
           isPlatformAdmin={isPlatformAdmin}
