@@ -42,6 +42,7 @@ export default async function DelegatedTasksPage() {
             delegated={delegated}
             tickerById={tickerById}
             terminalNameById={terminalNameById}
+            expanded
           />
         </div>
       </main>

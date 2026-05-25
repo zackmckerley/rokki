@@ -39,6 +39,14 @@ interface TasksCardProps {
   createHref?: string | null;
   /** Disable the create button (e.g. user has zero terminals). */
   createDisabled?: boolean;
+  /**
+   * When true, render every visible task (no ROW_LIMIT truncation,
+   * no "X more" footer). The card body scrolls inside whatever
+   * height the parent gives it — meant for full-page views like
+   * `/tasks/mine` and `/tasks/delegated`. Default false, so the
+   * dashboard card keeps its bounded "first 10" + footer behaviour.
+   */
+  expanded?: boolean;
 }
 
 /**
@@ -61,10 +69,13 @@ export function TasksCard({
   terminalNameById,
   createHref = "/?new=task",
   createDisabled,
+  expanded = false,
 }: TasksCardProps) {
-  // Show ~10 rows per the spec; users with more get a "see all" link to a
-  // dedicated full-list page.
-  const ROW_LIMIT = 10;
+  // Dashboard caps at 10 to keep the card bounded; full-page views
+  // (/tasks/mine, /tasks/delegated) pass `expanded` and we lift the
+  // cap so the user sees everything, scrolling within the parent's
+  // height instead of clicking through a fake "open the full list".
+  const ROW_LIMIT = expanded ? Number.POSITIVE_INFINITY : 10;
 
   const router = useRouter();
   useRealtimeTable<{ id: string }>(
@@ -303,10 +314,18 @@ export function TasksCard({
           );
         })()
       )}
-      {visibleAssigned.length > ROW_LIMIT ? (
-        <p className="px-3 py-1 text-center text-[10px] text-text-3">
+      {!expanded && visibleAssigned.length > ROW_LIMIT ? (
+        // Dashboard footer: real Link to the full-page view for the
+        // active tab. The old <p> was decorative-only ("13 more —
+        // open the full list" but no href), which read as broken.
+        // overdue/week/all all live inside "Mine" so they route there;
+        // "delegated" has its own page.
+        <Link
+          href={tab === "delegated" ? "/tasks/delegated" : "/tasks/mine"}
+          className="block px-3 py-1 text-center text-[10px] text-text-3 hover:bg-bg-2 hover:text-text-1"
+        >
           {visibleAssigned.length - ROW_LIMIT} more — open the full list
-        </p>
+        </Link>
       ) : null}
     </DashboardCard>
   );
