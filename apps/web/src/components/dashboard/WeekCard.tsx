@@ -348,11 +348,6 @@ function WeekRow({ item }: { item: WeekItem }) {
         />
       )}
       <span className="flex-1 truncate text-text-0">{item.title}</span>
-      {item.terminal_ticker ? (
-        <span className="font-mono text-[10px] text-text-3">
-          {item.terminal_ticker}
-        </span>
-      ) : null}
     </div>
   );
   return href ? (

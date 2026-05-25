@@ -253,9 +253,6 @@ export function ExplorerRail({
                       className="flex items-center gap-2 rounded-sm px-2 py-0.5 text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
                     >
                       <Clock className="h-3 w-3 flex-shrink-0 text-text-3" />
-                      <span className="w-12 flex-shrink-0 truncate font-mono text-[10px] text-text-3">
-                        {r.ticker}
-                      </span>
                       <span className="flex-1 truncate text-xs">{r.name}</span>
                     </Link>
                   </li>
@@ -335,12 +332,18 @@ export function ExplorerRail({
                           <li key={t.id}>
                             <Link
                               href={`/p/${t.ticker}`}
-                              className="flex items-center gap-2 rounded-sm py-0.5 pl-7 pr-2 text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                              // pl-5 gives terminals a clear "child of"
+                              // indent under the space row's chevron
+                              // (chevron sits at px-1 + 14px = ~18px;
+                              // pl-5 = 20px lands the name just past
+                              // it). The old pl-7 was sized to align
+                              // with a 48px ticker column that we just
+                              // removed — keeping the same indent
+                              // would leave terminals visually orphaned
+                              // far from their parent.
+                              className="flex items-center gap-2 rounded-sm py-0.5 pl-5 pr-2 text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
                               title={t.name}
                             >
-                              <span className="w-12 flex-shrink-0 truncate font-mono text-[10px] text-text-3">
-                                {t.ticker}
-                              </span>
                               <span className="flex-1 truncate text-xs">
                                 {t.name}
                               </span>
