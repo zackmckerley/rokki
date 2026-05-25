@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import { FormError } from "@/components/ui/FormError";
 
 /**
@@ -11,11 +11,6 @@ import { FormError } from "@/components/ui/FormError";
  * only. There is no self-signup, no magic-link path, no "request access"
  * affordance. The only way in is with credentials an admin already
  * provisioned for you.
- *
- * `redirectTo` and `callbackError` are passed in by the server-rendered
- * `page.tsx` (which reads them from `searchParams`). That lets this
- * component SSR fully without needing `useSearchParams` + a Suspense
- * boundary, so the page renders in a single paint with no flash.
  *
  * Identifier is either:
  *   - An email (admin@rokki.local, you@example.com, …)
@@ -25,20 +20,20 @@ import { FormError } from "@/components/ui/FormError";
  * Both paths POST to /api/v1/auth/password-login. The endpoint
  * disambiguates by which field is present (email vs username).
  */
-interface LoginFormProps {
-  redirectTo: string;
-  callbackError: string | null;
-}
-
-export function LoginForm({ redirectTo, callbackError }: LoginFormProps) {
+export function LoginForm() {
   const router = useRouter();
-  const initialError = callbackError ? humanizeAuthError(callbackError) : "";
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("redirect_to") ?? "/";
+  const callbackError = searchParams.get("error");
+
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "error">(
     callbackError ? "error" : "idle",
   );
-  const [errorMessage, setErrorMessage] = useState(initialError);
+  const [errorMessage, setErrorMessage] = useState(
+    callbackError ? humanizeAuthError(callbackError) : "",
+  );
   const [submitted, setSubmitted] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
@@ -50,6 +45,8 @@ export function LoginForm({ redirectTo, callbackError }: LoginFormProps) {
     setState("sending");
     setErrorMessage("");
 
+    // If the identifier looks like an email, send it as `email`; otherwise
+    // pass it as `username` and let the server map it via its allow-list.
     const isEmail = id.includes("@");
     const body = isEmail
       ? { email: id, password }
@@ -65,125 +62,52 @@ export function LoginForm({ redirectTo, callbackError }: LoginFormProps) {
       setErrorMessage(await messageOf(r));
       return;
     }
+    // Session cookie is set on the response. Push to the intended
+    // destination and let the server components pick up the session.
     router.replace(redirectTo);
     router.refresh();
   }
 
-  const identifierMissing = !identifier.trim() && submitted;
-  const passwordMissing = !password && submitted;
-
   return (
-    <form onSubmit={onSubmit} className="space-y-4" noValidate>
-      {state === "error" && errorMessage ? (
-        <FormError message={errorMessage} />
-      ) : null}
-
-      <Field
-        id="identifier"
-        label="Email or username"
+    <form onSubmit={onSubmit} className="space-y-3" noValidate>
+      <FormError
+        message={state === "error" ? errorMessage : null}
+      />
+      <Input
+        name="identifier"
         autoComplete="username email"
+        required
         autoFocus
         placeholder="you@example.com  or  admin"
+        label="Email or username"
         value={identifier}
-        onChange={setIdentifier}
-        error={identifierMissing ? "Required" : undefined}
+        onChange={(e) => setIdentifier(e.target.value)}
+        error={!identifier.trim() && submitted ? "Required" : undefined}
       />
-
-      <Field
-        id="password"
+      <Input
+        name="password"
         type="password"
-        label="Password"
         autoComplete="current-password"
-        placeholder="••••••••••••"
-        value={password}
-        onChange={setPassword}
-        error={passwordMissing ? "Required" : undefined}
-      />
-
-      <button
-        type="submit"
-        disabled={state === "sending"}
-        className={cn(
-          "mt-2 flex h-10 w-full items-center justify-center gap-2 rounded font-sans text-sm font-semibold transition-colors",
-          "bg-accent text-bg-0 hover:bg-accent-hover active:bg-accent-active",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus focus-visible:ring-offset-2 focus-visible:ring-offset-bg-1",
-          "disabled:cursor-not-allowed disabled:opacity-60",
-        )}
-      >
-        {state === "sending" ? (
-          <>
-            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-            <span>Signing in…</span>
-          </>
-        ) : (
-          <span>Sign in</span>
-        )}
-      </button>
-    </form>
-  );
-}
-
-/**
- * Local field component — denser + more deliberately styled than the
- * generic Input primitive. Label sits above; input has visible borders,
- * accent-color focus ring, and a 40px height that gives it a more
- * "serious application" feel than the 36px Input default.
- */
-function Field({
-  id,
-  label,
-  type = "text",
-  value,
-  onChange,
-  error,
-  placeholder,
-  autoComplete,
-  autoFocus,
-}: {
-  id: string;
-  label: string;
-  type?: "text" | "password";
-  value: string;
-  onChange: (v: string) => void;
-  error?: string;
-  placeholder?: string;
-  autoComplete?: string;
-  autoFocus?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label
-        htmlFor={id}
-        className="text-[11px] font-semibold uppercase tracking-wide text-text-2"
-      >
-        {label}
-      </label>
-      <input
-        id={id}
-        name={id}
-        type={type}
-        autoComplete={autoComplete}
-        autoFocus={autoFocus}
         required
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        aria-invalid={!!error}
-        aria-describedby={error ? `${id}-error` : undefined}
-        className={cn(
-          "h-10 rounded border bg-bg-2 px-3 text-sm text-text-0 placeholder:text-text-3",
-          "transition-colors focus:outline-none focus:ring-1",
-          error
-            ? "border-danger focus:border-danger focus:ring-danger"
-            : "border-border focus:border-border-focus focus:ring-border-focus",
-        )}
+        placeholder="••••••••"
+        label="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        error={!password && submitted ? "Required" : undefined}
       />
-      {error ? (
-        <span id={`${id}-error`} className="text-[11px] text-danger">
-          {error}
-        </span>
-      ) : null}
-    </div>
+      <Button
+        type="submit"
+        variant="accent"
+        size="lg"
+        className="w-full"
+        loading={state === "sending"}
+      >
+        Sign in
+      </Button>
+      <p className="pt-1 text-center text-[11px] text-text-3">
+        Accounts are provisioned by your administrator. No self-signup.
+      </p>
+    </form>
   );
 }
 
