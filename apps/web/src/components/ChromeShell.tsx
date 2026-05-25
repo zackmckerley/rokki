@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { ReactNode } from "react";
+import { CommandPalette } from "./CommandPalette";
 
 /**
  * Client-side chrome wrapper used by the root layout.
@@ -21,16 +22,18 @@ import type { ReactNode } from "react";
  * (dashboard, terminal pages) hydrate the visible page first,
  * then the chrome streams in.
  *
- * Why `ssr: false` for all of them: they're either invisible
+ * Why `ssr: false` for the leaf components: they're either invisible
  * (keyboard handlers, service worker register, toast portal),
- * interaction-gated (command palette, shortcuts overlay, escape
- * probe), or banners we can accept a frame of absence for.
+ * interaction-gated (shortcuts overlay, escape probe), or banners
+ * we can accept a frame of absence for.
+ *
+ * CommandPalette is the exception — it's a context provider that
+ * wraps `{children}`, so it MUST SSR. Lazy-loading it with
+ * `ssr: false` would bail out the entire page (login, dashboard,
+ * everything) to client-side rendering, blanking the screen until
+ * the chunk loads. It's still code-split automatically because
+ * it's a Client Component.
  */
-const CommandPalette = dynamic(
-  () =>
-    import("./CommandPalette").then((m) => ({ default: m.CommandPalette })),
-  { ssr: false },
-);
 const GlobalShortcuts = dynamic(
   () =>
     import("./GlobalShortcuts").then((m) => ({ default: m.GlobalShortcuts })),
