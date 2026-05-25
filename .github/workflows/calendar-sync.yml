@@ -1,10 +1,15 @@
 name: Calendar sync tick
 
 # Vercel's Hobby tier only allows daily cron, so we drive the calendar
-# sync from GitHub Actions instead. Every 15 minutes, POST to the cron
+# sync from GitHub Actions instead. Every 5 minutes, POST to the cron
 # endpoint with the shared secret. The endpoint refreshes any expired
 # Microsoft/Google access tokens, fetches the next 14 days of events
 # for each connected calendar, and upserts them into calendar_events.
+#
+# 5 minutes is the minimum GitHub Actions cron allows, and is paired
+# with a server-side "sync on visit if stale" trigger in the calendar
+# page so an active user always sees fresh data. Background users
+# fall back to this tick for at-most-5-minute staleness.
 #
 # Secrets required:
 #   ROKKI_CRON_SECRET — must match the CRON_SECRET env var on Vercel.
@@ -12,7 +17,7 @@ name: Calendar sync tick
 # Manual run: Actions tab → "Calendar sync tick" → Run workflow.
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 # Limit to one in-flight run at a time. If a tick is slow we'd rather

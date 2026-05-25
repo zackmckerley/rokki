@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { runCalendarSyncForUser } from "@/lib/calendar-sync";
 import { TopBar } from "@/components/TopBar";
 import { CalendarClient } from "@/components/calendar/CalendarClient";
 import {
@@ -8,6 +9,15 @@ import {
   type CalendarSource,
   type CalendarView,
 } from "@/lib/calendar-queries";
+
+/** Refresh threshold for on-visit calendar sync. Connections whose
+ * last successful sync is older than this trigger a fresh fetch
+ * before the page renders, so a hard reload or fresh load always
+ * shows up-to-the-minute events without waiting for the 5-min cron.
+ * Set tight enough to feel instant on manual refresh, loose enough
+ * that a back-and-forth between tabs doesn't hit Google/Microsoft
+ * once per click. */
+const SYNC_FRESHNESS_MS = 30 * 1000;
 
 interface Props {
   searchParams: Promise<{
@@ -63,7 +73,7 @@ export default async function CalendarPage({ searchParams }: Props) {
   // email so the chip order is stable across loads.
   const { data: connectionRows } = await supabase
     .from("calendar_connections")
-    .select("id, provider, account_email")
+    .select("id, provider, account_email, last_sync_at")
     .eq("user_id", user.id)
     .is("revoked_at", null)
     .order("provider", { ascending: true })
@@ -73,8 +83,28 @@ export default async function CalendarPage({ searchParams }: Props) {
     id: string;
     provider: "google" | "microsoft";
     account_email: string;
+    last_sync_at: string | null;
   };
   const connections = (connectionRows ?? []) as ConnectionRow[];
+
+  // Pull fresh events on page load if any connection hasn't synced
+  // within SYNC_FRESHNESS_MS. This is the "instant sync" path —
+  // opening or refreshing the calendar always shows the latest
+  // events without waiting for the cron tick. We swallow errors
+  // because a Google/Microsoft outage shouldn't break the page.
+  const now = Date.now();
+  const staleConn = connections.some((c) => {
+    const last = c.last_sync_at ? new Date(c.last_sync_at).getTime() : 0;
+    return now - last > SYNC_FRESHNESS_MS;
+  });
+  if (staleConn) {
+    try {
+      await runCalendarSyncForUser(user.id);
+    } catch {
+      // Surface stale data rather than blocking the page on a sync
+      // hiccup; the cron tick will catch up on the next pass.
+    }
+  }
 
   // Sources: one per connection + a fixed "Rokki tasks" pseudo-row
   // so the user can hide due-date markers independently from synced
