@@ -595,9 +595,22 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
   /**
    * POST a fully-formed task (title + chips) to the project's tasks
    * endpoint. The TaskComposer hands us the structured payload; we
-   * just translate it into the API's body shape and reload on
-   * success. Throws on failure so the composer can surface the error
-   * inline.
+   * translate it into the API's body shape, optimistically insert
+   * the returned row into local state, and let realtime reconcile.
+   *
+   * Why optimistic + no follow-up `load()`:
+   *   - Before this, the flow was POST → await load(). A slow refetch,
+   *     a transient realtime hiccup, or a brief replication lag could
+   *     each cause the freshly-created task to not appear until the
+   *     user manually refreshed.
+   *   - The POST response now returns the same shape as the GET list
+   *     (matching column set + assignees + subtask aggregates), so
+   *     dropping it straight into state gives the user instant feedback.
+   *   - The realtime channel still fires onInsert and deduplicates by
+   *     id (see `onInsert` above), so a slow round-trip + a fast
+   *     realtime push doesn't double-insert.
+   *
+   * Throws on failure so the composer can surface the error inline.
    */
   async function createTask(input: TaskComposerSubmit) {
     const r = await offlineFetch(`/api/v1/projects/${ticker}/tasks`, {
@@ -627,7 +640,31 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
       );
     }
     setCreating(false);
-    if (r.status !== 202) await load();
+    if (r.status === 202) {
+      // Offline-queued — there's no real row yet. Background drain
+      // will fire the realtime push when connectivity returns.
+      return;
+    }
+    // Parse the server's freshly-inserted row and slot it into state
+    // immediately. dedupe in case the realtime channel raced us.
+    try {
+      const body = (await r.json()) as { data?: Task };
+      const created = body.data;
+      if (created && created.id) {
+        setTasks((prev) =>
+          prev.some((t) => t.id === created.id)
+            ? prev
+            : sortTasks([created, ...prev], sortMode),
+        );
+      } else {
+        // Fall back to a refetch if the server didn't return what we
+        // expected — shouldn't happen on the current API but guards
+        // against a future shape regression silently breaking creates.
+        await load();
+      }
+    } catch {
+      await load();
+    }
   }
 
   function cancelCreate() {
