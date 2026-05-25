@@ -85,9 +85,14 @@ export function TeamPane({ ticker, projectId, canInvite }: TeamPaneProps) {
       void load();
     }, 250);
   }, [load]);
+  // Table was renamed from `project_members` → `terminal_members` in
+  // migration 20260423010000 — the old name doesn't exist anymore and
+  // the realtime channel silently never fired, so adds/removes from
+  // other tabs (or from the F7 invite flow) didn't appear here until
+  // a manual reload.
   useRealtimeTable<Record<string, unknown>>(
     {
-      table: "project_members",
+      table: "terminal_members",
       filter: `terminal_id=eq.${projectId}`,
       channelKey: `members:${projectId}`,
     },

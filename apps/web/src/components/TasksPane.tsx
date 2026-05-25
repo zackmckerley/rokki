@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ChevronDown,
   ChevronRight,
@@ -1006,6 +1007,7 @@ function TaskRow({
         <InlineTitleEditor
           title={task.title}
           done={done}
+          href={`/p/${ticker}/task/${task.ticker_seq}`}
           onCommit={onRename}
         />
         {status ? (
@@ -1103,10 +1105,15 @@ function recurrenceShortLabel(rule: TaskRecurrenceRule): string {
 }
 
 /**
- * Inline title editor for a task row. Renders as a plain `<span>` in
- * its default state — double-click (or hit Enter when the row is
- * selected) flips to a focused `<input>`. Enter commits, Escape
- * cancels, blur commits the current value.
+ * Inline title editor for a task row. Renders as a clickable title in
+ * its default state — single click navigates to the task detail page,
+ * double-click flips to a focused `<input>` for rename. Enter commits,
+ * Escape cancels, blur commits the current value.
+ *
+ * Single vs. double click is disambiguated with a short timer: the
+ * navigate fires ~220ms after click unless a dblclick lands first and
+ * cancels it. Matches the gesture used by Finder/Notes for "click =
+ * open, double-click = rename".
  *
  * Commit semantics:
  *   - Trim → compare to original. If unchanged: silent revert.
@@ -1122,15 +1129,28 @@ function recurrenceShortLabel(rule: TaskRecurrenceRule): string {
 function InlineTitleEditor({
   title,
   done,
+  href,
   onCommit,
 }: {
   title: string;
   done: boolean;
+  /**
+   * Destination for a single-click on the title (the task detail page).
+   * The row's own click handler still selects the row; navigation runs
+   * on its own short timer so a dblclick can cancel it and enter
+   * rename mode instead.
+   */
+  href: string;
   onCommit: (next: string) => void;
 }) {
+  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  // Holds the pending navigation timer started by a single click. A
+  // subsequent dblclick clears it so we don't navigate-and-rename in
+  // the same gesture.
+  const clickTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset the draft whenever the upstream title changes — handles the
   // case where another collaborator renames the row while we're not
@@ -1147,6 +1167,14 @@ function InlineTitleEditor({
       inputRef.current?.select();
     }
   }, [editing]);
+
+  // Cancel any pending nav timer on unmount so a row that scrolls off
+  // mid-gesture doesn't try to navigate later.
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    };
+  }, []);
 
   function commit() {
     const next = draft.trim();
@@ -1168,12 +1196,31 @@ function InlineTitleEditor({
     return (
       <span
         className={cn(
-          "truncate text-sm",
+          "cursor-pointer truncate text-sm hover:underline",
           done ? "text-text-3 line-through" : "text-text-0",
         )}
-        title="Double-click to rename"
+        role="link"
+        title="Click to open · double-click to rename"
+        onClick={(e) => {
+          // Don't bubble — the row's own onClick should still fire to
+          // select the row, but we want full control over the timer.
+          // `setSelectedIdx` lives on the outer row click; calling it
+          // here too is redundant but harmless. We stopPropagation to
+          // avoid double-selection animations.
+          e.stopPropagation();
+          if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+          clickTimerRef.current = setTimeout(() => {
+            clickTimerRef.current = null;
+            router.push(href);
+          }, 220);
+        }}
         onDoubleClick={(e) => {
           e.stopPropagation();
+          // Cancel the pending navigate from the preceding single click.
+          if (clickTimerRef.current) {
+            clearTimeout(clickTimerRef.current);
+            clickTimerRef.current = null;
+          }
           setEditing(true);
         }}
       >

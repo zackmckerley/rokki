@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, UserMinus, Check, AlertTriangle } from "lucide-react";
+import { Archive, UserMinus, UserPlus, Check, AlertTriangle, Mail } from "lucide-react";
 import { Avatar } from "@/components/primitives";
 import { RichTextarea } from "@/components/ui/RichTextarea";
 import { cn } from "@/lib/utils";
@@ -92,7 +92,12 @@ export function TerminalSettingsForm({
         ticker={initial.ticker}
         archived={initial.archived}
         canManage={canManage}
-        onArchived={() => router.push("/")}
+        // Hard navigation — router.push() leaves the dashboard's RSC
+        // cache holding a stale terminal row that just got archived,
+        // so the user lands back on the dashboard and still sees the
+        // terminal they thought they killed. window.location.assign()
+        // refetches from the server with the freshest data.
+        onArchived={() => window.location.assign("/")}
       />
     </div>
   );
@@ -243,7 +248,61 @@ function MembersCard({
   myUserId: string;
   onChange: (next: TerminalMember[]) => void;
 }) {
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<ProjectRole>("guest");
+  const [inviting, setInviting] = useState(false);
+  const [inviteStatus, setInviteStatus] = useState<string | null>(null);
+
+  /**
+   * Add a teammate by email. Same endpoint as the F7 Team pane —
+   * if the email already belongs to a Rokki user we add them
+   * directly; otherwise we create a pending invite and send a
+   * magic-link. On success we refresh the parent Server Component
+   * so the new row appears without a manual reload.
+   */
+  async function invite(e: React.FormEvent) {
+    e.preventDefault();
+    if (inviting) return;
+    const email = inviteEmail.trim().toLowerCase();
+    if (!email) return;
+    setInviting(true);
+    setError(null);
+    setInviteStatus(null);
+    try {
+      const r = await fetch(`/api/v1/projects/${ticker}/members`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email, role: inviteRole }),
+      });
+      const body = (await r.json().catch(() => ({}))) as {
+        data?: { added?: boolean; invited?: boolean };
+        errors?: { message: string }[];
+      };
+      if (!r.ok) {
+        setError(body.errors?.[0]?.message ?? `HTTP ${r.status}`);
+        return;
+      }
+      setInviteEmail("");
+      setInviteRole("guest");
+      setInviteStatus(
+        body.data?.added
+          ? `Added ${email} to the terminal.`
+          : `Invite sent to ${email}.`,
+      );
+      // Refresh the page so the new row lands in the list. The server
+      // re-renders the members table and the realtime channel mirrors
+      // it for any other tab the user has open.
+      router.refresh();
+      window.setTimeout(() => setInviteStatus(null), 2500);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setInviting(false);
+    }
+  }
 
   async function setRole(userId: string, role: ProjectRole) {
     setError(null);
@@ -346,10 +405,71 @@ function MembersCard({
           {error}
         </p>
       ) : null}
-      <div className="border-t border-border bg-bg-2 px-4 py-2 text-[11px] text-text-3">
-        To invite someone, go to the terminal&apos;s Team pane (F7) — this page
-        only edits existing members.
-      </div>
+      {canManage ? (
+        <form
+          onSubmit={(e) => void invite(e)}
+          className="flex flex-wrap items-end gap-2 border-t border-border bg-bg-2 px-4 py-3"
+        >
+          <label className="flex min-w-[200px] flex-1 flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-text-3">
+              Add by email
+            </span>
+            <div className="flex items-center gap-2 rounded-sm border border-border bg-bg-0 px-2">
+              <Mail className="h-3.5 w-3.5 flex-shrink-0 text-text-3" aria-hidden="true" />
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="teammate@example.com"
+                disabled={inviting}
+                aria-label="Email to invite"
+                className="flex-1 bg-transparent py-1.5 text-sm text-text-0 outline-none placeholder:text-text-3 disabled:opacity-50"
+              />
+            </div>
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-text-3">
+              Role
+            </span>
+            <select
+              value={inviteRole}
+              onChange={(e) => setInviteRole(e.target.value as ProjectRole)}
+              disabled={inviting}
+              aria-label="Role for new member"
+              className="rounded-sm border border-border bg-bg-0 px-2 py-1.5 font-mono text-xs uppercase text-text-0 outline-none focus:border-border-focus disabled:opacity-50"
+            >
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={inviting || !inviteEmail.trim()}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-sm bg-accent px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-bg-0",
+              (inviting || !inviteEmail.trim()) &&
+                "cursor-not-allowed opacity-50",
+            )}
+          >
+            <UserPlus className="h-3 w-3" />
+            {inviting ? "Adding…" : "Add"}
+          </button>
+          {inviteStatus ? (
+            <p className="w-full text-xs text-success">{inviteStatus}</p>
+          ) : null}
+          <p className="w-full text-[10px] text-text-3">
+            Existing Rokki users are added immediately. New emails get a
+            magic-link invite that auto-accepts on click.
+          </p>
+        </form>
+      ) : (
+        <div className="border-t border-border bg-bg-2 px-4 py-2 text-[11px] text-text-3">
+          Only owners and managers can invite teammates.
+        </div>
+      )}
     </Card>
   );
 }
