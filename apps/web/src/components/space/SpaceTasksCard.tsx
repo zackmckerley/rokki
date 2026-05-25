@@ -5,11 +5,7 @@ import { useState } from "react";
 import { Check, AlertOctagon, Clock, User as UserIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardCard, CardSection } from "@/components/dashboard/DashboardCard";
-import {
-  PriorityDots,
-  TickerChip,
-  DueChip,
-} from "@/components/primitives";
+import { PriorityDots, DueChip } from "@/components/primitives";
 import type { SpaceTaskRow } from "@/lib/space-queries";
 
 interface SpaceTasksCardProps {
@@ -201,7 +197,6 @@ function TaskRow({ task }: { task: SpaceTaskRow }) {
 
   const linkContent = (
     <>
-      {task.ticker ? <TickerChip>{task.ticker}</TickerChip> : null}
       <span
         className={cn(
           "flex-1 truncate",

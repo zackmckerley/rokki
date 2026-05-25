@@ -14,11 +14,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardCard } from "./DashboardCard";
-import {
-  PriorityDots,
-  DueChip,
-  TickerChip,
-} from "@/components/primitives";
+import { PriorityDots, DueChip } from "@/components/primitives";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { bucketDashTasks } from "@/lib/task-grouping";
 import type { AssignedTask, DelegatedTask } from "@/lib/dashboard-queries";
@@ -432,7 +428,6 @@ function AssignedRow({
   // inside the same `<li>`.
   const linkContent = (
     <>
-      {ticker ? <TickerChip>{ticker}</TickerChip> : null}
       <span
         className={cn(
           "flex-1 truncate",
@@ -507,7 +502,6 @@ function DelegatedRow({
       className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-2"
     >
       <ArrowRight className="h-3 w-3 flex-shrink-0 text-text-3" />
-      {ticker ? <TickerChip>{ticker}</TickerChip> : null}
       <span className="flex-1 truncate text-text-0">{task.title}</span>
       <span
         className="hidden truncate text-text-2 md:inline max-w-[14ch]"

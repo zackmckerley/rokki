@@ -957,9 +957,9 @@ function DetailMeta({ item }: { item: CalendarItem }) {
           <span className="ml-2">
             <Link
               href={`/p/${item.terminal_ticker}`}
-              className="font-mono text-accent hover:underline"
+              className="text-accent hover:underline"
             >
-              {item.terminal_ticker}
+              Open terminal
             </Link>
           </span>
         </p>
