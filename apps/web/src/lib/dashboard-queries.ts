@@ -84,18 +84,32 @@ export async function loadDashSpaces(
   return traceSpan(
     { name: "db.dashboard.spaces", op: "db.query", attributes: { table: "space_members" } },
     async () => {
+      // Pull archived_at so we can filter soft-deleted spaces out of
+      // the explorer. DELETE /api/v1/orgs/:slug sets archived_at
+      // (cascade trigger fans the archive to terminals/tasks/files);
+      // without this filter the deleted space lingered in the rail
+      // until the user's session expired — that was Zack's "I deleted
+      // Goodwin Proctor and it's still showing" report.
       const { data } = await supabase
         .from("space_members")
-        .select("role, spaces!space_members_space_id_fkey(id, slug, name)")
+        .select(
+          "role, spaces!space_members_space_id_fkey(id, slug, name, archived_at)",
+        )
         .eq("user_id", userId);
       type Row = {
         role: "owner" | "admin" | "member";
-        spaces: { id: string; slug: string; name: string } | null;
+        spaces: {
+          id: string;
+          slug: string;
+          name: string;
+          archived_at: string | null;
+        } | null;
       };
       return ((data ?? []) as unknown as Row[])
         .filter(
           (r): r is Row & { spaces: NonNullable<Row["spaces"]> } => !!r.spaces,
         )
+        .filter((r) => r.spaces.archived_at === null)
         .map((r) => ({
           id: r.spaces.id,
           slug: r.spaces.slug,

@@ -71,7 +71,6 @@ export default async function SpaceLandingPage({ params }: Props) {
     lobby,
     explorerSpaces,
     explorerTerminals,
-    toolsResult,
     profileResult,
     membershipResult,
   ] = await Promise.all([
@@ -82,10 +81,6 @@ export default async function SpaceLandingPage({ params }: Props) {
     loadSpaceLobby(supabase, s.id, 8),
     loadDashSpaces(supabase, user.id),
     loadDashTerminals(supabase),
-    supabase
-      .from("tools")
-      .select("id", { count: "exact", head: true })
-      .is("deleted_at", null),
     supabase
       .from("profiles")
       .select("full_name, is_platform_admin, settings")
@@ -135,7 +130,6 @@ export default async function SpaceLandingPage({ params }: Props) {
       myRole={myRole}
       spaces={explorerSpaces}
       allTerminals={explorerTerminals}
-      toolCount={toolsResult.count ?? 0}
       userName={userName}
       userEmail={user.email ?? ""}
       isPlatformAdmin={isPlatformAdmin}

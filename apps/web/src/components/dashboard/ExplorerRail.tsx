@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Clock,
   Settings,
-  Sparkles,
   X,
 } from "lucide-react";
 import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
@@ -21,7 +20,6 @@ import {
 interface ExplorerRailProps {
   spaces: DashSpace[];
   terminals: DashTerminal[];
-  toolCount: number;
   userEmail: string;
   userName: string;
   isPlatformAdmin: boolean;
@@ -51,7 +49,6 @@ interface ExplorerRailProps {
 export function ExplorerRail({
   spaces,
   terminals,
-  toolCount,
   userEmail,
   userName,
   isPlatformAdmin,
@@ -358,20 +355,10 @@ export function ExplorerRail({
             </ul>
           )}
 
-          {/* Tools — promoted from a buried muted row to a small
-              panel-like tile so users actually find it. */}
-          <div className="mt-4 px-2">
-            <Link
-              href="/tools"
-              className="flex items-center gap-2 rounded-sm border border-border bg-bg-1 px-2 py-1.5 text-xs text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-            >
-              <Sparkles className="h-3 w-3 text-accent" />
-              <span className="flex-1">Tools</span>
-              <span className="rounded-sm bg-bg-2 px-1.5 font-mono text-[10px] text-text-2 group-hover:bg-bg-3">
-                {toolCount}
-              </span>
-            </Link>
-          </div>
+          {/* The "Tools" tile lived here. Removed at Zack's request —
+              the marketplace is reachable from the command palette
+              ("tools") and the AccountBlock menu, and the tile was
+              eating rail real estate without earning the visit count. */}
         </div>
       </div>
 

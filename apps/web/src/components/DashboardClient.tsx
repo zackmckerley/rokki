@@ -47,7 +47,6 @@ const CreateProjectDialog = dynamic(
 interface DashboardClientProps {
   spaces: DashSpace[];
   terminals: DashTerminal[];
-  toolCount: number;
   userId: string;
   userName: string;
   userEmail: string;
@@ -90,7 +89,6 @@ interface DashboardClientProps {
 export function DashboardClient({
   spaces,
   terminals,
-  toolCount,
   userId,
   userName,
   userEmail,
@@ -194,7 +192,6 @@ export function DashboardClient({
           <ExplorerRail
             spaces={spaces}
             terminals={terminals}
-            toolCount={toolCount}
             userName={userName}
             userEmail={userEmail}
             isPlatformAdmin={isPlatformAdmin}

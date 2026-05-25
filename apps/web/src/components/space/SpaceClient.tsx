@@ -42,7 +42,6 @@ interface SpaceClientProps {
   spaces: DashSpace[];
   /** Terminals shown in the explorer rail (all visible to the user). */
   allTerminals: DashTerminal[];
-  toolCount: number;
   userName: string;
   userEmail: string;
   isPlatformAdmin: boolean;
@@ -75,7 +74,6 @@ export function SpaceClient({
   myRole,
   spaces,
   allTerminals,
-  toolCount,
   userName,
   userEmail,
   isPlatformAdmin,
@@ -113,7 +111,6 @@ export function SpaceClient({
           <ExplorerRail
             spaces={spaces}
             terminals={allTerminals}
-            toolCount={toolCount}
             userName={userName}
             userEmail={userEmail}
             isPlatformAdmin={isPlatformAdmin}
