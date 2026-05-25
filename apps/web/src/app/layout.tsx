@@ -18,16 +18,16 @@ const Newsreader_ = Newsreader({
   display: "swap",
   variable: "--font-display-loaded",
 });
-import { CommandPalette } from "@/components/CommandPalette";
-import { GlobalShortcuts } from "@/components/GlobalShortcuts";
-import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
-import { ShortcutsOverlay } from "@/components/ShortcutsOverlay";
-import { SessionGuard } from "@/components/SessionGuard";
-import { AnnouncementBanner } from "@/components/AnnouncementBanner";
-import { MaintenanceBanner } from "@/components/MaintenanceBanner";
-import { EscapeProbe } from "@/components/EscapeProbe";
-import { NavigationFallback } from "@/components/NavigationFallback";
-import { Toaster } from "@/components/Toaster";
+
+/**
+ * `ChromeShell` is a Client Component that lazy-loads the nine global
+ * chrome modules (CommandPalette, banners, toaster, etc.) so they
+ * don't ship in the initial entry chunk. It has to be a Client
+ * Component because Next.js 15 disallows `dynamic({ ssr: false })`
+ * from Server Components; the root layout (this file) stays a Server
+ * Component for cookie reads + the `<html>` shell.
+ */
+import { ChromeShell } from "@/components/ChromeShell";
 import "./globals.css";
 
 const ROKKI_DESCRIPTION = "The terminal for your projects.";
@@ -234,18 +234,7 @@ export default async function RootLayout({
         >
           Skip to main content
         </a>
-        <MaintenanceBanner />
-        <AnnouncementBanner />
-        <CommandPalette>
-          <GlobalShortcuts />
-          {children}
-        </CommandPalette>
-        <ShortcutsOverlay />
-        <SessionGuard />
-        <EscapeProbe />
-        <NavigationFallback />
-        <ServiceWorkerRegister />
-        <Toaster />
+        <ChromeShell>{children}</ChromeShell>
       </body>
     </html>
   );
