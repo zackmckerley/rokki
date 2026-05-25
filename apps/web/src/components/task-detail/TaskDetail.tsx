@@ -233,20 +233,104 @@ export function TaskDetail({
   async function patchTask(patch: Partial<Task>) {
     setTask((t) => ({ ...t, ...patch }));
     const summary = describePatch(patch);
+    const label = summary
+      ? `Update task: ${summary}`
+      : `Update ${terminal.ticker}-${task.ticker_seq}`;
+
+    // Use the freshest `updated_at` we know about. `task` in the closure
+    // is stale across renders, but `setTask` is fed the actual current
+    // state by react — we mirror that knowledge here so a rapid second
+    // click doesn't send the previous render's token.
     const r = await offlineFetch(`/api/v1/tasks/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       // Include the row we last saw so the server can detect concurrent
-      // edits and 409 us back. Wired conservatively to description edits
-      // for now — see commit 3.
+      // edits and 409 us back.
       body: JSON.stringify({ ...patch, expected_updated_at: task.updated_at }),
-      label: summary
-        ? `Update task: ${summary}`
-        : `Update ${terminal.ticker}-${task.ticker_seq}`,
+      label,
     });
-    // 202 = queued offline; the optimistic UI already reflects the patch.
-    // Anything else non-OK is a hard fail; refetch to roll back.
-    if (!r.ok && r.status !== 202) await loadBundle();
+
+    if (r.ok) {
+      // Sync local state with the server's response so the next rapid
+      // edit's closure has the fresh `updated_at`. Without this, two
+      // clicks within ~100ms (faster than the realtime + loadBundle
+      // round trip) make the second one trip the optimistic-concurrency
+      // check, 409, and roll back the user's selection — that was the
+      // "priority doesn't register, have to click a few times" bug.
+      try {
+        const body = (await r.json()) as { data?: Partial<Task> };
+        if (body?.data) {
+          setTask((t) => ({ ...t, ...body.data }));
+        }
+      } catch {
+        /* server returned non-JSON — keep optimistic state */
+      }
+      return;
+    }
+
+    if (r.status === 202) {
+      // Offline-queued — the optimistic UI already reflects the patch
+      // and the SW drains the queue when connectivity returns.
+      return;
+    }
+
+    if (r.status === 409) {
+      // 409 from a rapid same-user click sequence: PATCH N+1 was sent
+      // before PATCH N's realtime update reached us, so our
+      // expected_updated_at was stale. The server includes its
+      // `current` row in the 409 body — re-issue the patch once with
+      // the fresh token so the user's intent wins.
+      //
+      // Genuine multi-actor conflicts also hit this path. We only
+      // auto-retry ONCE; if the retry still 409s (sustained
+      // contention), we fall through to loadBundle so the user sees
+      // the canonical server state and can re-apply.
+      try {
+        const body = (await r.json()) as {
+          current?: { updated_at?: string } & Partial<Task>;
+        };
+        const freshUpdatedAt = body?.current?.updated_at;
+        if (freshUpdatedAt && freshUpdatedAt !== task.updated_at) {
+          if (body.current) {
+            // Re-base local state on the server's current row before
+            // re-applying the user's patch on top. Keeps any fields
+            // they're NOT editing in sync with reality.
+            setTask((t) => ({ ...t, ...body.current, ...patch }));
+          }
+          const retry = await offlineFetch(`/api/v1/tasks/${task.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...patch,
+              expected_updated_at: freshUpdatedAt,
+            }),
+            label,
+          });
+          if (retry.ok) {
+            try {
+              const retryBody = (await retry.json()) as {
+                data?: Partial<Task>;
+              };
+              if (retryBody?.data) {
+                setTask((t) => ({ ...t, ...retryBody.data }));
+              }
+            } catch {
+              /* keep optimistic state */
+            }
+            return;
+          }
+          if (retry.status === 202) return;
+        }
+      } catch {
+        /* fall through to loadBundle */
+      }
+      await loadBundle();
+      return;
+    }
+
+    // Anything else non-OK is a hard fail; refetch to roll back the
+    // optimistic update so the user doesn't see phantom state.
+    await loadBundle();
   }
 
   async function saveTitle() {
