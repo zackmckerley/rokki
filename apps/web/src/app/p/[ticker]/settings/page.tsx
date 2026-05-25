@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { TopBar } from "@/components/TopBar";
 import { SettingsHistorySection } from "@/components/SettingsHistorySection";
 import { TerminalSettingsForm } from "./TerminalSettingsForm";
@@ -20,7 +21,6 @@ interface Props {
  */
 export default async function TerminalSettingsPage({ params }: Props) {
   const { ticker } = await params;
-  const tickerUpper = ticker.toUpperCase();
 
   const supabase = await createClient();
   const {
@@ -28,17 +28,23 @@ export default async function TerminalSettingsPage({ params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // The URL segment is named `ticker` historically but now carries
+  // the slug. Resolve handles slug-or-ticker so both new and legacy
+  // URLs work.
+  const resolved = await resolveTerminalBySegment(supabase, ticker);
+  if (!resolved) notFound();
   const { data: t } = await supabase
     .from("terminals")
     .select(
-      "id, space_id, ticker, name, description, type, status, metadata, archived_at",
+      "id, space_id, slug, ticker, name, description, type, status, metadata, archived_at",
     )
-    .eq("ticker", tickerUpper)
+    .eq("id", resolved.id)
     .maybeSingle();
   if (!t) notFound();
   const terminal = t as {
     id: string;
     space_id: string;
+    slug: string;
     ticker: string;
     name: string;
     description: string | null;
@@ -130,7 +136,7 @@ export default async function TerminalSettingsPage({ params }: Props) {
         ) : null}
         <span className="text-text-3">/</span>
         <Link
-          href={`/p/${terminal.ticker}`}
+          href={`/p/${terminal.slug}`}
           className="text-text-1 hover:text-text-0"
         >
           {terminal.name}
@@ -140,16 +146,13 @@ export default async function TerminalSettingsPage({ params }: Props) {
       </TopBar>
       <main className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto p-6">
         <header className="mb-6">
-          <div className="mb-1 flex items-center gap-2">
-            <span className="font-mono text-xs font-semibold uppercase tracking-wide text-accent">
-              {terminal.ticker}
-            </span>
-            {terminal.archived_at ? (
+          {terminal.archived_at ? (
+            <div className="mb-1">
               <span className="rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 text-[10px] uppercase text-text-3">
                 archived
               </span>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           <h1 className="text-xl font-semibold text-text-0">{terminal.name}</h1>
           <p className="mt-1 text-xs text-text-3">
             Rename, change status, archive, and manage members.

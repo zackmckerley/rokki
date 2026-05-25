@@ -25,6 +25,18 @@ export interface DashSpace {
 export interface DashTerminal {
   id: string;
   space_id: string;
+  /**
+   * URL-friendly identifier (lowercase, dashed). The /p/<slug> route
+   * resolves by this. Stable across renames so old links never break.
+   * Backfilled from the terminal's name via the rokki_slugify SQL
+   * helper; see the 20260526010000_terminal_slug migration.
+   */
+  slug: string;
+  /**
+   * Legacy Bloomberg-style ticker (uppercase, e.g. "FFRDBL"). Still
+   * stored so old /p/FFRDBL URLs keep resolving via fallback lookup,
+   * but no longer rendered anywhere in the UI.
+   */
   ticker: string;
   name: string;
   status: string;
@@ -52,6 +64,12 @@ export interface WeekItem {
   title: string;
   when: string; // ISO date (full datetime for event, date-only for due)
   terminal_id: string | null;
+  /**
+   * URL-friendly terminal identifier. Used for `/p/<slug>` links from
+   * Week-card rows. Null when the item isn't tied to a terminal (e.g.
+   * raw calendar events with no terminal_id).
+   */
+  terminal_slug: string | null;
   terminal_ticker: string | null;
   /**
    * Source-id for the source filter chip in the Week card. Either a
@@ -129,7 +147,7 @@ export async function loadDashTerminals(
       // RLS filters this to terminals the caller can see.
       const { data } = await supabase
         .from("terminals")
-        .select("id, space_id, ticker, name, status, archived_at")
+        .select("id, space_id, slug, ticker, name, status, archived_at")
         .is("archived_at", null)
         .order("updated_at", { ascending: false });
       return (data ?? []) as DashTerminal[];
@@ -348,10 +366,13 @@ export async function loadWeekItems(
       const { data: terminals } = terminalIds.size
         ? await supabase
             .from("terminals")
-            .select("id, ticker")
+            .select("id, slug, ticker")
             .in("id", Array.from(terminalIds))
         : { data: [] };
-      type Tx = { id: string; ticker: string };
+      type Tx = { id: string; slug: string; ticker: string };
+      const slugById = new Map(
+        ((terminals ?? []) as Tx[]).map((t) => [t.id, t.slug]),
+      );
       const tickerById = new Map(
         ((terminals ?? []) as Tx[]).map((t) => [t.id, t.ticker]),
       );
@@ -362,6 +383,9 @@ export async function loadWeekItems(
         title: e.title,
         when: e.starts_at,
         terminal_id: e.terminal_id,
+        terminal_slug: e.terminal_id
+          ? (slugById.get(e.terminal_id) ?? null)
+          : null,
         terminal_ticker: e.terminal_id
           ? (tickerById.get(e.terminal_id) ?? null)
           : null,

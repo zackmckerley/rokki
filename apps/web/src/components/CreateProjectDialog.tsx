@@ -72,7 +72,7 @@ export function CreateProjectDialog({
       }),
     });
     const body = (await res.json()) as {
-      data?: { ticker: string };
+      data?: { slug?: string; ticker: string };
       errors?: { message: string }[];
     };
     if (!res.ok || !body.data) {
@@ -81,7 +81,10 @@ export function CreateProjectDialog({
       return;
     }
     onClose();
-    router.push(`/p/${body.data.ticker}`);
+    // Prefer the slug for the post-create URL (clean, name-derived).
+    // Fall back to the legacy ticker if the server response doesn't
+    // include slug — the route resolver accepts either.
+    router.push(`/p/${body.data.slug ?? body.data.ticker}`);
   }
 
   return (

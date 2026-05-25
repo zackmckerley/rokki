@@ -30,6 +30,7 @@ import {
   HeartPulse,
   CheckSquare,
   FileText,
+  Layers,
   MessageSquare,
   Terminal as TerminalIcon,
 } from "lucide-react";
@@ -38,6 +39,9 @@ import { createClient } from "@/lib/supabase/client";
 
 interface ProjectHit {
   id: string;
+  /** URL-friendly slug — primary identifier for `/p/<slug>` links. */
+  slug: string;
+  /** Legacy ticker, retained for fallback display only. */
   ticker: string;
   name: string;
 }
@@ -167,19 +171,25 @@ export function CommandPalette({ children }: { children: ReactNode }) {
         onRun: go("/help"),
       },
     ];
-    const projectNav: Command[] = projects.map((p) => ({
-      id: `go/p/${p.ticker}`,
-      title: p.name,
-      subtitle: p.ticker,
-      category: "navigation",
-      keywords: [p.ticker.toLowerCase(), p.name.toLowerCase()],
-      icon: (
-        <span className="font-mono text-[11px] font-semibold text-accent">
-          {p.ticker}
-        </span>
-      ),
-      onRun: go(`/p/${p.ticker}`),
-    }));
+    const projectNav: Command[] = projects.map((p) => {
+      const segment = p.slug || p.ticker;
+      return {
+        id: `go/p/${segment}`,
+        title: p.name,
+        // Subtitle is the slug for at-a-glance disambiguation between
+        // similarly-named terminals; the legacy ticker is in keywords
+        // so old-muscle-memory searches ("FFRDBL") still match.
+        subtitle: segment,
+        category: "navigation",
+        keywords: [
+          segment.toLowerCase(),
+          p.ticker.toLowerCase(),
+          p.name.toLowerCase(),
+        ],
+        icon: <Layers className="h-3.5 w-3.5 text-text-3" />,
+        onRun: go(`/p/${segment}`),
+      };
+    });
     const create: Command[] = [
       {
         id: "create/task",

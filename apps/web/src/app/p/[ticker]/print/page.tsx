@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { PrintActions } from "./PrintActions";
 import type { ProjectStatus, TaskStatus } from "@rokki/db";
 
@@ -10,6 +11,7 @@ interface Props {
 interface TerminalRow {
   id: string;
   space_id: string;
+  slug: string;
   ticker: string;
   name: string;
   description: string | null;
@@ -89,7 +91,6 @@ const PRIORITY_LABEL: Record<number, string> = {
  */
 export default async function TerminalPrintPage({ params }: Props) {
   const { ticker } = await params;
-  const tickerUpper = ticker.toUpperCase();
 
   const supabase = await createClient();
   const {
@@ -97,13 +98,14 @@ export default async function TerminalPrintPage({ params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) notFound();
 
+  const resolved = await resolveTerminalBySegment(supabase, ticker);
+  if (!resolved) notFound();
   const { data: terminalRow } = await supabase
     .from("terminals")
     .select(
-      "id, space_id, ticker, name, description, status, type, created_at",
+      "id, space_id, slug, ticker, name, description, status, type, created_at",
     )
-    .eq("ticker", tickerUpper)
-    .is("archived_at", null)
+    .eq("id", resolved.id)
     .maybeSingle();
   if (!terminalRow) notFound();
   const terminal = terminalRow as TerminalRow;
@@ -185,7 +187,7 @@ export default async function TerminalPrintPage({ params }: Props) {
     >
       {/* Header banner — only shown on screen; hidden in print so the
           cover header below is the first thing on page 1. */}
-      <PrintActions ticker={terminal.ticker} />
+      <PrintActions ticker={terminal.slug} />
 
       <header className="border-b-2 border-text-0 pb-4">
         <div className="mb-2 flex items-baseline justify-between font-mono text-xs uppercase tracking-wide text-text-2">
@@ -195,8 +197,7 @@ export default async function TerminalPrintPage({ params }: Props) {
           <span>As of {asOf.toISOString().slice(0, 10)}</span>
         </div>
         <h1 className="font-display text-3xl font-semibold leading-tight text-text-0">
-          <span className="font-mono text-base font-bold text-accent">{terminal.ticker}</span>
-          <span className="ml-3">{terminal.name}</span>
+          {terminal.name}
         </h1>
         {terminal.description ? (
           <p className="mt-2 text-sm text-text-1">{terminal.description}</p>
@@ -239,7 +240,7 @@ export default async function TerminalPrintPage({ params }: Props) {
                     {g.items.map((t) => (
                       <tr key={t.id} className="border-t border-border">
                         <td className="py-1 pr-2 font-mono text-text-2">
-                          {terminal.ticker}-{t.ticker_seq}
+                          #{t.ticker_seq}
                         </td>
                         <td className="py-1 pr-2 text-text-0">{t.title}</td>
                         <td className="py-1 pr-2 text-text-1">
@@ -355,7 +356,7 @@ export default async function TerminalPrintPage({ params }: Props) {
       </section>
 
       <footer className="mt-8 border-t border-border pt-3 text-[10px] font-mono uppercase tracking-wide text-text-3">
-        Rokki · {terminal.ticker} · generated {asOf.toISOString().slice(0, 19).replace("T", " ")}Z
+        Rokki · {terminal.name} · generated {asOf.toISOString().slice(0, 19).replace("T", " ")}Z
       </footer>
     </div>
   );

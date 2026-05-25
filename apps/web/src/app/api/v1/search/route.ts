@@ -42,6 +42,7 @@ const ALLOWED_KINDS = new Set([
 
 interface ProjectHit {
   id: string;
+  slug: string;
   ticker: string;
   name: string;
 }
@@ -84,7 +85,7 @@ async function handleGet(request: NextRequest) {
   if (!q) {
     const { data: projects } = await supabase
       .from("terminals")
-      .select("id, ticker, name")
+      .select("id, slug, ticker, name")
       .is("archived_at", null)
       .order("updated_at", { ascending: false })
       .limit(100);

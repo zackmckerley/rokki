@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { TopBar } from "@/components/TopBar";
 import { DrawingViewer } from "@/components/drawings/DrawingViewer";
 
@@ -21,13 +22,9 @@ export default async function DrawingPage({ params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: term } = await supabase
-    .from("terminals")
-    .select("id, ticker, name")
-    .eq("ticker", ticker.toUpperCase())
-    .maybeSingle();
-  if (!term) notFound();
-  const terminal = term as { id: string; ticker: string; name: string };
+  const resolved = await resolveTerminalBySegment(supabase, ticker);
+  if (!resolved) notFound();
+  const terminal = resolved;
 
   const { data: file } = await supabase
     .from("files")
@@ -46,7 +43,7 @@ export default async function DrawingPage({ params }: Props) {
     supersedes: string | null;
   };
   if (f.mime_type !== "application/pdf") {
-    redirect(`/p/${terminal.ticker}`);
+    redirect(`/p/${terminal.slug}`);
   }
 
   // Walk the `supersedes` chain to collect every prior revision. Newest
@@ -102,7 +99,7 @@ export default async function DrawingPage({ params }: Props) {
         </Link>
         <span className="text-text-3">·</span>
         <Link
-          href={`/p/${terminal.ticker}`}
+          href={`/p/${terminal.slug}`}
           className="text-text-3 hover:text-text-1"
         >
           {terminal.name}
@@ -120,7 +117,7 @@ export default async function DrawingPage({ params }: Props) {
             {revisions.map((r) => (
               <Link
                 key={r.id}
-                href={`/p/${terminal.ticker}/drawings/${r.id}`}
+                href={`/p/${terminal.slug}/drawings/${r.id}`}
                 className={`rounded-sm border px-1.5 py-0.5 font-mono ${
                   r.id === f.id
                     ? "border-accent bg-accent-subtle text-text-0"

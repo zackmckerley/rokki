@@ -21,7 +21,8 @@ export default async function DelegatedTasksPage() {
     loadDelegatedTasks(supabase, user.id),
     loadDashTerminals(supabase),
   ]);
-  const tickerById = Object.fromEntries(terminals.map((t) => [t.id, t.ticker]));
+  // Values are slugs (URL-friendly), prop name stays for legacy parity.
+  const tickerById = Object.fromEntries(terminals.map((t) => [t.id, t.slug]));
   const terminalNameById = Object.fromEntries(
     terminals.map((t) => [t.id, t.name]),
   );

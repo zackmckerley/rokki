@@ -38,7 +38,9 @@ export interface CalendarItem {
   source_id: string;
   /** Optional terminal_id (events with `terminal_id` set, all tasks). */
   terminal_id: string | null;
-  /** Optional terminal ticker — for deep links from the task path. */
+  /** URL-friendly terminal identifier — primary source for /p/<slug> links. */
+  terminal_slug: string | null;
+  /** Legacy ticker, kept for fallback rendering only — prefer terminal_slug. */
   terminal_ticker: string | null;
   /** Task only — for the detail link. */
   ticker_seq?: number;
@@ -177,7 +179,7 @@ async function fetchEvents(
   const { data: rows } = await supabase
     .from("calendar_events")
     .select(
-      "id, connection_id, title, description, location, starts_at, ends_at, all_day, html_link, terminal_id, terminals(ticker)",
+      "id, connection_id, title, description, location, starts_at, ends_at, all_day, html_link, terminal_id, terminals(slug, ticker)",
     )
     .in("connection_id", visibleConnIds)
     .gte("starts_at", range.startIso)
@@ -196,8 +198,8 @@ async function fetchEvents(
     html_link: string | null;
     terminal_id: string | null;
     terminals:
-      | { ticker: string }
-      | { ticker: string }[]
+      | { slug: string; ticker: string }
+      | { slug: string; ticker: string }[]
       | null;
   };
   return ((rows ?? []) as EventRow[]).map((r) => ({
@@ -209,7 +211,8 @@ async function fetchEvents(
     all_day: r.all_day,
     source_id: r.connection_id,
     terminal_id: r.terminal_id,
-    terminal_ticker: extractTicker(r.terminals),
+    terminal_slug: extractField(r.terminals, "slug"),
+    terminal_ticker: extractField(r.terminals, "ticker"),
     ticker_seq: undefined,
     ends_at: r.ends_at,
     description: r.description,
@@ -229,7 +232,7 @@ async function fetchDueTasks(
   const { data: rows } = await supabase
     .from("task_assignees")
     .select(
-      "tasks!task_assignees_task_id_fkey(id, title, due_date, ticker_seq, terminal_id, terminals(ticker))",
+      "tasks!task_assignees_task_id_fkey(id, title, due_date, ticker_seq, terminal_id, terminals(slug, ticker))",
     )
     .eq("user_id", userId);
   type AssignedRow = {
@@ -240,8 +243,8 @@ async function fetchDueTasks(
       ticker_seq: number;
       terminal_id: string;
       terminals:
-        | { ticker: string }
-        | { ticker: string }[]
+        | { slug: string; ticker: string }
+        | { slug: string; ticker: string }[]
         | null;
     } | null;
   };
@@ -262,15 +265,23 @@ async function fetchDueTasks(
       all_day: true,
       source_id: "tasks",
       terminal_id: t.terminal_id,
-      terminal_ticker: extractTicker(t.terminals),
+      terminal_slug: extractField(t.terminals, "slug"),
+      terminal_ticker: extractField(t.terminals, "ticker"),
       ticker_seq: t.ticker_seq,
     }));
 }
 
-function extractTicker(
-  rel: { ticker: string } | { ticker: string }[] | null,
+/**
+ * Pull a field off a PostgREST embedded relation that may come back
+ * as an object OR a single-element array depending on the query
+ * shape. Generic helper so we can extract `slug` and `ticker` from
+ * `terminals(...)` selects without duplicating the unwrap logic.
+ */
+function extractField<K extends string>(
+  rel: Record<K, string> | Record<K, string>[] | null,
+  field: K,
 ): string | null {
   if (!rel) return null;
-  if (Array.isArray(rel)) return rel[0]?.ticker ?? null;
-  return rel.ticker ?? null;
+  if (Array.isArray(rel)) return rel[0]?.[field] ?? null;
+  return rel[field] ?? null;
 }

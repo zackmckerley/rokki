@@ -196,12 +196,14 @@ export async function loadSpaceTasks(
       // handles the per-row read check.
       const { data: terminals } = await supabase
         .from("terminals")
-        .select("id, ticker")
+        .select("id, slug, ticker")
         .eq("space_id", spaceId)
         .is("archived_at", null);
-      type TRow = { id: string; ticker: string };
+      type TRow = { id: string; slug: string; ticker: string };
       const tList = (terminals ?? []) as TRow[];
-      const tickerById = new Map(tList.map((t) => [t.id, t.ticker]));
+      // Values are slugs (URL-friendly), variable name stays
+      // `tickerById` for legacy parity across the codebase.
+      const tickerById = new Map(tList.map((t) => [t.id, t.slug]));
       const ids = tList.map((t) => t.id);
       if (ids.length === 0) {
         return {

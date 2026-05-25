@@ -25,33 +25,50 @@ interface Props {
 }
 
 export default async function Image({ params }: Props): Promise<ImageResponse> {
-  const tickerUpper = params.ticker.toUpperCase();
+  const segment = params.ticker;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  let displayName = tickerUpper;
+  let displayName = segment;
+  let urlSegment = segment;
   if (url && serviceKey) {
     try {
       const admin = createAdminClient<Database>(url, serviceKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
-      const { data } = await admin
+      // Slug-or-ticker fallback — duplicates the lookup logic from
+      // `resolveTerminalBySegment` (we can't import that here because
+      // this file uses the admin client, not the SSR-cookie client).
+      const { data: bySlug } = await admin
         .from("terminals")
-        .select("name")
-        .eq("ticker", tickerUpper)
+        .select("name, slug")
+        // @ts-expect-error generated types haven't been regenerated
+        // since the 20260526010000_terminal_slug migration added the
+        // column.
+        .eq("slug", segment)
         .is("archived_at", null)
         .maybeSingle();
-      const row = data as { name: string } | null;
+      let row = bySlug as { name: string; slug: string } | null;
+      if (!row && /^[A-Z][A-Z0-9]{1,9}$/.test(segment.toUpperCase())) {
+        const { data: byTicker } = await admin
+          .from("terminals")
+          .select("name, slug")
+          .eq("ticker", segment.toUpperCase())
+          .is("archived_at", null)
+          .maybeSingle();
+        row = byTicker as { name: string; slug: string } | null;
+      }
       if (row?.name) displayName = row.name;
+      if (row?.slug) urlSegment = row.slug;
     } catch {
-      // fall through with the ticker as the name
+      // fall through with the URL segment as the name
     }
   }
 
   return renderOgImage({
-    primary: tickerUpper,
-    secondary: displayName === tickerUpper ? "Rokki terminal" : displayName,
-    topLine: `rokki.ai · /p/${tickerUpper.toLowerCase()}`,
+    primary: displayName,
+    secondary: "Rokki terminal",
+    topLine: `rokki.ai · /p/${urlSegment}`,
     bottomLabel: "Tasks · Files · MCP · Real-time",
   });
 }

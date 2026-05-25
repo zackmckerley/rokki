@@ -76,7 +76,7 @@ export function ExplorerRail({
       const matches = list.filter(
         (t) =>
           t.name.toLowerCase().includes(filterLower) ||
-          t.ticker.toLowerCase().includes(filterLower),
+          t.slug.toLowerCase().includes(filterLower),
       );
       if (matches.length > 0) next.set(spaceId, matches);
     }
@@ -144,13 +144,18 @@ export function ExplorerRail({
 
   const liveRecents = useMemo(() => {
     if (recents.length === 0) return [];
+    // localStorage may hold either a slug (new) or a legacy ticker
+    // (old recents written before the slug column existed). Match
+    // against both so old recents keep working until they fall off
+    // the ring.
+    const bySlug = new Map(terminals.map((t) => [t.slug, t]));
     const byTicker = new Map(terminals.map((t) => [t.ticker, t]));
     return recents
       .map((r) => {
-        const live = byTicker.get(r.ticker);
-        return live ? { ticker: live.ticker, name: live.name } : null;
+        const live = bySlug.get(r.ticker) ?? byTicker.get(r.ticker);
+        return live ? { slug: live.slug, name: live.name } : null;
       })
-      .filter((r): r is { ticker: string; name: string } => r !== null);
+      .filter((r): r is { slug: string; name: string } => r !== null);
   }, [recents, terminals]);
 
   const filterRef = useRef<HTMLInputElement>(null);
@@ -244,9 +249,9 @@ export function ExplorerRail({
               </p>
               <ul className="space-y-0.5">
                 {liveRecents.map((r) => (
-                  <li key={r.ticker}>
+                  <li key={r.slug}>
                     <Link
-                      href={`/p/${r.ticker}`}
+                      href={`/p/${r.slug}`}
                       className="flex items-center gap-2 rounded-sm px-2 py-0.5 text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
                     >
                       <Clock className="h-3 w-3 flex-shrink-0 text-text-3" />
@@ -328,7 +333,7 @@ export function ExplorerRail({
                         {children.map((t) => (
                           <li key={t.id}>
                             <Link
-                              href={`/p/${t.ticker}`}
+                              href={`/p/${t.slug}`}
                               // pl-5 gives terminals a clear "child of"
                               // indent under the space row's chevron
                               // (chevron sits at px-1 + 14px = ~18px;

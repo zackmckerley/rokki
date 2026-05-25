@@ -1,6 +1,7 @@
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { TopBar } from "@/components/TopBar";
 import { TaskDetail } from "@/components/task-detail/TaskDetail";
 
@@ -25,14 +26,7 @@ export default async function TaskDetailPage({ params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: termData } = await supabase
-    .from("terminals")
-    .select("id, ticker, name, space_id")
-    .eq("ticker", ticker.toUpperCase())
-    .maybeSingle();
-  const term = termData as
-    | { id: string; ticker: string; name: string; space_id: string }
-    | null;
+  const term = await resolveTerminalBySegment(supabase, ticker);
   if (!term) notFound();
 
   const { data: taskRow } = await supabase
@@ -95,14 +89,14 @@ export default async function TaskDetailPage({ params }: Props) {
         </Link>
         <span className="text-text-3">·</span>
         <Link
-          href={`/p/${term.ticker}`}
+          href={`/p/${term.slug}`}
           className="text-text-3 hover:text-text-1"
         >
           {term.name}
         </Link>
         <span className="text-text-3">·</span>
         <span className="font-mono text-text-0">
-          {term.ticker}-{(taskRow as { ticker_seq: number }).ticker_seq}
+          #{(taskRow as { ticker_seq: number }).ticker_seq}
         </span>
       </TopBar>
       <main className="mx-auto w-full max-w-5xl flex-1 overflow-y-auto p-6">
@@ -123,7 +117,7 @@ export default async function TaskDetailPage({ params }: Props) {
               created_by: string;
             }
           }
-          terminal={{ id: term.id, ticker: term.ticker, name: term.name }}
+          terminal={{ id: term.id, ticker: term.slug, name: term.name }}
           members={members}
           siblings={siblings}
           currentUserId={user.id}

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { ScopedModuleShell } from "@/components/pane/ScopedModuleShell";
 import { GoalsView } from "@/components/modules/GoalsView";
 import {
@@ -26,13 +27,7 @@ export default async function TerminalGoalsPage({ params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: terminalRow } = await supabase
-    .from("terminals")
-    .select("id, name")
-    .eq("ticker", ticker.toUpperCase())
-    .is("archived_at", null)
-    .maybeSingle();
-  const terminal = terminalRow as { id: string; name: string } | null;
+  const terminal = await resolveTerminalBySegment(supabase, ticker);
   if (!terminal) redirect("/");
 
   const today = new Date().toISOString().slice(0, 10);

@@ -102,7 +102,7 @@ async function handlePost(request: NextRequest) {
       created_by: user.id,
     })
     .select(
-      "id, space_id, ticker, name, description, type, status, metadata, created_at",
+      "id, space_id, slug, ticker, name, description, type, status, metadata, created_at",
     )
     .single();
 
@@ -110,6 +110,7 @@ async function handlePost(request: NextRequest) {
     | {
         id: string;
         space_id: string;
+        slug: string;
         ticker: string;
         name: string;
       }

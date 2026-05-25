@@ -4,6 +4,7 @@ import { emitEvent } from "@/lib/events";
 import { withObservability } from "@/lib/observability";
 import { validateRecurrenceRule } from "@/lib/task-recurrence";
 import { normalizeEmails } from "@/lib/normalize-emails";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
 interface Props {
@@ -335,13 +336,7 @@ async function resolveProject(
   supabase: Awaited<ReturnType<typeof createClient>>,
   ticker: string,
 ) {
-  const { data } = await supabase
-    .from("terminals")
-    .select("id, space_id")
-    .eq("ticker", ticker.toUpperCase())
-    .is("archived_at", null)
-    .maybeSingle();
-  return data as { id: string; space_id: string } | null;
+  return resolveTerminalBySegment(supabase, ticker);
 }
 
 function unauth() {
