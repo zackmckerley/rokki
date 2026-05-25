@@ -240,7 +240,20 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
     });
   }
 
+  // Cancel any in-flight `load()` when a new one starts. Without this,
+  // toggling Auto ↔ Manual rapidly leaves two requests racing — the
+  // slower one's response would overwrite the faster (newer) one,
+  // dropping tasks that arrived via realtime in between and sometimes
+  // landing the wrong sort. The aborted fetch throws an AbortError
+  // which the catch block silently swallows.
+  const loadAbortRef = useRef<AbortController | null>(null);
   const load = useCallback(async () => {
+    // Abort any prior in-flight fetch before starting a new one so its
+    // response can't race past us and clobber state.
+    loadAbortRef.current?.abort();
+    const controller = new AbortController();
+    loadAbortRef.current = controller;
+
     setLoading(true);
     try {
       const url = new URL(
@@ -259,11 +272,17 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
       const r = await fetch(url.toString(), {
         credentials: "include",
         cache: "no-store",
+        signal: controller.signal,
       });
+      // Bail if this fetch is no longer the latest one — the response
+      // body is already in flight when abort() fires, so the AbortError
+      // may or may not throw before we get here. Belt-and-suspenders.
+      if (controller.signal.aborted) return;
       const body = (await r.json()) as {
         data?: Task[];
         errors?: { message: string }[];
       };
+      if (controller.signal.aborted) return;
       if (!r.ok) {
         setError(body.errors?.[0]?.message ?? "Failed to load tasks");
         return;
@@ -271,11 +290,29 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
       setTasks(body.data ?? []);
       setError(null);
     } catch (e) {
+      // Aborted by a newer load() — silent.
+      if (e instanceof DOMException && e.name === "AbortError") return;
+      // Some browsers wrap network/abort errors in TypeError before
+      // throwing — same intent, swallow.
+      if (controller.signal.aborted) return;
       setError(e instanceof Error ? e.message : "Network error");
     } finally {
-      setLoading(false);
+      // Only the latest controller's request flips loading back off.
+      // An older aborted request leaving loading=false here would race
+      // a newer request that just set loading=true.
+      if (loadAbortRef.current === controller) {
+        setLoading(false);
+      }
     }
   }, [ticker, sortMode]);
+
+  // Abort whatever's in flight when the component unmounts so we don't
+  // try to setState on a dead component (and don't leak request handles).
+  useEffect(() => {
+    return () => {
+      loadAbortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     void load();
