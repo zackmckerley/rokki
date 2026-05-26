@@ -100,6 +100,10 @@ function groupStorageKey(projectId: string): string {
   return `rokki_tasks_group:${projectId}`;
 }
 
+function hideDoneStorageKey(projectId: string): string {
+  return `rokki_tasks_hide_done:${projectId}`;
+}
+
 interface TasksPaneProps {
   ticker: string;
   projectId: string;
@@ -140,6 +144,14 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>("auto");
   const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  /**
+   * When true, completed tasks are filtered out of the view. The
+   * server still returns them so the count of hidden rows can be
+   * displayed (so you remember they exist) and toggling back is
+   * instant — no refetch needed. Persisted per-terminal so each
+   * project remembers its own preference.
+   */
+  const [hideDone, setHideDone] = useState(false);
   /**
    * Client-side filter query. Matches against title + description +
    * labels + assignee names + `${ticker}-${seq}`. Empty string =
@@ -199,6 +211,27 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
       /* ignore */
     }
   }, [projectId, groupMode]);
+
+  // Hydrate + persist the hide-done preference per project.
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(hideDoneStorageKey(projectId));
+      if (saved === "1") setHideDone(true);
+    } catch {
+      /* ignore */
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        hideDoneStorageKey(projectId),
+        hideDone ? "1" : "0",
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [projectId, hideDone]);
 
   // Subtasks: lazily-loaded per parent. `null` = not yet fetched,
   // `[]` = fetched and empty. The expand toggle drives both
@@ -809,6 +842,36 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
               <option value="status">Status</option>
             </select>
           </label>
+          {/* Hide-done toggle. Shows the count of tasks being hidden
+              so the user remembers they exist (and can click to bring
+              them back). Persists per-project in localStorage. */}
+          {(() => {
+            const doneCount = tasks.filter((t) => t.status === "done").length;
+            if (doneCount === 0 && !hideDone) return null;
+            return (
+              <button
+                type="button"
+                onClick={() => setHideDone((v) => !v)}
+                aria-pressed={hideDone}
+                title={
+                  hideDone
+                    ? `Show ${doneCount} completed task${doneCount === 1 ? "" : "s"}`
+                    : `Hide ${doneCount} completed task${doneCount === 1 ? "" : "s"} from the list`
+                }
+                className={cn(
+                  "flex items-center gap-1 rounded-sm border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+                  hideDone
+                    ? "border-border bg-bg-2 text-text-2 hover:bg-bg-3"
+                    : "border-border bg-bg-1 text-text-3 hover:bg-bg-2 hover:text-text-1",
+                )}
+              >
+                {hideDone ? "Show done" : "Hide done"}
+                {doneCount > 0 ? (
+                  <span className="text-text-3">{doneCount}</span>
+                ) : null}
+              </button>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           <TaskSearchInput
@@ -848,7 +911,12 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
             // bucket semantics — disable it when grouped OR filtered to
             // avoid a confusing "drag worked but the row didn't move"
             // UX.
-            const filtered = filterTasks(tasks, query, ticker);
+            // Hide-done step runs before the search filter so the "X
+            // tasks match" count reflects only what's visible.
+            const visibleSource = hideDone
+              ? tasks.filter((t) => t.status !== "done")
+              : tasks;
+            const filtered = filterTasks(visibleSource, query, ticker);
             const dragEnabled =
               sortMode === "manual" && groupMode === "none" && !query.trim();
             const groups = groupTasks(filtered, groupMode);
