@@ -47,11 +47,17 @@ async function handleGet(request: NextRequest, { params }: Props) {
   let query = supabase
     .from("tasks")
     .select(
-      "id, ticker_seq, title, description, status, priority, due_date, labels, position, latest_status_text, latest_status_author_id, latest_status_at, status_thread_id, external_assignee_emails, recurrence_rule, created_at, updated_at, completed_at",
+      "id, ticker_seq, title, description, status, priority, due_date, labels, position, starred, latest_status_text, latest_status_author_id, latest_status_at, status_thread_id, external_assignee_emails, recurrence_rule, created_at, updated_at, completed_at",
     )
     .eq("terminal_id", project.id);
 
   if (status) query = query.eq("status", status);
+
+  // Starred tasks always float to the top — that's the contract of
+  // the star ("highest priority of the day"). Within the starred and
+  // unstarred groups we keep the existing sort: by-position for
+  // manual mode, by status → priority → due → created for auto.
+  query = query.order("starred", { ascending: false });
 
   if (sortMode === "position") {
     query = query
@@ -234,7 +240,7 @@ async function handlePost(request: NextRequest, { params }: Props) {
     // freshly-created row and visibly differs from neighbouring rows
     // until the next refetch lands.
     .select(
-      "id, ticker_seq, title, description, status, priority, due_date, labels, position, latest_status_text, latest_status_author_id, latest_status_at, status_thread_id, external_assignee_emails, recurrence_rule, created_at, updated_at, completed_at",
+      "id, ticker_seq, title, description, status, priority, due_date, labels, position, starred, latest_status_text, latest_status_author_id, latest_status_at, status_thread_id, external_assignee_emails, recurrence_rule, created_at, updated_at, completed_at",
     )
     .single();
 

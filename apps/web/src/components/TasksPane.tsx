@@ -14,6 +14,7 @@ import {
   ListTodo,
   Repeat,
   Send,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./EmptyState";
@@ -54,6 +55,12 @@ interface Task {
   status: TaskStatus;
   /** 1=High, 2=Medium, 3=Low, null=No priority. */
   priority: number | null;
+  /**
+   * "Highest priority of the day" flag. Starred tasks sort to the
+   * top of the list regardless of priority/due/position. Toggled
+   * inline from the star button on each row.
+   */
+  starred: boolean;
   due_date: string | null;
   labels: string[];
   latest_status_text?: string | null;
@@ -600,6 +607,32 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
     }
   }
 
+  /**
+   * Toggle the star on a task. Optimistically flips the flag locally
+   * (so the row jumps to/from the top immediately) and PATCHes the
+   * server. Rollback on failure via load().
+   */
+  async function toggleStar(task: Task) {
+    const next = !task.starred;
+    setTasks((prev) =>
+      sortTasks(
+        prev.map((t) => (t.id === task.id ? { ...t, starred: next } : t)),
+        sortMode,
+      ),
+    );
+    try {
+      const r = await offlineFetch(`/api/v1/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ starred: next }),
+        label: next ? `Star "${task.title}"` : `Unstar "${task.title}"`,
+      });
+      if (!r.ok && r.status !== 202) await load();
+    } catch {
+      await load();
+    }
+  }
+
   async function toggleComplete(task: Task) {
     const nextStatus: TaskStatus = task.status === "done" ? "todo" : "done";
     // Optimistic update
@@ -919,6 +952,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
                               draggable={dragEnabled}
                               onClick={() => setSelectedIdx(i)}
                               onToggle={() => toggleComplete(t)}
+                              onToggleStar={() => toggleStar(t)}
                               onOpenComments={() =>
                                 setCommentTaskId((prev) =>
                                   prev === t.id ? null : t.id,
@@ -986,6 +1020,7 @@ function TaskRow({
   draggable,
   onClick,
   onToggle,
+  onToggleStar,
   onOpenComments,
   onToggleExpand,
   onRequestUpdate,
@@ -998,6 +1033,11 @@ function TaskRow({
   draggable: boolean;
   onClick: () => void;
   onToggle: () => void;
+  /**
+   * Flip the "highest priority of the day" star. Starred rows float
+   * to the top of the list regardless of priority/due/position.
+   */
+  onToggleStar: () => void;
   onOpenComments: () => void;
   onToggleExpand: () => void;
   onRequestUpdate: () => void;
@@ -1061,6 +1101,34 @@ function TaskRow({
         ) : (
           <ChevronRight className="h-3 w-3" aria-hidden="true" />
         )}
+      </button>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleStar();
+        }}
+        aria-label={task.starred ? "Unstar (remove from top)" : "Star (pin to top)"}
+        aria-pressed={task.starred}
+        title={
+          task.starred
+            ? "Starred — highest priority. Click to unstar."
+            : "Star to pin to top of the list"
+        }
+        className={cn(
+          "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-sm transition-colors",
+          task.starred
+            ? "text-warning"
+            : "text-text-3 hover:text-warning opacity-0 group-hover:opacity-100",
+          // Starred state stays visible always — even when not hovered —
+          // because the star is the highest-priority signal on the row.
+        )}
+      >
+        <Star
+          className="h-3 w-3"
+          fill={task.starred ? "currentColor" : "none"}
+          aria-hidden="true"
+        />
       </button>
       <button
         onClick={(e) => {
@@ -1374,8 +1442,15 @@ function Empty({ onCreate }: { onCreate: () => void }) {
  * comparison the server uses keeps the visible list deterministic.
  */
 function sortTasks(tasks: Task[], mode: SortMode = "auto"): Task[] {
+  // Starred tasks float to the top of every sort mode — that's the
+  // contract of the star ("highest priority of the day"). Matches the
+  // server-side `ORDER BY starred DESC, …` so realtime + load() agree.
+  const starRank = (t: Task) => (t.starred ? 0 : 1);
+
   if (mode === "manual") {
     return [...tasks].sort((a, b) => {
+      const s = starRank(a) - starRank(b);
+      if (s !== 0) return s;
       const ap = a.position ?? Number.POSITIVE_INFINITY;
       const bp = b.position ?? Number.POSITIVE_INFINITY;
       if (ap !== bp) return ap - bp;
@@ -1393,8 +1468,10 @@ function sortTasks(tasks: Task[], mode: SortMode = "auto"): Task[] {
   const pkey = (p: number | null | undefined): number =>
     p == null ? Number.POSITIVE_INFINITY : p;
   return [...tasks].sort((a, b) => {
-    const s = rank[a.status] - rank[b.status];
+    const s = starRank(a) - starRank(b);
     if (s !== 0) return s;
+    const st = rank[a.status] - rank[b.status];
+    if (st !== 0) return st;
     const p = pkey(a.priority) - pkey(b.priority);
     if (p !== 0) return p;
     const da = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
