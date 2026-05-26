@@ -23,10 +23,19 @@ import { useEffect, useRef, useState } from "react";
  *     `playing`, OR a 1500ms safety timer. This stops the video sitting at
  *     `opacity-0` indefinitely on slow dev servers where `loadeddata`
  *     doesn't fire promptly for a 32MB MP4.
+ *
+ * `onReady` fires exactly once when the video first reaches a paintable
+ * state (or when the safety timer trips). The parent uses it to gate
+ * the login card's fade-in so the user sees the cosmos *before* the
+ * form lands — per Zack: "the first thing the person sees is the
+ * cosmos video. then the other items."
  */
-export function LoginBackground() {
+export function LoginBackground({ onReady }: { onReady?: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [ready, setReady] = useState(false);
+  // Guards against `onReady` firing more than once when several video
+  // events (`loadeddata`, `canplay`, `playing`) race to flip ready.
+  const firedRef = useRef(false);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -38,7 +47,10 @@ export function LoginBackground() {
 
     let cancelled = false;
     const flip = () => {
-      if (!cancelled) setReady(true);
+      if (cancelled || firedRef.current) return;
+      firedRef.current = true;
+      setReady(true);
+      onReady?.();
     };
 
     v.addEventListener("loadeddata", flip);
@@ -70,7 +82,7 @@ export function LoginBackground() {
       v.removeEventListener("canplay", flip);
       v.removeEventListener("playing", flip);
     };
-  }, []);
+  }, [onReady]);
 
   return (
     <>
