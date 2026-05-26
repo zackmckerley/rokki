@@ -71,11 +71,16 @@ export function TasksCard({
   createDisabled,
   expanded = false,
 }: TasksCardProps) {
-  // Dashboard caps at 10 to keep the card bounded; full-page views
-  // (/tasks/mine, /tasks/delegated) pass `expanded` and we lift the
-  // cap so the user sees everything, scrolling within the parent's
-  // height instead of clicking through a fake "open the full list".
-  const ROW_LIMIT = expanded ? Number.POSITIVE_INFINITY : 10;
+  // The cap is gone. Zack: "I could just keep on scrolling through
+  // the tasks on my dashboard and see tasks that may not be showing."
+  // The dashboard card already lives in a `flex-1 min-h-0
+  // overflow-y-auto` body, so all rows render and the user scrolls
+  // inside the card to reach the rest of the list. The
+  // `expandHref` Maximize button in the card header still takes them
+  // to the full-page view if they want more room.
+  const ROW_LIMIT = Number.POSITIVE_INFINITY;
+  // Kept for API back-compat with callers that still pass `expanded`.
+  void expanded;
 
   const router = useRouter();
   useRealtimeTable<{ id: string }>(
@@ -314,19 +319,10 @@ export function TasksCard({
           );
         })()
       )}
-      {!expanded && visibleAssigned.length > ROW_LIMIT ? (
-        // Dashboard footer: real Link to the full-page view for the
-        // active tab. The old <p> was decorative-only ("13 more —
-        // open the full list" but no href), which read as broken.
-        // overdue/week/all all live inside "Mine" so they route there;
-        // "delegated" has its own page.
-        <Link
-          href={tab === "delegated" ? "/tasks/delegated" : "/tasks/mine"}
-          className="block px-3 py-1 text-center text-[10px] text-text-3 hover:bg-bg-2 hover:text-text-1"
-        >
-          {visibleAssigned.length - ROW_LIMIT} more — open the full list
-        </Link>
-      ) : null}
+      {/* The "X more — open the full list" footer is gone. All rows
+          now render and the user scrolls inside the card; the
+          Maximize icon in the card header is still a one-click route
+          to the full-page view for a roomier surface. */}
     </DashboardCard>
   );
 }
