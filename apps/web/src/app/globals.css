@@ -309,7 +309,18 @@ kbd[data-active="true"] {
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-/* Scrollbar */
+/* Scrollbar
+ *
+ * Visible enough to spot at a glance (Zack reported the previous
+ * thumb at --bg-3 blended into the page in both modes) while staying
+ * inside the dense-dark aesthetic. `--border-strong` reads as
+ * "subtle UI" in both themes; on hover we step up to `--text-3` so
+ * the affordance feels active without flashing color. Firefox/Edge
+ * pick up the `scrollbar-color` declaration; WebKit uses the
+ * pseudo-element rules. */
+* {
+  scrollbar-color: var(--border-strong) transparent;
+}
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -318,11 +329,15 @@ kbd[data-active="true"] {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-3);
+  background: var(--border-strong);
   border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--bg-4);
+  background: var(--text-3);
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 
 /* Selection */

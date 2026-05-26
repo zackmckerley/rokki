@@ -57,10 +57,23 @@ export function ProjectTerminal({
   const router = useRouter();
   const [activeKey, setActiveKey] = useState("F3");
 
+  // F5 (Settings) is a navigation tab, not an in-place pane. Clicking
+  // it routes to the per-terminal settings page (the gear icon that
+  // lived in the TopBar was removed in favour of this tab so Settings
+  // sits next to Files / Tasks / Team where the rest of the terminal
+  // surface lives).
+  const handleFunctionKey = (key: string) => {
+    if (key === "F5") {
+      router.push(`/p/${project.ticker}/settings`);
+      return;
+    }
+    setActiveKey(key);
+  };
+
   // Register a per-terminal "Terminal settings" command so ⌘K →
   // "settings" surfaces a route into the current terminal's admin
-  // (rename, members, archive). The breadcrumb cog covers the
-  // mouse path; this covers the keyboard one.
+  // (rename, members, archive). The F5 tab covers the mouse path;
+  // this covers the keyboard one.
   const terminalCommands = useMemo(
     () => [
       {
@@ -98,7 +111,7 @@ export function ProjectTerminal({
       topBar={topBar}
       functionKeys={CORE_FUNCTION_KEYS}
       activeKey={activeKey}
-      onFunctionKey={setActiveKey}
+      onFunctionKey={handleFunctionKey}
       tickerItems={tickerItems}
       tickerProjectId={project.id}
       leftRail={leftRail}
