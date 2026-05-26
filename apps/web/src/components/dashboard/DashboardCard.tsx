@@ -41,12 +41,18 @@ export function DashboardCard({
 }: DashboardCardProps) {
   return (
     <section
+      // Stronger border + subtle ring/shadow so cards separate from the
+      // page background without shouting. `border-border-strong` is one
+      // tier darker than `border-border`; the `shadow-sm` adds a hair of
+      // depth that's just enough to read as a contained surface in both
+      // dark and light mode. Zack's feedback: the previous border was
+      // too thin to differentiate sections.
       className={cn(
-        "flex min-h-0 flex-col overflow-hidden rounded border border-border bg-bg-1",
+        "flex min-h-0 flex-col overflow-hidden rounded border border-border-strong bg-bg-1 shadow-sm",
         className,
       )}
     >
-      <header className="flex h-9 flex-shrink-0 items-center justify-between border-b border-border px-3">
+      <header className="flex h-9 flex-shrink-0 items-center justify-between border-b border-border-strong px-3">
         <div className="flex items-center gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-text-2">
             {title}

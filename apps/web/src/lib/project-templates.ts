@@ -18,6 +18,7 @@ export const CORE_FUNCTION_KEYS: FunctionKey[] = [
   { key: "F2", label: "Files" },
   { key: "F3", label: "Tasks" },
   { key: "F4", label: "Team" },
+  { key: "F5", label: "Settings" },
 ];
 
 export interface ModuleCard {
