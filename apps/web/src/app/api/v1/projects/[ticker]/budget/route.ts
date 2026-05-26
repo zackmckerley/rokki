@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 
 import { withObservability } from "@/lib/observability";
 interface Props {
@@ -78,13 +79,7 @@ async function resolveTerminal(
   supabase: Awaited<ReturnType<typeof createClient>>,
   ticker: string,
 ) {
-  const { data } = await supabase
-    .from("terminals")
-    .select("id, space_id")
-    .eq("ticker", ticker.toUpperCase())
-    .is("archived_at", null)
-    .maybeSingle();
-  return data as { id: string; space_id: string } | null;
+  return resolveTerminalBySegment(supabase, ticker);
 }
 
 function unauth() {

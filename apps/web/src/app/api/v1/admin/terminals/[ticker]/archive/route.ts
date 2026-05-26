@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 
 import { withObservability } from "@/lib/observability";
 interface Props {
@@ -20,22 +21,13 @@ async function handlePost(request: NextRequest, { params }: Props) {
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
 
-  const { data: terminal } = await admin
-    .from("terminals")
-    .select("id, ticker, name, space_id")
-    .eq("ticker", ticker.toUpperCase())
-    .maybeSingle();
-  if (!terminal)
+  const resolved = await resolveTerminalBySegment(admin, ticker);
+  if (!resolved)
     return NextResponse.json(
       { errors: [{ code: "not_found", message: "Terminal not found" }] },
       { status: 404 },
     );
-  const t = terminal as {
-    id: string;
-    ticker: string;
-    name: string;
-    space_id: string;
-  };
+  const t = resolved;
 
   const { error } = await admin
     .from("terminals")
@@ -68,21 +60,23 @@ async function handleDelete(request: NextRequest, { params }: Props) {
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
 
-  const { data: terminal } = await admin
-    .from("terminals")
-    .select("id, ticker, space_id, status")
-    .eq("ticker", ticker.toUpperCase())
-    .maybeSingle();
-  if (!terminal)
+  const resolved = await resolveTerminalBySegment(admin, ticker);
+  if (!resolved)
     return NextResponse.json(
       { errors: [{ code: "not_found", message: "Terminal not found" }] },
       { status: 404 },
     );
-  const t = terminal as {
-    id: string;
-    ticker: string;
-    space_id: string;
-    status: string;
+  // Fetch the status separately — the shared resolver returns the
+  // common columns but not status, which the restore flow needs.
+  const { data: statusRow } = await admin
+    .from("terminals")
+    .select("status")
+    .eq("id", resolved.id)
+    .maybeSingle();
+  const t = {
+    ...resolved,
+    status:
+      ((statusRow as { status?: string } | null)?.status as string) ?? "active",
   };
 
   const nextStatus = t.status === "archived" ? "active" : t.status;

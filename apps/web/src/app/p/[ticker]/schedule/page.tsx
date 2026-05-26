@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { Calendar } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { TopBar } from "@/components/TopBar";
 import { ScheduleClient, type PhaseRow } from "./ScheduleClient";
 
@@ -20,14 +21,9 @@ export default async function SchedulePage({ params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: terminal } = await supabase
-    .from("terminals")
-    .select("id, ticker, name")
-    .eq("ticker", ticker.toUpperCase())
-    .is("archived_at", null)
-    .maybeSingle();
+  const terminal = await resolveTerminalBySegment(supabase, ticker);
   if (!terminal) notFound();
-  const t = terminal as { id: string; ticker: string; name: string };
+  const t = terminal;
 
   const { data: phases } = await supabase
     .from("schedule_phases")
@@ -41,7 +37,7 @@ export default async function SchedulePage({ params }: Props) {
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-bg-0">
       <TopBar>
-        <Link href={`/p/${t.ticker}`} className="text-text-3 hover:text-text-1">
+        <Link href={`/p/${t.slug}`} className="text-text-3 hover:text-text-1">
           ← {t.name}
         </Link>
         <span className="text-text-3">·</span>
@@ -51,14 +47,14 @@ export default async function SchedulePage({ params }: Props) {
         <header className="mb-4">
           <h1 className="flex items-center gap-2 text-xl font-semibold text-text-0">
             <Calendar className="h-5 w-5 text-accent" />
-            Schedule — {t.ticker}
+            Schedule — {t.name}
           </h1>
           <p className="mt-1 text-xs text-text-3">
             Gantt-style phases for this terminal. Scroll horizontally to pan.
           </p>
         </header>
         <ScheduleClient
-          ticker={t.ticker}
+          ticker={t.slug}
           initial={(phases ?? []) as PhaseRow[]}
         />
       </main>

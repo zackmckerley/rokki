@@ -328,9 +328,14 @@ function SourceFilter({
 /* ----------------------------------------------------------------- */
 
 function WeekRow({ item }: { item: WeekItem }) {
-  const href = item.terminal_ticker
-    ? `/p/${item.terminal_ticker}`
-    : undefined;
+  // Prefer the slug for navigation; fall back to legacy ticker if
+  // slug isn't populated (older WeekItems streamed in before the
+  // slug migration ran). The route resolver accepts either.
+  const href = item.terminal_slug
+    ? `/p/${item.terminal_slug}`
+    : item.terminal_ticker
+      ? `/p/${item.terminal_ticker}`
+      : undefined;
   const content = (
     <div className="flex items-center gap-3 px-3 py-1.5 hover:bg-bg-2">
       <span className="flex h-4 w-12 flex-shrink-0 items-center justify-center font-mono text-[10px] text-text-3">

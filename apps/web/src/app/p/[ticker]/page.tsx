@@ -13,6 +13,7 @@ import {
   loadDashSpaces,
   loadDashTerminals,
 } from "@/lib/dashboard-queries";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { summarizeActivity } from "@/lib/activity-summary";
 import { CORE_MODULE_CARDS, SPACE_TAGLINE } from "@/lib/project-templates";
 import type { ProjectStatus } from "@rokki/db";
@@ -31,34 +32,44 @@ interface Props {
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { ticker } = await params;
-  const tickerUpper = ticker.toUpperCase();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  let displayName = tickerUpper;
+  // Resolve by slug first, then ticker fallback — matches the page
+  // resolver so the <title> matches what the user actually opened.
+  let displayName = ticker;
   if (url && serviceKey) {
     try {
       const admin = createAdminClient<Database>(url, serviceKey, {
         auth: { autoRefreshToken: false, persistSession: false },
       });
-      const { data } = await admin
+      const { data: bySlug } = await admin
         .from("terminals")
         .select("name")
-        .eq("ticker", tickerUpper)
+        // @ts-expect-error generated types haven't been regenerated
+        // since the 20260526010000_terminal_slug migration added this
+        // column; runtime is fine.
+        .eq("slug", ticker)
         .is("archived_at", null)
         .maybeSingle();
-      const row = data as { name: string } | null;
+      let row = bySlug as { name: string } | null;
+      if (!row) {
+        const { data: byTicker } = await admin
+          .from("terminals")
+          .select("name")
+          .eq("ticker", ticker.toUpperCase())
+          .is("archived_at", null)
+          .maybeSingle();
+        row = byTicker as { name: string } | null;
+      }
       if (row?.name) displayName = row.name;
     } catch {
-      // fall through with the ticker as the name
+      // fall through with the URL segment as the name
     }
   }
 
-  const title = `${tickerUpper} · ${displayName} — Rokki`;
-  const description =
-    displayName === tickerUpper
-      ? `Rokki terminal ${tickerUpper}.`
-      : `${displayName} on Rokki — terminal ${tickerUpper}.`;
+  const title = `${displayName} — Rokki`;
+  const description = `${displayName} on Rokki.`;
 
   return {
     title,
@@ -85,6 +96,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 interface ProjectRow {
   id: string;
   space_id: string;
+  slug: string;
   ticker: string;
   name: string;
   description: string | null;
@@ -111,7 +123,6 @@ interface MemberRow {
 
 export default async function ProjectTerminalPage({ params }: Props) {
   const { ticker } = await params;
-  const tickerUpper = ticker.toUpperCase();
 
   const supabase = await createClient();
   const {
@@ -119,13 +130,17 @@ export default async function ProjectTerminalPage({ params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) notFound();
 
+  // The URL segment is named `ticker` for historical reasons but now
+  // carries the slug. Lookup tries slug first, then falls back to the
+  // legacy ticker column so old /p/FFRDBL bookmarks still resolve.
+  const resolved = await resolveTerminalBySegment(supabase, ticker);
+  if (!resolved) notFound();
   const { data: project } = await supabase
     .from("terminals")
     .select(
-      "id, space_id, ticker, name, description, type, status, metadata, created_at",
+      "id, space_id, slug, ticker, name, description, type, status, metadata, created_at",
     )
-    .eq("ticker", tickerUpper)
-    .is("archived_at", null)
+    .eq("id", resolved.id)
     .maybeSingle();
 
   if (!project) notFound();
@@ -231,7 +246,7 @@ export default async function ProjectTerminalPage({ params }: Props) {
               clutter; this small inline cog reads as "settings for
               the thing the breadcrumb just named." */}
           <Link
-            href={`/p/${p.ticker}/settings`}
+            href={`/p/${p.slug}/settings`}
             aria-label={`${p.name} settings`}
             title="Terminal settings"
             className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
@@ -247,11 +262,15 @@ export default async function ProjectTerminalPage({ params }: Props) {
           </span>
         </TopBar>
       }
-      ticker={p.ticker}
+      // The prop is named `ticker` for historical reasons but
+      // ProjectTerminal + everything downstream uses it purely as the
+      // URL segment. Passing slug here flips every internal /p/<…>
+      // link to the slug form without renaming the prop.
+      ticker={p.slug}
       project={{
         id: p.id,
         name: p.name,
-        ticker: p.ticker,
+        ticker: p.slug,
         status: p.status,
         type: p.type,
       }}

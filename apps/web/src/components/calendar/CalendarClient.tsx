@@ -949,14 +949,14 @@ function DetailMeta({ item }: { item: CalendarItem }) {
           {dateLabel} · {timeLabel}
         </span>
       </p>
-      {item.terminal_ticker ? (
+      {item.terminal_slug || item.terminal_ticker ? (
         <p>
           <span className="font-mono text-[10px] uppercase tracking-wide text-text-3">
             Terminal
           </span>
           <span className="ml-2">
             <Link
-              href={`/p/${item.terminal_ticker}`}
+              href={`/p/${item.terminal_slug ?? item.terminal_ticker}`}
               className="text-accent hover:underline"
             >
               Open terminal
@@ -1002,9 +1002,10 @@ function EventBody({ item }: { item: CalendarItem }) {
 }
 
 function DueBody({ item }: { item: CalendarItem }) {
+  const segment = item.terminal_slug ?? item.terminal_ticker;
   const href =
-    item.terminal_ticker && item.ticker_seq != null
-      ? `/p/${item.terminal_ticker}/task/${item.ticker_seq}`
+    segment && item.ticker_seq != null
+      ? `/p/${segment}/task/${item.ticker_seq}`
       : null;
   return (
     <div className="mt-4 flex flex-col gap-3 text-sm text-text-1">

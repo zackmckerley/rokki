@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { TopBar } from "@/components/TopBar";
 import { ModulesMarketplace } from "@/components/modules/ModulesMarketplace";
 
@@ -22,15 +23,7 @@ export default async function TerminalModulesPage({ params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const { data: terminalRow } = await supabase
-    .from("terminals")
-    .select("id, name, ticker")
-    .eq("ticker", ticker.toUpperCase())
-    .is("archived_at", null)
-    .maybeSingle();
-  const terminal = terminalRow as
-    | { id: string; name: string; ticker: string }
-    | null;
+  const terminal = await resolveTerminalBySegment(supabase, ticker);
   if (!terminal) redirect("/");
 
   const { data: catRows } = await supabase
@@ -59,14 +52,14 @@ export default async function TerminalModulesPage({ params }: Props) {
     <div className="flex min-h-screen flex-col bg-bg-0">
       <TopBar>
         <Link
-          href={`/p/${terminal.ticker}/settings`}
+          href={`/p/${terminal.slug}/settings`}
           className="text-text-3 hover:text-text-1"
         >
           ← Settings
         </Link>
         <span className="text-text-3">·</span>
-        <span className="font-mono text-[11px] uppercase tracking-wide text-text-2">
-          {terminal.ticker}
+        <span className="text-text-1">
+          {terminal.name}
         </span>
         <span className="text-text-3">·</span>
         <span className="text-text-0">Modules</span>

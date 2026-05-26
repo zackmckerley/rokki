@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 
 import { withObservability } from "@/lib/observability";
 interface Props {
@@ -36,13 +37,7 @@ async function handleGet(_req: NextRequest, { params }: Props) {
       { status: 401 },
     );
 
-  const { data: terminal } = await supabase
-    .from("terminals")
-    .select("id, ticker, name, space_id")
-    .eq("ticker", ticker.toUpperCase())
-    .maybeSingle();
-  type Term = { id: string; ticker: string; name: string; space_id: string };
-  const term = terminal as Term | null;
+  const term = await resolveTerminalBySegment(supabase, ticker);
   if (!term) return notFound();
 
   const { data: taskRow } = await supabase

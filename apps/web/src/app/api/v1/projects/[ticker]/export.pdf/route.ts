@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { cookies, headers } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { withObservability } from "@/lib/observability";
 
 interface Props {
@@ -31,7 +32,6 @@ interface Props {
  */
 async function handle(request: NextRequest, { params }: Props) {
   const { ticker } = await params;
-  const tickerUpper = ticker.toUpperCase();
 
   const supabase = await createClient();
   const {
@@ -46,12 +46,7 @@ async function handle(request: NextRequest, { params }: Props) {
 
   // Verify the caller has access to this terminal before paying the
   // (expensive) cost of launching a browser.
-  const { data: terminalRow } = await supabase
-    .from("terminals")
-    .select("id, ticker")
-    .eq("ticker", tickerUpper)
-    .is("archived_at", null)
-    .maybeSingle();
+  const terminalRow = await resolveTerminalBySegment(supabase, ticker);
   if (!terminalRow) {
     return NextResponse.json(
       { errors: [{ code: "not_found", message: "Terminal not found" }] },
@@ -95,7 +90,7 @@ async function handle(request: NextRequest, { params }: Props) {
   const hdrs = await headers();
   const proto = hdrs.get("x-forwarded-proto") ?? "http";
   const host = hdrs.get("host") ?? "localhost:3000";
-  const printUrl = `${proto}://${host}/p/${tickerUpper}/print`;
+  const printUrl = `${proto}://${host}/p/${terminalRow.slug}/print`;
 
   // Forward the caller's auth cookies into the puppeteer browser
   // context so the page renders as the user, not anonymous.
@@ -152,7 +147,7 @@ async function handle(request: NextRequest, { params }: Props) {
     });
     await ctx.close();
 
-    const filename = `${tickerUpper}-${new Date().toISOString().slice(0, 10)}.pdf`;
+    const filename = `${terminalRow.slug}-${new Date().toISOString().slice(0, 10)}.pdf`;
     // Copy the playwright Uint8Array (typed against ArrayBufferLike) into
     // a fresh ArrayBuffer so the BodyInit signature accepts it.
     const ab = new ArrayBuffer(pdf.byteLength);

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildBlobKey, putObject } from "@/lib/storage";
+import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
 import { withObservability } from "@/lib/observability";
 import crypto from "node:crypto";
 
@@ -192,13 +193,7 @@ async function resolveProject(
   supabase: Awaited<ReturnType<typeof createClient>>,
   ticker: string,
 ) {
-  const { data } = await supabase
-    .from("terminals")
-    .select("id, space_id, ticker")
-    .eq("ticker", ticker.toUpperCase())
-    .is("archived_at", null)
-    .maybeSingle();
-  return data as { id: string; space_id: string; ticker: string } | null;
+  return resolveTerminalBySegment(supabase, ticker);
 }
 
 function unauth() {

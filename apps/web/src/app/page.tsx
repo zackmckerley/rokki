@@ -97,10 +97,14 @@ export default async function DashboardPage({ searchParams }: Props) {
 
   // Build the ticker/name maps once at the page level — shared by
   // ExplorerRail (in DashboardClient) and TasksCardServer below.
+  // `tickerById` is the historical name; the values now hold each
+  // terminal's slug (URL-friendly identifier) so /p/<value> generates
+  // the slug-form URL. The internal name didn't change to avoid a
+  // bigger rename across TasksCard / WeekCard / tests.
   const tickerById: Record<string, string> = {};
   const terminalNameById: Record<string, string> = {};
   for (const t of terminals) {
-    tickerById[t.id] = t.ticker;
+    tickerById[t.id] = t.slug;
     terminalNameById[t.id] = t.name;
   }
 
