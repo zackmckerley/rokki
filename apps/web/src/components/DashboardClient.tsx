@@ -9,6 +9,7 @@ import { Focus, X } from "lucide-react";
 import { DashboardShell } from "./dashboard/DashboardShell";
 import { ExplorerRail } from "./dashboard/ExplorerRail";
 import { MessagesCard } from "./dashboard/MessagesCard";
+import { ResizableCenterStack } from "./dashboard/ResizableCenterStack";
 import { TerminalScopeFilter } from "./dashboard/TerminalScopeFilter";
 import { TopBar } from "./TopBar";
 import { DensityProvider, type Density } from "@/lib/density";
@@ -198,21 +199,25 @@ export function DashboardClient({
           />
         }
         center={
-          <div className="card-stack flex flex-col gap-3 p-2 sm:p-3">
-            {focused ? (
-              <FocusBanner
-                ticker={focused.ticker}
-                name={focused.name}
-                searchParams={searchParams}
+          <ResizableCenterStack
+            focus={
+              focused ? (
+                <FocusBanner
+                  ticker={focused.ticker}
+                  name={focused.name}
+                  searchParams={searchParams}
+                />
+              ) : null
+            }
+            briefing={
+              <BriefingCard
+                userName={userName}
+                dismissedOn={briefingDismissedOn}
               />
-            ) : null}
-            <BriefingCard
-              userName={userName}
-              dismissedOn={briefingDismissedOn}
-            />
-            {weekSlot}
-            {tasksSlot}
-          </div>
+            }
+            week={weekSlot}
+            tasks={tasksSlot}
+          />
         }
         right={
           <div className="card-stack flex flex-col gap-3 p-2 sm:p-3">
