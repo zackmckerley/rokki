@@ -71,6 +71,13 @@ async function handlePatch(request: NextRequest, { params }: Props) {
      */
     external_assignee_emails?: string[];
     /**
+     * "Highest priority of the day" flag. Starred tasks float to the
+     * top of every list (the GET endpoint orders by `starred DESC`
+     * before applying the regular sort). Toggle from the row's star
+     * button in TasksPane.
+     */
+    starred?: boolean;
+    /**
      * Optimistic-concurrency token. If supplied (either via this field or
      * the `If-Match` header) we 409 when the row's current `updated_at`
      * doesn't match what the client thought it was editing.
@@ -113,6 +120,9 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     patch.status = body.status;
     patch.completed_at = body.status === "done" ? new Date().toISOString() : null;
   }
+  if (body.starred !== undefined) {
+    patch.starred = Boolean(body.starred);
+  }
   if (body.external_assignee_emails !== undefined) {
     const normalized = normalizeEmails(body.external_assignee_emails);
     if (normalized === "invalid") {
@@ -131,7 +141,7 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     const { data: current } = await supabase
       .from("tasks")
       .select(
-        "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
+        "id, terminal_id, ticker_seq, title, description, status, priority, starred, due_date, labels, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
       )
       .eq("id", id)
       .maybeSingle();
@@ -160,7 +170,7 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     .update(patch)
     .eq("id", id)
     .select(
-      "id, terminal_id, ticker_seq, title, description, status, priority, due_date, labels, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
+      "id, terminal_id, ticker_seq, title, description, status, priority, starred, due_date, labels, recurrence_rule, recurrence_parent_id, completed_at, updated_at",
     )
     .single();
 
