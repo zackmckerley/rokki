@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ArrowRight,
@@ -83,12 +83,32 @@ export function TasksCard({
   void expanded;
 
   const router = useRouter();
+  // Debounce dashboard refreshes. Without this, a team-mate typing a
+  // task title fires an onUpdate on every keystroke; each one runs
+  // `router.refresh()` which re-fetches the whole RSC tree (Briefing,
+  // Week, Tasks, Activity ticker, …). 30 keystrokes = 30 dashboard
+  // refetches. Coalescing to one refresh per ~250ms makes the
+  // dashboard usable during active editing.
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null;
+      router.refresh();
+    }, 250);
+  }, [router]);
+  useEffect(
+    () => () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    },
+    [],
+  );
   useRealtimeTable<{ id: string }>(
     { table: "tasks", channelKey: "dash:tasks" },
     {
-      onInsert: () => router.refresh(),
-      onUpdate: () => router.refresh(),
-      onDelete: () => router.refresh(),
+      onInsert: scheduleRefresh,
+      onUpdate: scheduleRefresh,
+      onDelete: scheduleRefresh,
     },
   );
 

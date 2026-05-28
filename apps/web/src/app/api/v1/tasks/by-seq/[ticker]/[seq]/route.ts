@@ -66,23 +66,57 @@ async function handleGet(_req: NextRequest, { params }: Props) {
     created_by: string;
   };
 
-  // Assignees → profiles
-  const { data: assigneeRows } = await supabase
-    .from("task_assignees")
-    .select("user_id, assigned_at, assigned_by")
-    .eq("task_id", task.id);
+  // Wave 1: every query that only depends on `task.id` runs in
+  // parallel. Each was previously awaited serially (~6 round trips);
+  // batching them into one Promise.all cuts task-detail load to
+  // a single round-trip's worth of latency. The activity-log query
+  // and the related-tasks lookup (which needs dependency ids) are
+  // wave 2 below.
+  const [
+    { data: assigneeRows },
+    { data: depOut },
+    { data: depIn },
+    { data: subtaskRows },
+    { data: watcherRows },
+    { data: activity },
+  ] = await Promise.all([
+    supabase
+      .from("task_assignees")
+      .select("user_id, assigned_at, assigned_by")
+      .eq("task_id", task.id),
+    supabase
+      .from("task_dependencies")
+      .select("depends_on")
+      .eq("task_id", task.id),
+    supabase
+      .from("task_dependencies")
+      .select("task_id")
+      .eq("depends_on", task.id),
+    supabase
+      .from("subtasks")
+      .select("id, label, done, position, created_at, updated_at")
+      .eq("task_id", task.id)
+      .order("position", { ascending: true }),
+    supabase
+      .from("task_watchers")
+      .select("user_id, added_at")
+      .eq("task_id", task.id),
+    // Activity history for this task — includes before_json /
+    // after_json so the per-record timeline can render the
+    // trigger-emitted diff inline.
+    supabase
+      .from("activity")
+      .select(
+        "id, action, actor_id, metadata, before_json, after_json, created_at",
+      )
+      .eq("entity_type", "task")
+      .eq("entity_id", task.id)
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
+
   type A = { user_id: string; assigned_at: string; assigned_by: string };
   const assigneeList = (assigneeRows ?? []) as A[];
-
-  // Dependencies both directions
-  const { data: depOut } = await supabase
-    .from("task_dependencies")
-    .select("depends_on")
-    .eq("task_id", task.id);
-  const { data: depIn } = await supabase
-    .from("task_dependencies")
-    .select("task_id")
-    .eq("depends_on", task.id);
 
   const depOutIds = ((depOut ?? []) as { depends_on: string }[]).map(
     (r) => r.depends_on,
@@ -90,23 +124,6 @@ async function handleGet(_req: NextRequest, { params }: Props) {
   const depInIds = ((depIn ?? []) as { task_id: string }[]).map((r) => r.task_id);
   const relatedIds = Array.from(new Set([...depOutIds, ...depInIds]));
 
-  const { data: relatedTasks } = relatedIds.length
-    ? await supabase
-        .from("tasks")
-        .select("id, ticker_seq, title, status")
-        .in("id", relatedIds)
-    : { data: [] };
-  type R = { id: string; ticker_seq: number; title: string; status: string };
-  const relatedById = new Map(
-    ((relatedTasks ?? []) as R[]).map((r) => [r.id, r]),
-  );
-
-  // Subtasks (ordered by position)
-  const { data: subtaskRows } = await supabase
-    .from("subtasks")
-    .select("id, label, done, position, created_at, updated_at")
-    .eq("task_id", task.id)
-    .order("position", { ascending: true });
   type S = {
     id: string;
     label: string;
@@ -117,13 +134,21 @@ async function handleGet(_req: NextRequest, { params }: Props) {
   };
   const subtasks = (subtaskRows ?? []) as S[];
 
-  // Watchers
-  const { data: watcherRows } = await supabase
-    .from("task_watchers")
-    .select("user_id, added_at")
-    .eq("task_id", task.id);
   type W = { user_id: string; added_at: string };
   const watcherList = (watcherRows ?? []) as W[];
+
+  // Wave 2: related-tasks lookup needs the dependency ids assembled
+  // from wave 1's two task_dependencies queries, so it has to wait.
+  const { data: relatedTasks } = relatedIds.length
+    ? await supabase
+        .from("tasks")
+        .select("id, ticker_seq, title, status")
+        .in("id", relatedIds)
+    : { data: [] };
+  type R = { id: string; ticker_seq: number; title: string; status: string };
+  const relatedById = new Map(
+    ((relatedTasks ?? []) as R[]).map((r) => [r.id, r]),
+  );
 
   // Profiles for assignees + creator + watchers
   const userIds = Array.from(
@@ -168,18 +193,6 @@ async function handleGet(_req: NextRequest, { params }: Props) {
   const blocks = depInIds
     .map((id) => relatedById.get(id))
     .filter((r): r is R => !!r);
-
-  // Activity history for this task — includes before_json / after_json so
-  // the per-record timeline can render the trigger-emitted diff inline.
-  const { data: activity } = await supabase
-    .from("activity")
-    .select(
-      "id, action, actor_id, metadata, before_json, after_json, created_at",
-    )
-    .eq("entity_type", "task")
-    .eq("entity_id", task.id)
-    .order("created_at", { ascending: false })
-    .limit(100);
 
   return NextResponse.json({
     data: {
