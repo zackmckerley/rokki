@@ -1,8 +1,11 @@
 // Rokki service worker — offline-mode v2.
 //
 // Strategy summary:
-//   * GET /api/v1/**           → stale-while-revalidate, cache `rokki-api-v1`,
-//                                 7-day expiry. Skip /api/v1/auth/**,
+//   * GET /api/v1/**           → **network-first**, cache only as an
+//                                 offline fallback. v6 switched away from
+//                                 stale-while-revalidate after a
+//                                 cross-device staleness report (see the
+//                                 v6 note below). Skip /api/v1/auth/**,
 //                                 Cache-Control: no-store, and any
 //                                 non-GET method.
 //   * Page navigations         → network-only with /offline fallback on
@@ -19,37 +22,42 @@
 //
 // Cache version bumps on schema changes. Bump CACHE_VERSION to invalidate.
 
-// Bumped to v5 (2026-05-03):
-//   * v3 added the RSC short-circuit so Next.js client-side navigation
-//     stops hitting the cache.
-//   * v4 broadcasts an SW_ACTIVATED message to all open clients on
-//     activate, so already-open tabs auto-reload onto the new SW
-//     instead of staying stuck on whatever the old SW was doing.
-//   * v5 stops caching HTML page responses entirely. The
-//     "networkFirstPage with cache fallback" strategy was the root
-//     cause of a React #418 hydration crash: when a deploy bumped JS
-//     chunk hashes, the SW could hand back a stale page HTML whose
-//     embedded SSR output (e.g. tickerItems with "5m ago") no longer
-//     matched what the freshly-shipped TickerTape component would
-//     render against the same props on the client. Hydration died,
-//     event handlers never attached, and every Link click on
-//     terminal pages silently no-op'd. Symptom upstream: clicks on
-//     /p/<ticker> didn't navigate, NavigationFallback fell through
-//     to a hard reload (white flash). Removing the page cache
-//     eliminates the drift window. /offline is still seeded at
-//     install for true-offline visits.
-//   * Bumped the version so every v4 user purges the bad pages cache
-//     on next visit (the activate handler nukes anything not in the
-//     expected name set).
-const CACHE_VERSION = "v5";
+// Bumped to v6 (2026-05-27):
+//   * v5 was the cosmos-video / hydration-drift fix.
+//   * v6 changes the API strategy from stale-while-revalidate to
+//     **network-first with cache fallback**. Zack reported "I was
+//     trying to use rokki from another computer and it was
+//     uploading older information. like it didn't have all of the
+//     most recent tasks uploaded." Root cause: the SWR strategy
+//     returned the cached API response IMMEDIATELY on every
+//     same-device repeat visit and only refreshed in the
+//     background. With a 7-day TTL, a return-visiting user saw up
+//     to 7-day-old data until the background refresh re-rendered.
+//     Network-first preserves the offline-mode safety net (cache
+//     is still consulted on fetch failure) but defaults to fresh
+//     data on every online request. Version bumped so v5 SWs in
+//     the wild eject the stale `rokki-api-v1` cache on next
+//     activate (we also rename the cache below so the eviction is
+//     belt-and-suspenders).
+const CACHE_VERSION = "v6";
 const SHELL_CACHE = `rokki-shell-${CACHE_VERSION}`;
-const API_CACHE = "rokki-api-v1";
+// Renamed (was `rokki-api-v1`) so v5-cached entries get garbage-collected
+// by the activate handler — guarantees no stale row sticks around through
+// the strategy change.
+const API_CACHE = `rokki-api-${CACHE_VERSION}`;
 const STATIC_CACHE = `rokki-static-${CACHE_VERSION}`;
 
 // Files to seed at install. Keep this list short — the page-cache strategy
 // will warm everything else on first visit.
 const SHELL = ["/", "/offline", "/manifest.webmanifest"];
 
+// Offline-fallback freshness floor. The API cache is only consulted when
+// the network actually fails (we're network-first now); even then, we
+// only serve cached rows younger than this. 7 days was the old TTL when
+// the cache was used on every request — overly generous now that we only
+// touch it offline. Kept at 7 days because the use case ("user is
+// offline on a plane for a week and wants to see *something*") still
+// benefits from a long tail.
 const API_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 self.addEventListener("install", (event) => {
@@ -167,7 +175,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (url.pathname.startsWith("/api/v1/")) {
-    event.respondWith(staleWhileRevalidateApi(req));
+    event.respondWith(networkFirstApi(req));
     return;
   }
 
@@ -195,45 +203,36 @@ self.addEventListener("fetch", (event) => {
 /* Strategies                                                         */
 /* ------------------------------------------------------------------ */
 
-async function staleWhileRevalidateApi(req) {
+async function networkFirstApi(req) {
+  // ALWAYS try the network first. Cache is only used as an offline
+  // fallback (when fetch itself rejects — DNS failure, no connectivity,
+  // etc.). This is the v6 strategy that replaces the v5
+  // stale-while-revalidate path that caused cross-device staleness.
   const cache = await caches.open(API_CACHE);
-  const cached = await cache.match(req);
-
-  // If the cached response is past TTL, treat it as a miss — we'd rather
-  // fail-fast offline than show a 7-day-old task list.
-  if (cached) {
-    const age = readCachedAge(cached);
-    if (age != null && Date.now() - age > API_TTL_MS) {
+  try {
+    const res = await fetch(req);
+    if (res.ok && res.status !== 206) {
+      // Stash a fresh copy for offline mode. Stamped with `x-rokki-cached-at`
+      // so the TTL check below can age it out.
+      const wrapped = await stamp(res.clone());
+      // Fire-and-forget — page already has its response.
+      cache.put(req, wrapped).catch(() => {});
+    }
+    return res;
+  } catch (err) {
+    // Network failed (likely offline). Try the cache as a last resort,
+    // but only if the entry is still within the offline-fallback TTL.
+    const cached = await cache.match(req);
+    if (cached) {
+      const age = readCachedAge(cached);
+      if (age != null && Date.now() - age <= API_TTL_MS) {
+        return cached;
+      }
+      // Expired — drop it so we don't accumulate stale rows.
       await cache.delete(req);
     }
+    throw err;
   }
-
-  const fresh = cached && readCachedAge(cached) != null
-    ? cached
-    : null; // we'll prefer the network if we don't trust the cache
-
-  const networkPromise = fetch(req)
-    .then((res) => {
-      if (res.ok && res.status !== 206) {
-        const wrapped = stamp(res.clone());
-        // Don't await — let the cache write happen in the background.
-        wrapped.then((tagged) => cache.put(req, tagged)).catch(() => {});
-      }
-      return res;
-    })
-    .catch((err) => {
-      // Surface the offline state to the page if we have nothing cached.
-      if (fresh) return fresh;
-      throw err;
-    });
-
-  // Return cache immediately if we have one, kick the network in the
-  // background. If we have no cache, await the network.
-  if (fresh) {
-    networkPromise.catch(() => {});
-    return fresh;
-  }
-  return networkPromise;
 }
 
 async function cacheFirstStatic(req) {
