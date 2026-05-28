@@ -86,12 +86,18 @@ export function LoginBackground({ onReady }: { onReady?: () => void }) {
 
   return (
     <>
-      {/* 4K looping video */}
+      {/* 4K looping video — opaque from first paint. Zack: "skip the
+          black and start with the video." The previous opacity-0
+          fade-in held the video invisible until the first frame
+          decoded, which always meant ~200-1000ms of solid black on
+          a cold load. Now the <video> element is opacity-100 the
+          moment it mounts; the browser paints frames as soon as it
+          has them. The narrow window between mount and first-frame
+          decode still shows the page background (bg-black), but
+          it's measurably shorter than the old fade-and-wait. */}
       <video
         ref={videoRef}
-        className={`fixed inset-0 z-0 h-full w-full object-cover transition-opacity duration-700 ${
-          ready ? "opacity-100" : "opacity-0"
-        }`}
+        className="fixed inset-0 z-0 h-full w-full object-cover"
         autoPlay
         muted
         loop
@@ -102,10 +108,11 @@ export function LoginBackground({ onReady }: { onReady?: () => void }) {
         <source src="/video/space-nebula.mp4" type="video/mp4" />
       </video>
 
-      {/* Gradient overlay + radial vignette. Both fade in with the
-          video so the pre-load state is pure black (page bg) instead of
-          a gradient on black, which reads as a half-rendered loading
-          state.  */}
+      {/* Gradient overlay + radial vignette. Still tied to `ready`
+          so the overlays don't darken an empty (frame-less) video
+          element — that combination reads as a half-rendered
+          loading state. They cross-fade in once the cosmos is
+          actually painting. */}
       <div
         aria-hidden="true"
         className={`fixed inset-0 z-[1] transition-opacity duration-700 ${
