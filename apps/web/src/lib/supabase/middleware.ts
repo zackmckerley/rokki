@@ -12,6 +12,7 @@ interface CookieToSet {
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
   applySecurityHeaders(response.headers);
+  applyApiCacheHeader(request, response);
 
   const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,8 +29,11 @@ export async function updateSession(request: NextRequest) {
           response = NextResponse.next({ request });
           // Re-apply on every fresh response — security headers must
           // never be lost just because Supabase rebuilt the response to
-          // attach refresh cookies.
+          // attach refresh cookies. Cache-Control follows the same rule:
+          // a refresh-cookie response that lets an intermediary cache
+          // /api/v1/me would be a serious staleness bug.
           applySecurityHeaders(response.headers);
+          applyApiCacheHeader(request, response);
           cookiesToSet.forEach(({ name, value, options }: CookieToSet) =>
             response.cookies.set(name, value, options),
           );
@@ -150,6 +154,36 @@ async function maintenanceModeOn(
   } catch {
     return false;
   }
+}
+
+/**
+ * Stamp `Cache-Control: private, no-store` on every `/api/*` response so
+ * no intermediary (Vercel edge, Cloudflare, the user's browser cache, a
+ * corporate proxy) can hold on to a copy and serve it back to anyone.
+ *
+ * Belt-and-suspenders alongside the service worker's network-first
+ * strategy: the SW protects same-tab repeat hits, this header protects
+ * everything else in the chain. Without it, a Vercel edge cache hit on
+ * `/api/v1/me` between user X and user Y would be a data-leak as well
+ * as a staleness bug.
+ *
+ * Public surfaces (the OG image generators, /api/openapi.json,
+ * /api/docs) are intentionally cacheable — they're already marked as
+ * such with `export const dynamic = "force-static"` etc. and don't pass
+ * through this middleware path (matcher excludes static media; the
+ * openapi route handler emits its own Cache-Control which would
+ * override us here anyway).
+ *
+ * The `image` paths in metadata (`/opengraph-image`, `/twitter-image`,
+ * `/p/<slug>/opengraph-image`, `/p/<slug>/twitter-image`) are excluded
+ * because OG scrapers (Slack, iMessage) want them cacheable.
+ */
+function applyApiCacheHeader(request: NextRequest, response: NextResponse) {
+  const { pathname } = request.nextUrl;
+  if (!pathname.startsWith("/api/")) return;
+  // Don't overwrite anything the route already set deliberately.
+  if (response.headers.has("cache-control")) return;
+  response.headers.set("Cache-Control", "private, no-store");
 }
 
 async function callerIsPlatformAdmin(
