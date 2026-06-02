@@ -2,7 +2,12 @@
 
 import { useEffect } from "react";
 
-const EXPECTED_SW_VERSION = "v5";
+// MUST stay in lockstep with `CACHE_VERSION` in apps/web/public/sw.js.
+// When they drift, the version-mismatch recovery path below unregisters
+// the SW and reloads on EVERY page load — an infinite reload loop that
+// bricks the app. The circuit breaker in `reloadOnce` is the safety net,
+// but the real contract is: bump both constants together.
+const EXPECTED_SW_VERSION = "v6";
 
 /**
  * Registers the PWA service worker on mount, in production only. Dev runs
@@ -31,6 +36,40 @@ export function ServiceWorkerRegister() {
     let reloaded = false;
     const reloadOnce = (reason: string) => {
       if (reloaded) return;
+
+      // Circuit breaker. `reloaded` only guards within a single page
+      // life; a *persistent* reload trigger (e.g. EXPECTED_SW_VERSION
+      // drifting from the SW's CACHE_VERSION) would otherwise reload
+      // forever, one fresh page at a time, and brick the tab. Track
+      // recent reloads in sessionStorage (survives reloads, scoped to
+      // this tab) and stop after 2 inside a 20s window — then nuke the
+      // SW entirely so the next plain load is clean and uncontrolled.
+      try {
+        const KEY = "rokki:pwa-reload-history";
+        const now = Date.now();
+        const raw = window.sessionStorage.getItem(KEY);
+        const history: number[] = raw ? JSON.parse(raw) : [];
+        const recent = history.filter((t) => now - t < 20_000);
+        if (recent.length >= 2) {
+          console.error(
+            "[pwa] reload loop detected — breaking out and unregistering SW. reason:",
+            reason,
+          );
+          window.sessionStorage.removeItem(KEY);
+          // Last resort: tear down every SW registration so the page
+          // is no longer controlled and loads straight from network.
+          void navigator.serviceWorker
+            .getRegistrations()
+            .then((regs) => Promise.all(regs.map((r) => r.unregister())))
+            .catch(() => {});
+          return;
+        }
+        recent.push(now);
+        window.sessionStorage.setItem(KEY, JSON.stringify(recent));
+      } catch {
+        /* sessionStorage unavailable — proceed with the reload anyway */
+      }
+
       reloaded = true;
       console.info("[pwa] reloading:", reason);
       window.location.reload();
