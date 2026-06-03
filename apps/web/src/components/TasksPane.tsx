@@ -104,6 +104,41 @@ function hideDoneStorageKey(projectId: string): string {
   return `rokki_tasks_hide_done:${projectId}`;
 }
 
+function collapsedGroupsStorageKey(projectId: string): string {
+  return `rokki_tasks_collapsed_groups:${projectId}`;
+}
+
+/**
+ * Semantic accent for a group header's left tick + dot, derived from
+ * the group-by mode and the bucket key. Carries the bucket's meaning
+ * at a glance (overdue red, today amber, done green, …). Falls back to
+ * a neutral text-3 for non-semantic groupings (assignee).
+ *
+ * Keys match the buckets produced in lib/task-grouping.ts.
+ */
+function groupTone(mode: GroupMode, key: string): string {
+  if (mode === "due") {
+    if (key === "overdue") return "bg-danger";
+    if (key === "today") return "bg-accent";
+    if (key === "week") return "bg-warning";
+    return "bg-text-3"; // later / none
+  }
+  if (mode === "priority") {
+    if (key === "high") return "bg-danger";
+    if (key === "med") return "bg-warning";
+    return "bg-text-3"; // low / none
+  }
+  if (mode === "status") {
+    if (key === "blocked") return "bg-danger";
+    if (key === "review") return "bg-warning";
+    if (key === "in_progress") return "bg-info";
+    if (key === "done") return "bg-success";
+    return "bg-text-3"; // todo
+  }
+  // assignee — neutral.
+  return "bg-text-3";
+}
+
 interface TasksPaneProps {
   ticker: string;
   projectId: string;
@@ -152,6 +187,14 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
    * project remembers its own preference.
    */
   const [hideDone, setHideDone] = useState(false);
+  /**
+   * Collapsed group keys, stored as `${groupMode}:${groupKey}` so a
+   * collapse in one group-by mode doesn't bleed into another. Persisted
+   * per-terminal. Lets the user fold away "Done"/"Later" to focus.
+   */
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(),
+  );
   /**
    * Client-side filter query. Matches against title + description +
    * labels + assignee names + `${ticker}-${seq}`. Empty string =
@@ -232,6 +275,45 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
       /* ignore */
     }
   }, [projectId, hideDone]);
+
+  // Hydrate + persist collapsed-group state per project.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(
+        collapsedGroupsStorageKey(projectId),
+      );
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          setCollapsedGroups(
+            new Set(parsed.filter((v): v is string => typeof v === "string")),
+          );
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        collapsedGroupsStorageKey(projectId),
+        JSON.stringify([...collapsedGroups]),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [projectId, collapsedGroups]);
+
+  const toggleGroupCollapsed = useCallback((collapseKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(collapseKey)) next.delete(collapseKey);
+      else next.add(collapseKey);
+      return next;
+    });
+  }, []);
 
   // Subtasks: lazily-loaded per parent. `null` = not yet fetched,
   // `[]` = fetched and empty. The expand toggle drives both
@@ -935,19 +1017,62 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
               );
             }
             return (
-              <div>
-                {groups.map((group) => (
+              <div className="divide-y-2 divide-border-strong">
+                {groups.map((group) => {
+                  const hasHeader = group.label !== "";
+                  const collapseKey = `${groupMode}:${group.key}`;
+                  const collapsed =
+                    hasHeader && collapsedGroups.has(collapseKey);
+                  const tone = groupTone(groupMode, group.key);
+                  return (
                   <section key={group.key}>
-                    {group.label ? (
-                      <header className="sticky top-0 z-[1] flex items-center justify-between border-b border-border bg-bg-1 px-4 py-1">
-                        <span className="font-mono text-[10px] uppercase tracking-wide text-text-2">
+                    {hasHeader ? (
+                      <header
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={!collapsed}
+                        onClick={() => toggleGroupCollapsed(collapseKey)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            toggleGroupCollapsed(collapseKey);
+                          }
+                        }}
+                        className="sticky top-0 z-[2] flex h-7 cursor-pointer select-none items-center gap-2 border-b border-border-strong bg-bg-2 pr-3 transition-colors hover:bg-bg-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-focus"
+                      >
+                        {/* Colored left tick carrying the bucket's
+                            meaning (overdue red, today amber, …). */}
+                        <span
+                          aria-hidden="true"
+                          className={cn("h-full w-[3px] flex-shrink-0", tone)}
+                        />
+                        {collapsed ? (
+                          <ChevronRight
+                            className="h-3 w-3 flex-shrink-0 text-text-3"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <ChevronDown
+                            className="h-3 w-3 flex-shrink-0 text-text-3"
+                            aria-hidden="true"
+                          />
+                        )}
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "h-1.5 w-1.5 flex-shrink-0 rounded-full",
+                            tone,
+                          )}
+                        />
+                        <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-text-1">
                           {group.label}
                         </span>
-                        <span className="font-mono text-[10px] text-text-3">
+                        <span className="ml-auto rounded-full bg-bg-3 px-1.5 py-0.5 font-mono text-[10px] leading-none text-text-2">
                           {group.tasks.length}
                         </span>
                       </header>
                     ) : null}
+                    {!collapsed ? (
                     <ul className="divide-y divide-border">
                       {group.tasks.map((t) => {
                         const i = idxById.get(t.id) ?? 0;
@@ -1046,8 +1171,10 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
                         );
                       })}
                     </ul>
+                    ) : null}
                   </section>
-                ))}
+                  );
+                })}
               </div>
             );
           })()
@@ -1130,9 +1257,20 @@ function TaskRow({
     <div
       onClick={onClick}
       className={cn(
-        "group flex cursor-pointer items-center gap-2 px-2 py-2.5 transition-colors",
+        // Always reserve a 2px left edge (pl-[6px] + 2px border = the
+        // base px-2) so colouring it never shifts the row. The edge
+        // signals priority at a glance — High red, Medium amber — and
+        // is overridden by the amber selection edge when the row is
+        // active.
+        "group flex cursor-pointer items-center gap-2 border-l-2 px-2 py-2.5 pl-[6px] transition-colors",
         selected ? "bg-bg-2" : "hover:bg-bg-2",
-        selected && "border-l-2 border-l-border-focus pl-[6px]",
+        selected
+          ? "border-l-border-focus"
+          : task.priority === 1
+            ? "border-l-danger"
+            : task.priority === 2
+              ? "border-l-warning"
+              : "border-l-transparent",
       )}
     >
       {/* Drag handle. Only rendered when the parent is in Manual sort
