@@ -62,6 +62,12 @@ export async function updateSession(request: NextRequest) {
   const isPublic =
     isMetadataImage ||
     pathname === "/login" ||
+    // The offline fallback page must be reachable without a session.
+    // Otherwise the service worker, which seeds `/offline` at install,
+    // caches the /login redirect target as the "offline" page, and a
+    // genuinely-offline + signed-out visitor gets gated instead of the
+    // offline screen.
+    pathname === "/offline" ||
     pathname.startsWith("/auth/") ||
     pathname.startsWith("/api/v1/auth/") ||
     pathname.startsWith("/api/v1/health") ||
@@ -74,6 +80,23 @@ export async function updateSession(request: NextRequest) {
     (process.env.NODE_ENV !== "production" && pathname.startsWith("/api/dev/"));
 
   if (!user && !isPublic) {
+    // API routes get a JSON 401 — they're consumed by `fetch()`, which
+    // would otherwise follow the 307 to the HTML /login page and then
+    // choke trying to parse markup as JSON. Page navigations still
+    // redirect to /login so the browser lands on the sign-in screen.
+    if (pathname.startsWith("/api/")) {
+      const unauth = NextResponse.json(
+        {
+          errors: [
+            { code: "unauthenticated", message: "Sign in required" },
+          ],
+        },
+        { status: 401 },
+      );
+      applySecurityHeaders(unauth.headers);
+      applyApiCacheHeader(request, unauth);
+      return unauth;
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("redirect_to", pathname);
