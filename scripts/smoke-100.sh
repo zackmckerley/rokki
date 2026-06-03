@@ -62,14 +62,19 @@ check_header_contains() {
 }
 
 # body_contains URL SUBSTR — passes if GET body contains SUBSTR.
-# Retries up to 3x: Next.js streams HTML, so a single slow/truncated
-# fetch can miss a string that's reliably present. Avoids flaky false
-# negatives on streamed pages.
+# Captures the body to a variable and matches with pure-bash `[[ == ]]`
+# (no pipe). Earlier this piped curl → `grep -q`, but on an early
+# match grep closes the pipe, curl gets SIGPIPE, and `set -o pipefail`
+# then reports the whole pipe as failed — a false negative for strings
+# that appear near the top of a large streamed HTML body (e.g. the
+# login page's video <source>). Capture-then-match avoids that.
+# Retries up to 3x for genuinely slow/truncated streamed responses.
 check_body_contains() {
   local label="$1"; local url="$2"; local substr="$3"
-  local attempt
+  local body attempt
   for attempt in 1 2 3; do
-    if curl -sS --max-time 25 "$url" 2>/dev/null | grep -q "$substr"; then
+    body=$(curl -sS --max-time 25 "$url" 2>/dev/null)
+    if [[ "$body" == *"$substr"* ]]; then
       PASS=$((PASS+1)); return
     fi
     sleep 1
