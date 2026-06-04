@@ -3,28 +3,47 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Check,
-  ArrowRight,
-  Plus,
-  AlertOctagon,
-  Clock,
-  Layers,
-  User as UserIcon,
-} from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { DashboardCard } from "./DashboardCard";
 import { PriorityDots, DueChip } from "@/components/primitives";
 import {
   TaskSectionHeader,
   groupTone,
   priorityEdge,
 } from "@/components/TaskSectionHeader";
+import { TaskListToolbar, type GroupOption } from "@/components/TaskListToolbar";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { bucketDashTasks } from "@/lib/task-grouping";
 import type { AssignedTask, DelegatedTask } from "@/lib/dashboard-queries";
 
 const DASH_COLLAPSED_KEY = "rokki_dash_tasks_collapsed_groups";
+
+/** Group-by options for the dashboard — same toolbar as the terminal,
+ * plus "Terminal" (the cross-terminal headline grouping). */
+const DASH_GROUP_OPTIONS: GroupOption[] = [
+  { value: "none", label: "None" },
+  { value: "due", label: "Due" },
+  { value: "priority", label: "Priority" },
+  { value: "status", label: "Status" },
+  { value: "terminal", label: "Terminal" },
+  { value: "assignee", label: "Assignee" },
+];
+
+/** Client-side filter for dashboard tasks: title + terminal name. */
+function filterDashTasks(
+  tasks: AssignedTask[],
+  query: string,
+  terminalNameById?: Record<string, string>,
+): AssignedTask[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return tasks;
+  return tasks.filter((t) => {
+    if (t.title.toLowerCase().includes(q)) return true;
+    const name = terminalNameById?.[t.terminal_id] ?? "";
+    if (name.toLowerCase().includes(q)) return true;
+    return false;
+  });
+}
 
 interface TasksCardProps {
   assigned: AssignedTask[];
@@ -57,17 +76,26 @@ interface TasksCardProps {
 }
 
 /**
- * One master card with two stacked sub-sections.
+ * The dashboard task card. Presents the *exact* same interface as the
+ * in-terminal `TasksPane` — same shared `TaskListToolbar` (Sort, Group,
+ * Hide-done, Filter, New task) and same `TaskSectionHeader` sections —
+ * so a user never has to relearn the list when moving between the
+ * dashboard and a terminal.
  *
- *   ┌ TASKS ─────────────────┐
- *   │ ASSIGNED TO ME (5)     │
- *   │   task rows …          │
- *   │ DELEGATED (3)          │
- *   │   task rows …          │
- *   └────────────────────────┘
+ *   ┌──────────────────────────────────────────────────────────┐
+ *   │ Tasks 12   [Auto|Manual]  Group[Due▾]  Filter…  + New task │
+ *   ├──────────────────────────────────────────────────────────┤
+ *   │ ▎● OVERDUE                                          ⟨2⟩    │
+ *   │   task rows …                                             │
+ *   │ ▎● THIS WEEK                                        ⟨5⟩    │
+ *   │   task rows …                                             │
+ *   └──────────────────────────────────────────────────────────┘
  *
- * Both lists visible at once so the user never has to tab-switch to see a
- * full picture. Overflow scrolls within the card body.
+ * The list spans terminals and merges everything relevant to you —
+ * tasks assigned to you plus tasks you've delegated, deduped. The old
+ * Mine/Delegated/Overdue/Week/All tabs are gone: Group→Due reproduces
+ * the Overdue/Week sections and Group→Assignee surfaces who owes what.
+ * Overflow scrolls within the card body.
  */
 export function TasksCard({
   assigned,
@@ -119,14 +147,26 @@ export function TasksCard({
     },
   );
 
-  // Filter chips per Zack's "filter between different items
-  // directly in tasks on the dashboard." Tabs replace the old
-  // two-section split (Assigned to me + I assigned to others)
-  // with five filter modes plus a default that preserves the old
-  // shape under the "Mine" + "Delegated" tabs.
-  type Tab = "mine" | "delegated" | "overdue" | "week" | "all";
-  type DashGroupBy = "none" | "terminal" | "priority" | "due" | "assignee";
-  const [tab, setTab] = useState<Tab>("mine");
+  // Same toolbar as the in-terminal pane: Sort + Group + Hide-done +
+  // Filter. The old Mine/Delegated/Overdue/Week/All tabs are gone —
+  // grouping by Due gives the Overdue/Week sections, and the list now
+  // shows everything relevant to you (assigned + delegated, deduped).
+  type DashGroupBy =
+    | "none"
+    | "terminal"
+    | "priority"
+    | "due"
+    | "assignee"
+    | "status";
+  // Sort is shown for parity; Manual (drag-reorder) is terminal-only,
+  // so it stays disabled here. Auto = priority/due triage order.
+  const [sortMode, setSortMode] = useState<"auto" | "manual">("auto");
+  void sortMode;
+  const [query, setQuery] = useState("");
+  // Done tasks aren't fetched for the dashboard, so this hides nothing
+  // today — but the control is wired identically to the terminal so
+  // the interface matches, and it works the moment done tasks appear.
+  const [hideDone, setHideDone] = useState(true);
   // Default to grouping by due date so the dashboard task list opens in
   // the same sectioned view as the in-terminal pane (Overdue / Today /
   // This week / Later) instead of a flat list. Persisted globally so
@@ -146,7 +186,8 @@ export function TasksCard({
         saved === "terminal" ||
         saved === "priority" ||
         saved === "due" ||
-        saved === "assignee"
+        saved === "assignee" ||
+        saved === "status"
       ) {
         setGroupBy(saved);
       }
@@ -198,286 +239,117 @@ export function TasksCard({
     });
   }, []);
 
-  const { mineList, delegatedList, overdueList, weekList, allList } =
-    useMemo(() => {
-      const today = new Date().toISOString().slice(0, 10);
-      const wk = new Date();
-      wk.setDate(wk.getDate() + 7);
-      const weekIso = wk.toISOString().slice(0, 10);
-
-      const mine = assigned.filter((t) => t.status !== "done");
-      const deleg = delegated.filter((t) => t.status !== "done");
-      // Combine + dedupe for cross-cutting tabs (overdue / week /
-      // all). A task assigned to me AND created by me lands in
-      // both source arrays; dedupe by id.
-      const seen = new Set<string>();
-      const combined: AssignedTask[] = [];
-      for (const t of [...mine, ...deleg]) {
-        if (seen.has(t.id)) continue;
-        seen.add(t.id);
-        combined.push(t);
-      }
-      return {
-        mineList: mine,
-        delegatedList: deleg,
-        overdueList: combined.filter(
-          (t) => t.due_date && t.due_date < today,
-        ),
-        weekList: combined.filter(
-          (t) =>
-            t.due_date && t.due_date >= today && t.due_date <= weekIso,
-        ),
-        allList: combined,
-      };
-    }, [assigned, delegated]);
-
-  const visibleAssigned: AssignedTask[] = (() => {
-    switch (tab) {
-      case "mine":
-        return mineList;
-      case "delegated":
-        return delegatedList;
-      case "overdue":
-        return overdueList;
-      case "week":
-        return weekList;
-      case "all":
-        return allList;
+  // All tasks relevant to you — assigned to me + delegated to others —
+  // deduped (a task both assigned to and created by me lands in both
+  // source arrays).
+  const combined = useMemo(() => {
+    const seen = new Set<string>();
+    const out: AssignedTask[] = [];
+    for (const t of [...assigned, ...delegated]) {
+      if (seen.has(t.id)) continue;
+      seen.add(t.id);
+      out.push(t);
     }
-  })();
+    return out;
+  }, [assigned, delegated]);
+
+  const doneCount = combined.filter((t) => t.status === "done").length;
+  const visibleAssigned: AssignedTask[] = filterDashTasks(
+    hideDone ? combined.filter((t) => t.status !== "done") : combined,
+    query,
+    terminalNameById,
+  );
 
   return (
-    <DashboardCard
-      title="Tasks"
-      count={assigned.length + delegated.length}
-      expandHref="/tasks/mine"
-      headerRight={
-        createHref ? (
-          createDisabled ? (
-            <span
-              title="No terminals yet — create a terminal first"
-              className="flex cursor-not-allowed items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-3 opacity-60"
-              aria-disabled="true"
-            >
-              <Plus className="h-3 w-3" aria-hidden="true" />
-              <span>New task</span>
-            </span>
-          ) : (
-            <Link
-              href={createHref}
-              title="New task (⌘N)"
-              className="flex items-center gap-1 rounded-sm border border-border bg-bg-2 px-2 py-0.5 text-[10px] uppercase tracking-wide text-text-1 hover:border-accent/40 hover:bg-bg-3"
-            >
-              <Plus className="h-3 w-3" aria-hidden="true" />
-              <span>New task</span>
-              <kbd className="ml-1 hidden font-mono text-[9px] text-text-3 sm:inline">
-                ⌘N
-              </kbd>
-            </Link>
-          )
-        ) : null
-      }
-    >
-      <div className="flex flex-wrap items-center gap-1 border-b border-border/60 px-3 py-1.5">
-        <FilterChip
-          active={tab === "mine"}
-          onClick={() => setTab("mine")}
-          icon={<UserIcon className="h-3 w-3" />}
-          label="Mine"
-          count={mineList.length}
-        />
-        <FilterChip
-          active={tab === "delegated"}
-          onClick={() => setTab("delegated")}
-          icon={<ArrowRight className="h-3 w-3" />}
-          label="Delegated"
-          count={delegatedList.length}
-        />
-        <FilterChip
-          active={tab === "overdue"}
-          onClick={() => setTab("overdue")}
-          icon={<AlertOctagon className="h-3 w-3" />}
-          label="Overdue"
-          count={overdueList.length}
-          tone={overdueList.length > 0 ? "danger" : "neutral"}
-        />
-        <FilterChip
-          active={tab === "week"}
-          onClick={() => setTab("week")}
-          icon={<Clock className="h-3 w-3" />}
-          label="Week"
-          count={weekList.length}
-        />
-        <FilterChip
-          active={tab === "all"}
-          onClick={() => setTab("all")}
-          icon={<Layers className="h-3 w-3" />}
-          label="All"
-          count={allList.length}
-        />
-        {/* Group-by selector. "Terminal" is the headline value here
-            since the dashboard list spans terminals — bucketing per
-            terminal turns the firehose into per-project micro-lists. */}
-        <label className="ml-auto flex items-center gap-1 text-[10px]">
-          <span className="font-mono uppercase tracking-wide text-text-3">
-            Group
-          </span>
-          <select
-            value={groupBy}
-            onChange={(e) => setGroupBy(e.target.value as DashGroupBy)}
-            className="rounded-sm border border-border bg-bg-2 px-1 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-1 outline-none hover:border-border-focus focus:border-border-focus"
-            aria-label="Group tasks by"
-          >
-            <option value="none">None</option>
-            <option value="terminal">Terminal</option>
-            <option value="priority">Priority</option>
-            <option value="due">Due</option>
-            {tab === "delegated" || tab === "all" ? (
-              <option value="assignee">Assignee</option>
-            ) : null}
-          </select>
-        </label>
-      </div>
-      {visibleAssigned.length === 0 ? (
-        <p className="px-3 py-4 text-center text-[11px] text-text-3">
-          {emptyForTab(tab)}
-        </p>
-      ) : groupBy === "none" ? (
-        <ul className="divide-y divide-border/40">
-          {visibleAssigned.slice(0, ROW_LIMIT).map((t) =>
-            tab === "delegated" ? (
-              <DelegatedRow
-                key={t.id}
-                task={t as DelegatedTask}
-                ticker={tickerById[t.terminal_id]}
-                terminalName={terminalNameById?.[t.terminal_id]}
-              />
-            ) : (
+    // Plain card shell — no DashboardCard wrapper. The header chrome now
+    // lives entirely in the shared TaskListToolbar so this surface is
+    // byte-for-byte the same interface as the in-terminal TasksPane.
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded border border-border-strong bg-bg-1 shadow-sm">
+      <TaskListToolbar
+        count={visibleAssigned.length}
+        sortMode={sortMode}
+        onSortMode={setSortMode}
+        // Manual drag-to-reorder is a single-terminal concept; the
+        // dashboard spans terminals, so the control shows for parity
+        // but stays disabled.
+        allowManual={false}
+        groupMode={groupBy}
+        onGroupMode={(m) => setGroupBy(m as DashGroupBy)}
+        groupOptions={DASH_GROUP_OPTIONS}
+        hideDone={hideDone}
+        onHideDone={() => setHideDone((v) => !v)}
+        doneCount={doneCount}
+        query={query}
+        onQuery={setQuery}
+        newTaskHref={createHref ?? undefined}
+        newTaskDisabled={createDisabled}
+        newTaskShortcut="⌘N"
+        expandHref="/tasks/mine"
+      />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {visibleAssigned.length === 0 ? (
+          <p className="px-3 py-4 text-center text-[11px] text-text-3">
+            {query.trim()
+              ? "No tasks match your filter."
+              : "No open tasks. Nice."}
+          </p>
+        ) : groupBy === "none" ? (
+          <ul className="divide-y divide-border">
+            {visibleAssigned.slice(0, ROW_LIMIT).map((t) => (
               <AssignedRow
                 key={t.id}
                 task={t}
                 ticker={tickerById[t.terminal_id]}
                 terminalName={terminalNameById?.[t.terminal_id]}
               />
-            ),
-          )}
-        </ul>
-      ) : (
-        // Grouped — same sectioned treatment as the in-terminal pane:
-        // sticky semantic headers, count pills, collapse, 2px dividers.
-        (() => {
-          const buckets = bucketDashTasks(
-            visibleAssigned,
-            groupBy,
-            tickerById,
-            terminalNameById,
-          );
-          return (
-            <div className="divide-y-2 divide-border-strong">
-              {buckets.map((b) => {
-                const collapseKey = `${groupBy}:${b.key}`;
-                const collapsed = collapsedGroups.has(collapseKey);
-                return (
-                  <section key={b.key}>
-                    <TaskSectionHeader
-                      label={b.label}
-                      count={b.tasks.length}
-                      tone={groupTone(groupBy, b.key)}
-                      collapsed={collapsed}
-                      onToggle={() => toggleGroupCollapsed(collapseKey)}
-                    />
-                    {!collapsed ? (
-                      <ul className="divide-y divide-border/40">
-                        {b.tasks.map((t) =>
-                          tab === "delegated" ? (
-                            <DelegatedRow
-                              key={`${b.key}:${t.id}`}
-                              task={t as DelegatedTask}
-                              ticker={tickerById[t.terminal_id]}
-                              terminalName={terminalNameById?.[t.terminal_id]}
-                            />
-                          ) : (
+            ))}
+          </ul>
+        ) : (
+          // Grouped — same sectioned treatment as the in-terminal pane:
+          // sticky semantic headers, count pills, collapse, 2px dividers.
+          (() => {
+            const buckets = bucketDashTasks(
+              visibleAssigned,
+              groupBy,
+              tickerById,
+              terminalNameById,
+            );
+            return (
+              <div className="divide-y-2 divide-border-strong">
+                {buckets.map((b) => {
+                  const collapseKey = `${groupBy}:${b.key}`;
+                  const collapsed = collapsedGroups.has(collapseKey);
+                  return (
+                    <section key={b.key}>
+                      <TaskSectionHeader
+                        label={b.label}
+                        count={b.tasks.length}
+                        tone={groupTone(groupBy, b.key)}
+                        collapsed={collapsed}
+                        onToggle={() => toggleGroupCollapsed(collapseKey)}
+                      />
+                      {!collapsed ? (
+                        <ul className="divide-y divide-border">
+                          {b.tasks.map((t) => (
                             <AssignedRow
                               key={`${b.key}:${t.id}`}
                               task={t}
                               ticker={tickerById[t.terminal_id]}
                               terminalName={terminalNameById?.[t.terminal_id]}
                             />
-                          ),
-                        )}
-                      </ul>
-                    ) : null}
-                  </section>
-                );
-              })}
-            </div>
-          );
-        })()
-      )}
-      {/* The "X more — open the full list" footer is gone. All rows
-          now render and the user scrolls inside the card; the
-          Maximize icon in the card header is still a one-click route
-          to the full-page view for a roomier surface. */}
-    </DashboardCard>
-  );
-}
-
-function FilterChip({
-  active,
-  onClick,
-  icon,
-  label,
-  count,
-  tone = "neutral",
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  count: number;
-  tone?: "neutral" | "danger";
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={cn(
-        "inline-flex items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-        active
-          ? "border-accent/40 bg-bg-3 text-text-0"
-          : "border-border bg-bg-2 text-text-2 hover:bg-bg-3",
-      )}
-    >
-      {icon}
-      <span>{label}</span>
-      <span
-        className={cn(
-          "ml-0.5 font-mono text-[10px]",
-          active ? "text-text-1" : "text-text-3",
-          tone === "danger" && count > 0 && "text-danger",
+                          ))}
+                        </ul>
+                      ) : null}
+                    </section>
+                  );
+                })}
+              </div>
+            );
+          })()
         )}
-      >
-        {count}
-      </span>
-    </button>
+      </div>
+    </section>
   );
-}
-
-function emptyForTab(tab: "mine" | "delegated" | "overdue" | "week" | "all"): string {
-  switch (tab) {
-    case "mine":
-      return "Nothing assigned to you. Nice.";
-    case "delegated":
-      return "Nothing waiting on others.";
-    case "overdue":
-      return "Nothing overdue. Well done.";
-    case "week":
-      return "Nothing due this week.";
-    case "all":
-      return "No open tasks anywhere.";
-  }
 }
 
 function AssignedRow({
@@ -598,59 +470,4 @@ function AssignedRow({
     </li>
   );
 }
-
-function DelegatedRow({
-  task,
-  ticker,
-  terminalName,
-}: {
-  task: DelegatedTask;
-  ticker?: string;
-  terminalName?: string;
-}) {
-  const href = ticker ? `/p/${ticker}/task/${task.ticker_seq}` : undefined;
-  const assigneeLabel = task.assignees
-    .map((a) => a.full_name ?? "someone")
-    .join(", ");
-  const body = (
-    <div
-      data-row
-      className={cn(
-        "flex items-center gap-2 border-l-2 px-3 py-1 pl-[10px] text-xs hover:bg-bg-2",
-        priorityEdge(task.priority),
-      )}
-    >
-      <ArrowRight className="h-3 w-3 flex-shrink-0 text-text-3" />
-      <span className="flex-1 truncate text-text-0">{task.title}</span>
-      <span
-        className="hidden truncate text-text-2 md:inline max-w-[14ch]"
-        title={assigneeLabel}
-      >
-        {assigneeLabel}
-      </span>
-      {terminalName ? (
-        <span
-          className="hidden truncate text-text-3 lg:inline max-w-[10ch]"
-          title={terminalName}
-        >
-          {terminalName}
-        </span>
-      ) : null}
-      <PriorityDots priority={task.priority} />
-      {task.due_date ? <DueChip date={task.due_date} /> : null}
-    </div>
-  );
-  return href ? (
-    <li>
-      <Link href={href} className="block">
-        {body}
-      </Link>
-    </li>
-  ) : (
-    <li>{body}</li>
-  );
-}
-
-// EmptyAssigned / EmptyDelegated removed — `emptyForTab` covers
-// the per-filter empty state inline.
 

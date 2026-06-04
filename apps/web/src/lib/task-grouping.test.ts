@@ -181,6 +181,20 @@ describe("bucketDashTasks", () => {
     expect(out.map((g) => g.key)).toEqual(["high", "none"]);
   });
 
+  it("supports status mode (toolbar parity with the in-terminal pane)", () => {
+    const out = bucketDashTasks(
+      [
+        dt({ id: "a", terminal_id: "t1", status: "done" }),
+        dt({ id: "b", terminal_id: "t2", status: "todo" }),
+        dt({ id: "c", terminal_id: "t1", status: "in_progress" }),
+      ],
+      "status",
+      tickerById,
+      nameById,
+    );
+    expect(out.map((g) => g.key)).toEqual(["todo", "in_progress", "done"]);
+  });
+
   it("none mode returns flat single group", () => {
     const out = bucketDashTasks(
       [dt({ id: "a", terminal_id: "t1" })],

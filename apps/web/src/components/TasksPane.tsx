@@ -44,7 +44,18 @@ import {
   groupTone,
   priorityEdge,
 } from "./TaskSectionHeader";
+import { TaskListToolbar, type GroupOption } from "./TaskListToolbar";
 import { groupTasks, type TaskGroupMode } from "@/lib/task-grouping";
+
+/** Group-by options for the in-terminal pane (no "Terminal" — you're
+ * already inside one). Shared toolbar renders these in the dropdown. */
+const TERMINAL_GROUP_OPTIONS: GroupOption[] = [
+  { value: "none", label: "None" },
+  { value: "due", label: "Due" },
+  { value: "priority", label: "Priority" },
+  { value: "status", label: "Status" },
+  { value: "assignee", label: "Assignee" },
+];
 import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
 interface TaskAssignee {
@@ -847,114 +858,20 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
   return (
     <div className="flex h-full">
       <div className="flex h-full flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="flex items-center gap-3">
-          <h2 className="text-sm font-semibold text-text-0">Tasks</h2>
-          <span className="font-mono text-xs text-text-3">{tasks.length}</span>
-          {/* Sort toggle. "Auto" is the natural triage order
-              (incomplete first, then priority, due, created).
-              "Manual" loads `?sort=position` so drag-to-reorder
-              writes back to the position column. The current mode
-              persists per-project in localStorage. */}
-          <span
-            role="tablist"
-            aria-label="Task sort order"
-            className="flex items-center gap-0 overflow-hidden rounded-sm border border-border text-[10px]"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={sortMode === "auto"}
-              onClick={() => setSortMode("auto")}
-              className={cn(
-                "px-2 py-0.5 font-mono uppercase tracking-wide",
-                sortMode === "auto"
-                  ? "bg-bg-3 text-text-0"
-                  : "text-text-3 hover:bg-bg-2 hover:text-text-1",
-              )}
-            >
-              Auto
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={sortMode === "manual"}
-              onClick={() => setSortMode("manual")}
-              className={cn(
-                "px-2 py-0.5 font-mono uppercase tracking-wide",
-                sortMode === "manual"
-                  ? "bg-bg-3 text-text-0"
-                  : "text-text-3 hover:bg-bg-2 hover:text-text-1",
-              )}
-            >
-              Manual
-            </button>
-          </span>
-          {/* Group-by selector. Buckets the list visually with section
-              headers; rows still sort by the active SortMode within
-              each bucket. Persists per-project. */}
-          <label className="flex items-center gap-1 text-[10px]">
-            <span className="font-mono uppercase tracking-wide text-text-3">
-              Group
-            </span>
-            <select
-              value={groupMode}
-              onChange={(e) => setGroupMode(e.target.value as GroupMode)}
-              className="rounded-sm border border-border bg-bg-1 px-1 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-1 outline-none hover:border-border-focus focus:border-border-focus"
-              aria-label="Group tasks by"
-            >
-              <option value="none">None</option>
-              <option value="assignee">Assignee</option>
-              <option value="due">Due</option>
-              <option value="priority">Priority</option>
-              <option value="status">Status</option>
-            </select>
-          </label>
-          {/* Hide-done toggle. Shows the count of tasks being hidden
-              so the user remembers they exist (and can click to bring
-              them back). Persists per-project in localStorage. */}
-          {(() => {
-            const doneCount = tasks.filter((t) => t.status === "done").length;
-            if (doneCount === 0 && !hideDone) return null;
-            return (
-              <button
-                type="button"
-                onClick={() => setHideDone((v) => !v)}
-                aria-pressed={hideDone}
-                title={
-                  hideDone
-                    ? `Show ${doneCount} completed task${doneCount === 1 ? "" : "s"}`
-                    : `Hide ${doneCount} completed task${doneCount === 1 ? "" : "s"} from the list`
-                }
-                className={cn(
-                  "flex items-center gap-1 rounded-sm border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
-                  hideDone
-                    ? "border-border bg-bg-2 text-text-2 hover:bg-bg-3"
-                    : "border-border bg-bg-1 text-text-3 hover:bg-bg-2 hover:text-text-1",
-                )}
-              >
-                {hideDone ? "Show done" : "Hide done"}
-                {doneCount > 0 ? (
-                  <span className="text-text-3">{doneCount}</span>
-                ) : null}
-              </button>
-            );
-          })()}
-        </div>
-        <div className="flex items-center gap-2">
-          <TaskSearchInput
-            value={query}
-            onChange={setQuery}
-            placeholder="Filter tasks…"
-          />
-          <button
-            onClick={() => setCreating(true)}
-            className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
-          >
-            <Plus className="h-3 w-3" /> New task <kbd className="ml-1 font-mono text-[10px] text-text-3">C</kbd>
-          </button>
-        </div>
-      </div>
+      <TaskListToolbar
+        count={tasks.length}
+        sortMode={sortMode}
+        onSortMode={setSortMode}
+        groupMode={groupMode}
+        onGroupMode={(m) => setGroupMode(m as GroupMode)}
+        groupOptions={TERMINAL_GROUP_OPTIONS}
+        hideDone={hideDone}
+        onHideDone={() => setHideDone((v) => !v)}
+        doneCount={tasks.filter((t) => t.status === "done").length}
+        query={query}
+        onQuery={setQuery}
+        onNewTask={() => setCreating(true)}
+      />
 
       {error ? (
         <div className="border-b border-border bg-danger-subtle px-4 py-2 text-xs text-danger">
@@ -1667,81 +1584,3 @@ function filterTasks(tasks: Task[], query: string, ticker: string): Task[] {
   });
 }
 
-/**
- * Toolbar search input. Visible always so the affordance is
- * discoverable; `f` from anywhere outside an input focuses it.
- * `Escape` clears the query and blurs.
- */
-function TaskSearchInput({
-  value,
-  onChange,
-  placeholder,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  placeholder?: string;
-}) {
-  const ref = useRef<HTMLInputElement | null>(null);
-
-  // Window-level `f` shortcut to focus this input. Guards against
-  // firing while typing in another input/textarea so it doesn't
-  // steal a real keystroke.
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key !== "f") return;
-      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
-      const t = e.target as HTMLElement | null;
-      if (
-        t?.tagName === "INPUT" ||
-        t?.tagName === "TEXTAREA" ||
-        t?.tagName === "SELECT" ||
-        t?.isContentEditable
-      ) {
-        return;
-      }
-      e.preventDefault();
-      ref.current?.focus();
-      ref.current?.select();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-
-  return (
-    <div className="relative flex items-center">
-      <input
-        ref={ref}
-        type="text"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            onChange("");
-            ref.current?.blur();
-          }
-        }}
-        placeholder={placeholder ?? "Filter…"}
-        aria-label="Filter tasks"
-        className="w-44 rounded-sm border border-border bg-bg-1 px-2 py-1 pr-6 text-xs text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus"
-      />
-      {value ? (
-        <button
-          type="button"
-          onClick={() => {
-            onChange("");
-            ref.current?.focus();
-          }}
-          aria-label="Clear filter"
-          className="absolute right-1 rounded-sm p-0.5 text-text-3 hover:bg-bg-3 hover:text-text-0"
-        >
-          ×
-        </button>
-      ) : (
-        <kbd className="absolute right-1 font-mono text-[10px] text-text-3">
-          f
-        </kbd>
-      )}
-    </div>
-  );
-}

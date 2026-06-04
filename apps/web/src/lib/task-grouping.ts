@@ -5,9 +5,10 @@
  *
  *   - In-terminal `TasksPane` — groups by assignee / due / priority /
  *     status (terminal context already pins the space + project).
- *   - Dashboard `TasksCard` — groups by terminal / priority / due /
- *     assignee (cross-cutting view, terminal-grouping is the headline
- *     value here since the dashboard list spans terminals).
+ *   - Dashboard `TasksCard` — same modes plus `terminal` (the headline
+ *     value here, since the dashboard list spans terminals). The two
+ *     surfaces share one toolbar, so the dashboard offers every
+ *     in-terminal mode too — due / priority / status / assignee.
  *
  * Both surfaces render the result as section headers + a count chip.
  * Empty buckets are dropped so the layout doesn't waste vertical
@@ -71,7 +72,8 @@ export type DashGroupMode =
   | "terminal"
   | "priority"
   | "due"
-  | "assignee";
+  | "assignee"
+  | "status";
 
 export interface DashGroupableTask extends GroupableTask {
   terminal_id: string;
