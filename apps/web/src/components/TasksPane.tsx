@@ -97,7 +97,13 @@ function sortStorageKey(projectId: string): string {
 }
 
 function groupStorageKey(projectId: string): string {
-  return `rokki_tasks_group:${projectId}`;
+  // `_v2` bump: the default group-by changed from "none" to "due" so the
+  // sectioned view (sticky headers, counts, collapse) is what you see
+  // out of the box. The old `_v1`-era key had "none" persisted for
+  // existing users, which would have suppressed the new default — the
+  // version bump retires those saved values so everyone picks up the
+  // grouped default once, then their own choice persists under v2.
+  return `rokki_tasks_group_v2:${projectId}`;
 }
 
 function hideDoneStorageKey(projectId: string): string {
@@ -178,7 +184,13 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
   const [commentTaskId, setCommentTaskId] = useState<string | null>(null);
   const [mentionables, setMentionables] = useState<Mentionable[]>([]);
   const [sortMode, setSortMode] = useState<SortMode>("auto");
-  const [groupMode, setGroupMode] = useState<GroupMode>("none");
+  // Default to grouping by due date so the task list opens in the
+  // sectioned view (Overdue / Today / This week / Later / Done) with
+  // the sticky colored headers — the look approved in the #14 mockup —
+  // instead of a flat undifferentiated list. Users can switch to
+  // "None" (which also re-enables manual drag-reorder) and the choice
+  // persists per terminal.
+  const [groupMode, setGroupMode] = useState<GroupMode>("due");
   /**
    * When true, completed tasks are filtered out of the view. The
    * server still returns them so the count of hidden rows can be
