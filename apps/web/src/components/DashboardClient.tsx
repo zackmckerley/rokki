@@ -13,6 +13,7 @@ import { ResizableCenterStack } from "./dashboard/ResizableCenterStack";
 import { TerminalScopeFilter } from "./dashboard/TerminalScopeFilter";
 import { TopBar } from "./TopBar";
 import { DensityProvider, type Density } from "@/lib/density";
+import { useRefreshOnFocus } from "@/lib/use-refresh-on-focus";
 import { TimezoneProbe } from "./TimezoneProbe";
 import { BriefingCard } from "./dashboard/BriefingCard";
 import { isEditableTarget } from "@/lib/shortcuts";
@@ -104,6 +105,14 @@ export function DashboardClient({
 }: DashboardClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Resilience fallback for blocked realtime websockets (corporate
+  // networks): refetch the whole dashboard whenever the user returns to
+  // the tab or the browser reconnects, so the data is current even when
+  // live pushes never arrive. router.refresh() re-runs the server
+  // components behind every slot (Tasks, Week, Ticker, Briefing).
+  useRefreshOnFocus(() => router.refresh());
+
   const [spaceDialog, setSpaceDialog] = useState(false);
   const [terminalDialog, setTerminalDialog] = useState(false);
   const [taskDialog, setTaskDialog] = useState(false);
