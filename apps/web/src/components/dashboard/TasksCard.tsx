@@ -287,7 +287,7 @@ export function TasksCard({
               : "No open tasks. Nice."}
           </p>
         ) : groupBy === "none" ? (
-          <ul className="divide-y divide-border">
+          <ul className="divide-y divide-border/60">
             {visibleAssigned.slice(0, ROW_LIMIT).map((t) => (
               <DashboardTaskRow
                 key={t.id}
@@ -322,7 +322,7 @@ export function TasksCard({
                         onToggle={() => toggleGroupCollapsed(collapseKey)}
                       />
                       {!collapsed ? (
-                        <ul className="divide-y divide-border">
+                        <ul className="divide-y divide-border/60">
                           {b.tasks.map((t) => (
                             <DashboardTaskRow
                               key={`${b.key}:${t.id}`}

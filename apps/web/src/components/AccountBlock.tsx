@@ -207,7 +207,7 @@ export function AccountBlock({
             ) : null}
           </span>
           <span
-            className="block truncate font-mono text-[10px] text-text-3"
+            className="block truncate font-mono text-2xs text-text-3"
             title={email}
           >
             {email}
@@ -230,7 +230,7 @@ export function AccountBlock({
               already shows avatar + name + email + admin chip. Repeating
               it inside the open dropdown is redundant. */}
           {error ? (
-            <p className="flex items-center gap-1 border-b border-border bg-danger-subtle px-3 py-1.5 text-[11px] text-danger">
+            <p className="flex items-center gap-1 border-b border-border bg-danger-subtle px-3 py-1.5 text-xs text-danger">
               <AlertCircle className="h-2.5 w-2.5" /> {error}
             </p>
           ) : null}
@@ -239,7 +239,7 @@ export function AccountBlock({
               somewhere to switch. */}
           {otherAccounts.length > 0 ? (
             <div className="border-b border-border py-1">
-              <p className="px-3 pt-1 pb-0.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-text-3">
+              <p className="px-3 pt-1 pb-0.5 text-2xs font-semibold uppercase tracking-[0.18em] text-text-3">
                 Switch to
               </p>
               <ul role="none">
@@ -256,7 +256,7 @@ export function AccountBlock({
                       )}
                     >
                       <RefreshCw className="h-3 w-3 flex-shrink-0 text-text-3" />
-                      <span className="flex-1 truncate font-mono text-[11px] text-text-1">
+                      <span className="flex-1 truncate font-mono text-xs text-text-1">
                         {r.email}
                       </span>
                     </button>
@@ -418,7 +418,7 @@ function AddAccountForm({
       onSubmit={submit}
       className="flex flex-col gap-2 border-b border-border p-3"
     >
-      <p className="text-[10px] uppercase tracking-wide text-text-3">
+      <p className="text-2xs uppercase tracking-wide text-text-3">
         Add another account
       </p>
       <input
@@ -435,7 +435,7 @@ function AddAccountForm({
         placeholder="Password"
         className="rounded-sm border border-border bg-bg-0 px-2 py-1 font-mono text-xs text-text-0 outline-none focus:border-border-focus"
       />
-      <p className="text-[10px] text-text-3">
+      <p className="text-2xs text-text-3">
         Magic-link sign-in only stacks one account at a time. Use a password
         (admins) or sign in here once via the regular flow first.
       </p>

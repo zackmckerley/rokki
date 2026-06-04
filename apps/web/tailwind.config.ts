@@ -60,6 +60,7 @@ export default {
       serif: ["var(--font-serif)", "Georgia", "serif"],
     },
     fontSize: {
+      "2xs": ["var(--text-2xs)", { lineHeight: "var(--leading-2xs)" }],
       xs: ["var(--text-xs)", { lineHeight: "var(--leading-xs)" }],
       sm: ["var(--text-sm)", { lineHeight: "var(--leading-sm)" }],
       base: ["var(--text-base)", { lineHeight: "var(--leading-base)" }],

@@ -462,7 +462,7 @@ export function DashboardPanels({
           <button
             type="button"
             onClick={resetLayout}
-            className="rounded-sm px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-3 hover:bg-bg-2 hover:text-text-1"
+            className="rounded-sm px-2 py-0.5 font-mono text-2xs uppercase tracking-wide text-text-3 hover:bg-bg-2 hover:text-text-1"
             title="Reset the dashboard layout to its default"
           >
             ↺ Reset layout

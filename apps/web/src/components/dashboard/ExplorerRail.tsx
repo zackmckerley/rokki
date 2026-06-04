@@ -362,7 +362,7 @@ export function ExplorerRail({
               .
             </p>
           ) : (
-            <ul className="space-y-0.5 text-sm">
+            <ul className="space-y-0.5 text-xs">
               {orderedSpaces.map((s) => {
                 const children =
                   filteredTerminalsBySpace.get(s.id) ??
