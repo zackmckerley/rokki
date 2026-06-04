@@ -2,21 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Settings,
-  X,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
 import { cn } from "@/lib/utils";
 import { AccountBlock } from "@/components/AccountBlock";
-import {
-  COLLAPSED_SPACES_KEY,
-  readRecentTerminals,
-  type RecentTerminal,
-} from "@/lib/recent-terminals";
+import { RailModules } from "./RailModules";
+import { COLLAPSED_SPACES_KEY } from "@/lib/recent-terminals";
 import {
   applyOrder,
   reorder,
@@ -234,32 +225,36 @@ export function ExplorerRail({
     setOverTermId(null);
   }
 
-  // Recently-viewed terminals. Hydrate on mount + listen for the
-  // custom event the tracker dispatches when a new terminal is opened.
-  const [recents, setRecents] = useState<RecentTerminal[]>([]);
+  // Collapse state for the two rail sections (Spaces / Modules),
+  // persisted per-device like the per-space collapse.
+  const [sectionsOpen, setSectionsOpen] = useState({
+    spaces: true,
+    modules: true,
+  });
   useEffect(() => {
-    setRecents(readRecentTerminals());
-    const onChange = () => setRecents(readRecentTerminals());
-    window.addEventListener("rokki:recent-terminals-changed", onChange);
-    return () =>
-      window.removeEventListener("rokki:recent-terminals-changed", onChange);
+    try {
+      const raw = window.localStorage.getItem("rokki:explorer-sections");
+      if (raw) {
+        const p = JSON.parse(raw) as Partial<typeof sectionsOpen>;
+        setSectionsOpen((s) => ({ ...s, ...p }));
+      }
+    } catch {
+      /* default: both open */
+    }
   }, []);
-
-  const liveRecents = useMemo(() => {
-    if (recents.length === 0) return [];
-    // localStorage may hold either a slug (new) or a legacy ticker
-    // (old recents written before the slug column existed). Match
-    // against both so old recents keep working until they fall off
-    // the ring.
-    const bySlug = new Map(terminals.map((t) => [t.slug, t]));
-    const byTicker = new Map(terminals.map((t) => [t.ticker, t]));
-    return recents
-      .map((r) => {
-        const live = bySlug.get(r.ticker) ?? byTicker.get(r.ticker);
-        return live ? { slug: live.slug, name: live.name } : null;
-      })
-      .filter((r): r is { slug: string; name: string } => r !== null);
-  }, [recents, terminals]);
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(
+        "rokki:explorer-sections",
+        JSON.stringify(sectionsOpen),
+      );
+    } catch {
+      /* non-fatal */
+    }
+  }, [sectionsOpen, hydrated]);
+  const toggleSection = (k: "spaces" | "modules") =>
+    setSectionsOpen((s) => ({ ...s, [k]: !s[k] }));
 
   const filterRef = useRef<HTMLInputElement>(null);
 
@@ -342,32 +337,21 @@ export function ExplorerRail({
         ) : null}
 
         <div className="px-1 py-2">
-          {/* Recently-viewed — only when not filtering, and only if
-              there's anything in the ring. Heading style now matches
-              the "Explorer" heading at the top — same density. */}
-          {!isFiltering && liveRecents.length > 0 ? (
-            <div className="mb-3">
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-text-3">
-                Recent
-              </p>
-              <ul className="space-y-0.5">
-                {liveRecents.map((r) => (
-                  <li key={r.slug}>
-                    <Link
-                      href={`/p/${r.slug}`}
-                      className="flex items-center gap-2 rounded-sm px-2 py-0.5 text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
-                    >
-                      <Clock className="h-3 w-3 flex-shrink-0 text-text-3" />
-                      <span className="flex-1 truncate text-xs">{r.name}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              <div className="mx-2 mt-2 border-t border-border" />
-            </div>
-          ) : null}
+          {/* ---- SPACES section (collapsible) ---- */}
+          <button
+            type="button"
+            onClick={() => toggleSection("spaces")}
+            className="flex w-full items-center gap-1.5 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
+          >
+            {sectionsOpen.spaces ? (
+              <ChevronDown className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+            )}
+            Spaces
+          </button>
 
-          {spaces.length === 0 ? (
+          {!sectionsOpen.spaces ? null : spaces.length === 0 ? (
             <p className="px-3 py-4 text-xs text-text-3">
               You&apos;re not in any spaces yet.
             </p>
@@ -573,10 +557,20 @@ export function ExplorerRail({
             </ul>
           )}
 
-          {/* The "Tools" tile lived here. Removed at Zack's request —
-              the marketplace is reachable from the command palette
-              ("tools") and the AccountBlock menu, and the tile was
-              eating rail real estate without earning the visit count. */}
+          {/* ---- MODULES section (collapsible) ---- */}
+          <button
+            type="button"
+            onClick={() => toggleSection("modules")}
+            className="mt-3 flex w-full items-center gap-1.5 px-2 py-1 text-xs font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
+          >
+            {sectionsOpen.modules ? (
+              <ChevronDown className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+            ) : (
+              <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+            )}
+            Modules
+          </button>
+          {sectionsOpen.modules ? <RailModules /> : null}
         </div>
       </div>
 
