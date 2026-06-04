@@ -10,6 +10,7 @@ import { DashboardShell } from "./dashboard/DashboardShell";
 import { ExplorerRail } from "./dashboard/ExplorerRail";
 import { MessagesCard } from "./dashboard/MessagesCard";
 import { DashboardPanels } from "./dashboard/DashboardPanels";
+import { ModuleVisibilityProvider } from "./dashboard/module-visibility";
 import { TerminalScopeFilter } from "./dashboard/TerminalScopeFilter";
 import { TopBar } from "./TopBar";
 import { DensityProvider, type Density } from "@/lib/density";
@@ -166,6 +167,7 @@ export function DashboardClient({
 
   return (
     <DensityProvider initial={initialDensity}>
+      <ModuleVisibilityProvider>
       <DashboardShell
         topBar={
           <TopBar>
@@ -230,6 +232,7 @@ export function DashboardClient({
           />
         }
       />
+      </ModuleVisibilityProvider>
       {/* Conditional mounting (not just open=false) — combined with
           the `dynamic()` imports above, the dialog code only ships
           to the client when the user actually opens one. Trims

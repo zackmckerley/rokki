@@ -4,7 +4,11 @@ import Link from "next/link";
 import { Maximize2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { usePanelHandle, usePanelMaximize } from "./panel-handle";
+import {
+  usePanelHandle,
+  usePanelMaximize,
+  usePanelMinimize,
+} from "./panel-handle";
 
 /**
  * Shared card primitive used across the dashboard. Always has:
@@ -45,6 +49,7 @@ export function DashboardCard({
   // are null (no grip; the expand button stays a plain link).
   const handle = usePanelHandle();
   const maximize = usePanelMaximize();
+  const minimize = usePanelMinimize();
   return (
     <section
       // Stronger border + subtle ring/shadow so cards separate from the
@@ -70,6 +75,7 @@ export function DashboardCard({
         </div>
         <div className="flex items-center gap-2">
           {headerRight}
+          {minimize}
           {/* Hosted in DashboardPanels → maximize/restore toggle.
               Otherwise the original full-page expand link. */}
           {maximize ? (

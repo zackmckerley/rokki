@@ -14,6 +14,8 @@ export interface PanelControls {
   handle: ReactNode;
   /** Maximize / restore toggle (replaces the card's expand link). */
   maximize: ReactNode;
+  /** Minimize button — sends the panel to the rail's Modules list. */
+  minimize: ReactNode;
 }
 
 const PanelControlsContext = createContext<PanelControls | null>(null);
@@ -26,4 +28,8 @@ export function usePanelHandle(): ReactNode {
 
 export function usePanelMaximize(): ReactNode {
   return useContext(PanelControlsContext)?.maximize ?? null;
+}
+
+export function usePanelMinimize(): ReactNode {
+  return useContext(PanelControlsContext)?.minimize ?? null;
 }

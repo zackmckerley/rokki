@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Plus, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePanelHandle, usePanelMaximize } from "./dashboard/panel-handle";
+import {
+  usePanelHandle,
+  usePanelMaximize,
+  usePanelMinimize,
+} from "./dashboard/panel-handle";
 
 export interface GroupOption {
   value: string;
@@ -67,6 +71,7 @@ export function TaskListToolbar({
   // movable panel (the expand button stays its normal link there).
   const handle = usePanelHandle();
   const maximize = usePanelMaximize();
+  const minimize = usePanelMinimize();
   return (
     <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-border px-4 py-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -201,6 +206,7 @@ export function TaskListToolbar({
             </kbd>
           </button>
         )}
+        {minimize}
         {/* Hosted in DashboardPanels → maximize/restore toggle.
             Otherwise the original full-page expand link. */}
         {maximize ? (

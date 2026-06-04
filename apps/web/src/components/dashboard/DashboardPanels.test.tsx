@@ -2,7 +2,12 @@
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { DashboardPanels } from "./DashboardPanels";
-import { usePanelHandle, usePanelMaximize } from "./panel-handle";
+import {
+  usePanelHandle,
+  usePanelMaximize,
+  usePanelMinimize,
+} from "./panel-handle";
+import { ModuleVisibilityProvider } from "./module-visibility";
 
 function setDesktop(matches: boolean) {
   Object.defineProperty(window, "matchMedia", {
@@ -130,5 +135,29 @@ describe("DashboardPanels", () => {
     fireEvent.click(restore);
     expect(tasksPanel().className).not.toContain("lg:hidden");
     expect(screen.getByLabelText("Maximize Week")).toBeTruthy();
+  });
+
+  it("minimize removes a panel from the viewing area (with provider)", () => {
+    setDesktop(true);
+    function WeekProbe() {
+      return <div>WEEK{usePanelMinimize()}</div>;
+    }
+    render(
+      <ModuleVisibilityProvider>
+        <DashboardPanels
+          briefing={null}
+          week={<WeekProbe />}
+          tasks={<div>TASKS_PANEL</div>}
+          messages={<div>m</div>}
+        />
+      </ModuleVisibilityProvider>,
+    );
+    // Week is in the viewing area initially.
+    expect(document.querySelector('[data-panel-id="week"]')).not.toBeNull();
+    // Minimize it → it leaves the viewing area.
+    fireEvent.click(screen.getByLabelText("Minimize Week"));
+    expect(document.querySelector('[data-panel-id="week"]')).toBeNull();
+    // Tasks is still there.
+    expect(document.querySelector('[data-panel-id="tasks"]')).not.toBeNull();
   });
 });

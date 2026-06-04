@@ -10,9 +10,10 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { GripVertical, Maximize2, Minimize2 } from "lucide-react";
+import { GripVertical, Maximize2, Minimize2, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PanelControlsProvider } from "./panel-handle";
+import { useModuleVisibility } from "./module-visibility";
 import {
   DASH_LAYOUT_STORAGE_KEY,
   DEFAULT_DASH_LAYOUT,
@@ -79,6 +80,15 @@ export function DashboardPanels({
   // preference, so a reload returns to the normal arrangement.
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Minimized modules (shared with the explorer rail's Modules list).
+  // A minimized panel is dropped from the viewing area but kept in
+  // `layout`, so restoring it from the rail puts it back in its slot.
+  const vis = useModuleVisibility();
+  function visibleInCol(col: DashColumn): string[] {
+    const m = vis?.minimized;
+    return m ? layout[col].filter((id) => !m.has(id)) : layout[col];
+  }
 
   // Track the lg breakpoint so the dynamic inline styles (panel flex,
   // grid template) only apply on desktop; mobile stays a natural stack.
@@ -291,6 +301,26 @@ export function DashboardPanels({
     );
   }
 
+  // Minimize — drops the panel out of the viewing area into the rail's
+  // Modules list (click it there to bring it back).
+  function panelMinBtn(id: string): ReactNode {
+    if (!vis) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          if (maximizedId === id) setMaximizedId(null);
+          vis.toggle(id);
+        }}
+        aria-label={`Minimize ${TITLES[id] ?? "panel"}`}
+        title="Minimize"
+        className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+      >
+        <Minus className="h-3 w-3" aria-hidden="true" />
+      </button>
+    );
+  }
+
   function renderPanel(id: string, col: DashColumn) {
     const before = hint?.kind === "panel" && hint.id === id && !hint.after;
     const after = hint?.kind === "panel" && hint.id === id && hint.after;
@@ -306,6 +336,8 @@ export function DashboardPanels({
           // No drag grip while a panel is maximized.
           handle: maximizedId ? null : panelGrip(id),
           maximize: isDesktop ? panelMaxBtn(id) : null,
+          // No minimize while maximized — restore first.
+          minimize: isDesktop && !maximizedId ? panelMinBtn(id) : null,
         }}
       >
         <div
@@ -332,7 +364,7 @@ export function DashboardPanels({
   }
 
   function renderColumn(col: DashColumn) {
-    const ids = layout[col];
+    const ids = visibleInCol(col);
     const emptyHighlight =
       hint?.kind === "col" && hint.col === col && ids.length === 0;
     return (
@@ -366,6 +398,11 @@ export function DashboardPanels({
   }
 
   const forceTwo = dragId != null;
+  // Only the non-minimized panels affect the layout/collapse maths.
+  const visLayout: DashLayout = {
+    center: visibleInCol("center"),
+    right: visibleInCol("right"),
+  };
   // Which column the maximized panel lives in (so the grid collapses the
   // other column to 0 and the maximized one takes the full width).
   const maxCol = maximizedId
@@ -377,11 +414,11 @@ export function DashboardPanels({
     ? maxCol === "center"
       ? "1fr 0 0"
       : "0 0 1fr"
-    : gridTemplate(layout, centerFrac, forceTwo);
+    : gridTemplate(visLayout, centerFrac, forceTwo);
   const showColSplit =
     isDesktop &&
     !maximizedId &&
-    (forceTwo || (layout.center.length > 0 && layout.right.length > 0));
+    (forceTwo || (visLayout.center.length > 0 && visLayout.right.length > 0));
 
   return (
     <div
