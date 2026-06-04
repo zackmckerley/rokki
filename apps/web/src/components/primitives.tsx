@@ -52,7 +52,7 @@ export function PriorityDots({
       role="img"
       aria-label={`Priority ${PRIORITY_LABEL_PRIMITIVE[priority]}`}
       className={cn(
-        "inline-flex flex-shrink-0 items-center gap-1 font-mono text-[10px] uppercase tracking-wide text-text-2",
+        "inline-flex flex-shrink-0 items-center gap-1 font-mono text-2xs uppercase tracking-wide text-text-2",
         className,
       )}
     >
@@ -100,7 +100,7 @@ export function StatusPill({
   return (
     <span
       className={cn(
-        "rounded-sm px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+        "rounded-sm px-1.5 py-0.5 font-mono text-2xs uppercase tracking-wide",
         STATUS_TONE[s],
         className,
       )}
@@ -143,7 +143,7 @@ export function DueChip({
   return (
     <span
       className={cn(
-        "font-mono text-[10px]",
+        "font-mono text-2xs",
         overdue ? "text-danger" : soon ? "text-warning" : "text-text-2",
         className,
       )}
@@ -158,8 +158,8 @@ export function DueChip({
 /* -------------------------------------------------------------------- */
 
 const AVATAR_SIZES = {
-  xs: "h-5 w-5 text-[10px]",
-  sm: "h-6 w-6 text-[10px]",
+  xs: "h-5 w-5 text-2xs",
+  sm: "h-6 w-6 text-2xs",
   md: "h-8 w-8 text-xs",
 };
 
@@ -217,7 +217,7 @@ export function TickerChip({
   return (
     <span
       className={cn(
-        "rounded-sm bg-bg-2 px-1 font-mono text-[10px] text-text-3",
+        "rounded-sm bg-bg-2 px-1 font-mono text-2xs text-text-3",
         className,
       )}
     >

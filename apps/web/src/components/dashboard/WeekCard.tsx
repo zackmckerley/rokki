@@ -153,21 +153,21 @@ export function WeekCard({
       {items.length === 0 ? (
         <EmptyWeek range={range} filtered={hiddenSourceIds.length > 0} />
       ) : (
-        <ul className="divide-y divide-border/60 text-xs">
+        <ul className="divide-y divide-border/60 text-sm">
           {grouped.map((day) => (
             <li key={day.key}>
-              <div className="flex items-baseline gap-2 bg-bg-1 px-3 py-1">
-                <span className="text-[10px] font-semibold uppercase tracking-wide text-text-2">
+              <div className="flex items-center gap-2 bg-bg-1 px-3 py-1">
+                <span className="text-2xs font-semibold uppercase tracking-wide text-text-2">
                   {day.label}
                 </span>
-                <span className="font-mono text-[10px] text-text-3">
+                <span className="font-mono text-2xs text-text-3">
                   {day.items.length || ""}
                 </span>
               </div>
               {day.items.length === 0 ? (
-                <div className="px-3 py-1.5 text-[11px] text-text-3">—</div>
+                <div className="px-3 py-1.5 text-xs text-text-3">—</div>
               ) : (
-                <ul className="divide-y divide-border/40">
+                <ul className="divide-y divide-border/60">
                   {day.items.map((it) => (
                     <WeekRow key={it.id} item={it} />
                   ))}
@@ -206,7 +206,7 @@ function RangeToggle({
           aria-selected={range === r}
           onClick={() => onSelect(r)}
           className={cn(
-            "px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors",
+            "px-2 py-0.5 text-2xs font-semibold uppercase tracking-wide transition-colors",
             i > 0 && "border-l border-border",
             range === r
               ? "bg-accent text-bg-0"
@@ -257,7 +257,7 @@ function SourceFilter({
         aria-haspopup="true"
         title="Filter calendar sources"
         className={cn(
-          "flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide transition-colors",
+          "flex items-center gap-1 rounded-sm border border-border px-1.5 py-0.5 text-2xs font-semibold uppercase tracking-wide transition-colors",
           open
             ? "bg-bg-3 text-text-0"
             : "bg-bg-2 text-text-1 hover:bg-bg-3 hover:text-text-0",
@@ -265,7 +265,7 @@ function SourceFilter({
       >
         <Filter className="h-3 w-3" aria-hidden="true" />
         <span className="hidden sm:inline">Sources</span>
-        <span className="rounded-sm bg-bg-3 px-1 font-mono text-[9px] text-text-2">
+        <span className="rounded-sm bg-bg-3 px-1 font-mono text-2xs text-text-2">
           {visibleCount}/{sources.length}
         </span>
         <ChevronDown
@@ -278,7 +278,7 @@ function SourceFilter({
       </button>
       {open ? (
         <div className="absolute right-0 top-full z-30 mt-1 w-72 overflow-hidden rounded-sm border border-border bg-bg-1 shadow-lg">
-          <header className="flex items-center justify-between border-b border-border bg-bg-2 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+          <header className="flex items-center justify-between border-b border-border bg-bg-2 px-3 py-1.5 text-2xs font-semibold uppercase tracking-wide text-text-3">
             <span>Calendars</span>
             <span className="font-mono text-text-2">
               {visibleCount} of {sources.length} shown
@@ -309,7 +309,7 @@ function SourceFilter({
                       {!isHidden ? <Check className="h-3 w-3" /> : null}
                     </span>
                     <span className="flex-1 truncate">{s.label}</span>
-                    <span className="font-mono text-[10px] uppercase text-text-3">
+                    <span className="font-mono text-2xs uppercase text-text-3">
                       {s.provider === "google" ? "Google" : "Outlook"}
                     </span>
                   </button>
@@ -338,7 +338,7 @@ function WeekRow({ item }: { item: WeekItem }) {
       : undefined;
   const content = (
     <div className="flex items-center gap-3 px-3 py-1.5 hover:bg-bg-2">
-      <span className="flex h-4 w-12 flex-shrink-0 items-center justify-center font-mono text-[10px] text-text-3">
+      <span className="flex h-4 w-12 flex-shrink-0 items-center justify-center font-mono text-2xs text-text-3">
         {item.kind === "event" ? formatTime(item.when) : "due"}
       </span>
       {item.kind === "due" ? (
@@ -384,7 +384,7 @@ function EmptyWeek({
     <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
       <CalIcon className="h-5 w-5 text-text-3" aria-hidden="true" />
       <p className="text-xs text-text-2">{headline}</p>
-      <p className="text-[11px] text-text-3">
+      <p className="text-xs text-text-3">
         {filtered
           ? "Re-enable a source above to see more."
           : "Calendar events from connected accounts appear here."}

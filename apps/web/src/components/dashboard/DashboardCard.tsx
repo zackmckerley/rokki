@@ -70,7 +70,7 @@ export function DashboardCard({
             {title}
           </h2>
           {typeof count === "number" ? (
-            <span className="font-mono text-[10px] text-text-3">{count}</span>
+            <span className="font-mono text-2xs text-text-3">{count}</span>
           ) : null}
         </div>
         <div className="flex items-center gap-2">
@@ -119,11 +119,11 @@ export function CardSection({
   return (
     <section className={cn("flex flex-col", className)}>
       <header className="flex items-center gap-2 border-b border-border/60 bg-bg-1 px-3 py-1.5">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+        <span className="text-2xs font-semibold uppercase tracking-wide text-text-3">
           {title}
         </span>
         {typeof count === "number" ? (
-          <span className="font-mono text-[10px] text-text-3">{count}</span>
+          <span className="font-mono text-2xs text-text-3">{count}</span>
         ) : null}
         {action ? <span className="ml-auto">{action}</span> : null}
       </header>

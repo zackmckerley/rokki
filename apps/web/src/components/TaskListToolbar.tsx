@@ -73,18 +73,20 @@ export function TaskListToolbar({
   const maximize = usePanelMaximize();
   const minimize = usePanelMinimize();
   return (
-    <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-border px-4 py-3">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-border-strong px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2">
         {handle}
-        <h2 className="text-sm font-semibold text-text-0">{title}</h2>
-        <span className="font-mono text-xs text-text-3">{count}</span>
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-2">
+          {title}
+        </h2>
+        <span className="font-mono text-2xs text-text-3">{count}</span>
 
         {/* Sort toggle. Auto = triage order (incomplete, priority, due,
             created). Manual = drag-to-reorder (terminal only). */}
         <span
           role="tablist"
           aria-label="Task sort order"
-          className="flex items-center gap-0 overflow-hidden rounded-sm border border-border text-[10px]"
+          className="flex items-center gap-0 overflow-hidden rounded-sm border border-border text-2xs"
         >
           <button
             type="button"
@@ -124,14 +126,14 @@ export function TaskListToolbar({
         </span>
 
         {/* Group-by selector — sections the list with sticky headers. */}
-        <label className="flex items-center gap-1 text-[10px]">
+        <label className="flex items-center gap-1 text-2xs">
           <span className="font-mono uppercase tracking-wide text-text-3">
             Group
           </span>
           <select
             value={groupMode}
             onChange={(e) => onGroupMode(e.target.value)}
-            className="rounded-sm border border-border bg-bg-1 px-1 py-0.5 font-mono text-[10px] uppercase tracking-wide text-text-1 outline-none hover:border-border-focus focus:border-border-focus"
+            className="rounded-sm border border-border bg-bg-1 px-1 py-0.5 font-mono text-2xs uppercase tracking-wide text-text-1 outline-none hover:border-border-focus focus:border-border-focus"
             aria-label="Group tasks by"
           >
             {groupOptions.map((o) => (
@@ -156,7 +158,7 @@ export function TaskListToolbar({
                 : `Hide ${doneCount} completed task${doneCount === 1 ? "" : "s"} from the list`
             }
             className={cn(
-              "flex items-center gap-1 rounded-sm border px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors",
+              "flex items-center gap-1 rounded-sm border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors",
               hideDone
                 ? "border-border bg-bg-2 text-text-2 hover:bg-bg-3"
                 : "border-border bg-bg-1 text-text-3 hover:bg-bg-2 hover:text-text-1",
@@ -185,7 +187,7 @@ export function TaskListToolbar({
               className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
             >
               <Plus className="h-3 w-3" /> New task
-              <kbd className="ml-1 font-mono text-[10px] text-text-3">
+              <kbd className="ml-1 font-mono text-2xs text-text-3">
                 {newTaskShortcut}
               </kbd>
             </Link>
@@ -201,7 +203,7 @@ export function TaskListToolbar({
             )}
           >
             <Plus className="h-3 w-3" /> New task
-            <kbd className="ml-1 font-mono text-[10px] text-text-3">
+            <kbd className="ml-1 font-mono text-2xs text-text-3">
               {newTaskShortcut}
             </kbd>
           </button>
@@ -290,7 +292,7 @@ function TaskFilterInput({
           ×
         </button>
       ) : (
-        <kbd className="absolute right-1 font-mono text-[10px] text-text-3">
+        <kbd className="absolute right-1 font-mono text-2xs text-text-3">
           f
         </kbd>
       )}

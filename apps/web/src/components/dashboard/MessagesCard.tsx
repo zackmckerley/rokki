@@ -57,7 +57,7 @@ export function MessagesCard() {
       ) : threads.length === 0 ? (
         <Empty />
       ) : (
-        <ul className="divide-y divide-border/40 text-xs">
+        <ul className="divide-y divide-border/60 text-sm">
           {threads.slice(0, 10).map((t) => (
             <li key={t.id}>
               <Link
@@ -70,7 +70,7 @@ export function MessagesCard() {
                   <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
                 )}
                 <span className="flex-1 truncate text-text-0">{t.label}</span>
-                <span className="font-mono text-[10px] text-text-3">
+                <span className="font-mono text-2xs text-text-3">
                   {formatRelative(t.last_message_at)}
                 </span>
               </Link>
@@ -90,12 +90,12 @@ function Empty() {
         aria-hidden="true"
       />
       <p className="text-xs text-text-2">Quiet.</p>
-      <p className="text-[11px] text-text-3">
+      <p className="text-xs text-text-3">
         Start a DM or post in a terminal channel.
       </p>
       <Link
         href="/messages"
-        className="mt-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-1 hover:bg-bg-3"
+        className="mt-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-xs text-text-1 hover:bg-bg-3"
       >
         Open inbox
       </Link>

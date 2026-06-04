@@ -110,12 +110,12 @@ export function TaskRow({
     <div
       onClick={onClick}
       className={cn(
-        // Always reserve a 2px left edge (pl-[6px] + 2px border = the
-        // base px-2) so colouring it never shifts the row. The edge
+        // Always reserve a 2px left edge (pl-[10px] + 2px border = the
+        // base px-3) so colouring it never shifts the row. The edge
         // signals priority at a glance — High red, Medium amber — and
         // is overridden by the amber selection edge when the row is
-        // active.
-        "group flex items-center gap-2 border-l-2 px-2 py-2.5 pl-[6px] transition-colors",
+        // active. py-1.5 matches the Week/Messages rows for one density.
+        "group flex items-center gap-2 border-l-2 py-1.5 pr-3 pl-[10px] transition-colors",
         onClick ? "cursor-pointer" : "",
         selected ? "bg-bg-2" : "hover:bg-bg-2",
         selected ? "border-l-border-focus" : priorityEdge(task.priority),
@@ -228,10 +228,10 @@ export function TaskRow({
         )}
         {status ? (
           <span
-            className="flex items-center gap-1 truncate text-[11px] leading-tight text-text-2"
+            className="flex items-center gap-1 truncate text-xs leading-tight text-text-2"
             title={status}
           >
-            <span className="font-mono text-[9px] uppercase tracking-wide text-text-3">
+            <span className="font-mono text-2xs uppercase tracking-wide text-text-3">
               Status
             </span>
             <span className="truncate">{status}</span>
@@ -241,7 +241,7 @@ export function TaskRow({
       {/* Dashboard-only terminal label (the list spans terminals). */}
       {terminalName ? (
         <span
-          className="hidden max-w-[10ch] flex-shrink-0 truncate text-[11px] text-text-3 md:inline"
+          className="hidden max-w-[10ch] flex-shrink-0 truncate text-xs text-text-3 md:inline"
           title={terminalName}
         >
           {terminalName}
@@ -252,7 +252,7 @@ export function TaskRow({
           aggregates, so this is free. */}
       {subtaskTotal > 0 ? (
         <span
-          className="flex-shrink-0 rounded-sm bg-bg-3 px-1 font-mono text-[10px] text-text-2"
+          className="flex-shrink-0 rounded-sm bg-bg-3 px-1 font-mono text-2xs text-text-2"
           title={`${subtaskDone} of ${subtaskTotal} subtasks done`}
         >
           {subtaskDone}/{subtaskTotal}
@@ -260,7 +260,7 @@ export function TaskRow({
       ) : null}
       {externalCount > 0 ? (
         <span
-          className="flex-shrink-0 rounded-sm border border-border bg-bg-2 px-1 font-mono text-[10px] uppercase tracking-wide text-text-2"
+          className="flex-shrink-0 rounded-sm border border-border bg-bg-2 px-1 font-mono text-2xs uppercase tracking-wide text-text-2"
           title={externalEmailsTitle}
         >
           @+{externalCount}
@@ -304,7 +304,7 @@ export function TaskRow({
       {task.due_date ? <DueChip date={task.due_date} /> : null}
       {task.recurrence_rule ? (
         <span
-          className="flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-[10px] uppercase tracking-wide text-text-2"
+          className="flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-2xs uppercase tracking-wide text-text-2"
           title={`Repeats ${recurrenceLabel(task.recurrence_rule)}`}
         >
           <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
