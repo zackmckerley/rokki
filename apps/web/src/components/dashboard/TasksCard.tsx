@@ -281,13 +281,13 @@ export function TasksCard({
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {visibleAssigned.length === 0 ? (
-          <p className="px-3 py-4 text-center text-[11px] text-text-3">
+          <p className="px-3 py-4 text-center text-xs text-text-3">
             {query.trim()
               ? "No tasks match your filter."
               : "No open tasks. Nice."}
           </p>
         ) : groupBy === "none" ? (
-          <ul className="divide-y divide-border/60">
+          <ul className="divide-y divide-border/40">
             {visibleAssigned.slice(0, ROW_LIMIT).map((t) => (
               <DashboardTaskRow
                 key={t.id}
@@ -308,7 +308,7 @@ export function TasksCard({
               terminalNameById,
             );
             return (
-              <div className="divide-y-2 divide-border-strong">
+              <div className="divide-y divide-border">
                 {buckets.map((b) => {
                   const collapseKey = `${groupBy}:${b.key}`;
                   const collapsed = collapsedGroups.has(collapseKey);
@@ -322,7 +322,7 @@ export function TasksCard({
                         onToggle={() => toggleGroupCollapsed(collapseKey)}
                       />
                       {!collapsed ? (
-                        <ul className="divide-y divide-border/60">
+                        <ul className="divide-y divide-border/40">
                           {b.tasks.map((t) => (
                             <DashboardTaskRow
                               key={`${b.key}:${t.id}`}

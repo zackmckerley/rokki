@@ -908,7 +908,7 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
               );
             }
             return (
-              <div className="divide-y-2 divide-border-strong">
+              <div className="divide-y divide-border">
                 {groups.map((group) => {
                   const hasHeader = group.label !== "";
                   const collapseKey = `${groupMode}:${group.key}`;

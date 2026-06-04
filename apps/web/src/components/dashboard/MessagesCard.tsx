@@ -57,7 +57,7 @@ export function MessagesCard() {
       ) : threads.length === 0 ? (
         <Empty />
       ) : (
-        <ul className="divide-y divide-border/60 text-sm">
+        <ul className="divide-y divide-border/40 text-sm">
           {threads.slice(0, 10).map((t) => (
             <li key={t.id}>
               <Link

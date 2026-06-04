@@ -43,7 +43,7 @@ export function TaskSectionHeader({
           onToggle();
         }
       }}
-      className="sticky top-0 z-[2] flex h-7 cursor-pointer select-none items-center gap-2 border-b border-border-strong bg-bg-2 pr-3 transition-colors hover:bg-bg-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-focus"
+      className="sticky top-0 z-[2] flex h-7 cursor-pointer select-none items-center gap-2 border-b border-border bg-bg-2 pr-3 transition-colors hover:bg-bg-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-focus"
     >
       {/* Colored left tick carrying the bucket's meaning. */}
       <span aria-hidden="true" className={cn("h-full w-[3px] flex-shrink-0", tone)} />
@@ -56,10 +56,10 @@ export function TaskSectionHeader({
         aria-hidden="true"
         className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", tone)}
       />
-      <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-text-1">
+      <span className="font-mono text-2xs font-semibold uppercase tracking-wide text-text-1">
         {label}
       </span>
-      <span className="ml-auto rounded-full bg-bg-3 px-1.5 py-0.5 font-mono text-[10px] leading-none text-text-2">
+      <span className="ml-auto rounded-full bg-bg-3 px-1.5 py-0.5 font-mono text-2xs leading-none text-text-2">
         {count}
       </span>
     </header>
