@@ -15,9 +15,16 @@ import {
 import { cn } from "@/lib/utils";
 import { DashboardCard } from "./DashboardCard";
 import { PriorityDots, DueChip } from "@/components/primitives";
+import {
+  TaskSectionHeader,
+  groupTone,
+  priorityEdge,
+} from "@/components/TaskSectionHeader";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { bucketDashTasks } from "@/lib/task-grouping";
 import type { AssignedTask, DelegatedTask } from "@/lib/dashboard-queries";
+
+const DASH_COLLAPSED_KEY = "rokki_dash_tasks_collapsed_groups";
 
 interface TasksCardProps {
   assigned: AssignedTask[];
@@ -120,7 +127,76 @@ export function TasksCard({
   type Tab = "mine" | "delegated" | "overdue" | "week" | "all";
   type DashGroupBy = "none" | "terminal" | "priority" | "due" | "assignee";
   const [tab, setTab] = useState<Tab>("mine");
-  const [groupBy, setGroupBy] = useState<DashGroupBy>("none");
+  // Default to grouping by due date so the dashboard task list opens in
+  // the same sectioned view as the in-terminal pane (Overdue / Today /
+  // This week / Later) instead of a flat list. Persisted globally so
+  // the choice — including "Terminal" — sticks across loads.
+  const [groupBy, setGroupBy] = useState<DashGroupBy>("due");
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    () => new Set(),
+  );
+
+  // Hydrate + persist the group-by choice (global, not per-terminal —
+  // the dashboard spans terminals).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("rokki_dash_tasks_group");
+      if (
+        saved === "none" ||
+        saved === "terminal" ||
+        saved === "priority" ||
+        saved === "due" ||
+        saved === "assignee"
+      ) {
+        setGroupBy(saved);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem("rokki_dash_tasks_group", groupBy);
+    } catch {
+      /* ignore */
+    }
+  }, [groupBy]);
+
+  // Hydrate + persist collapsed groups, keyed by `${groupBy}:${key}`.
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(DASH_COLLAPSED_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          setCollapsedGroups(
+            new Set(parsed.filter((v): v is string => typeof v === "string")),
+          );
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        DASH_COLLAPSED_KEY,
+        JSON.stringify([...collapsedGroups]),
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [collapsedGroups]);
+
+  const toggleGroupCollapsed = useCallback((collapseKey: string) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(collapseKey)) next.delete(collapseKey);
+      else next.add(collapseKey);
+      return next;
+    });
+  }, []);
 
   const { mineList, delegatedList, overdueList, weekList, allList } =
     useMemo(() => {
@@ -287,8 +363,8 @@ export function TasksCard({
           )}
         </ul>
       ) : (
-        // Grouped: bucket per `groupBy`, render at most ROW_LIMIT
-        // rows in total across all buckets so the card stays bounded.
+        // Grouped — same sectioned treatment as the in-terminal pane:
+        // sticky semantic headers, count pills, collapse, 2px dividers.
         (() => {
           const buckets = bucketDashTasks(
             visibleAssigned,
@@ -296,42 +372,41 @@ export function TasksCard({
             tickerById,
             terminalNameById,
           );
-          let rowsLeft = ROW_LIMIT;
           return (
-            <div>
+            <div className="divide-y-2 divide-border-strong">
               {buckets.map((b) => {
-                if (rowsLeft <= 0) return null;
-                const slice = b.tasks.slice(0, rowsLeft);
-                rowsLeft -= slice.length;
+                const collapseKey = `${groupBy}:${b.key}`;
+                const collapsed = collapsedGroups.has(collapseKey);
                 return (
                   <section key={b.key}>
-                    <header className="flex items-center justify-between border-b border-border/40 bg-bg-1 px-3 py-0.5">
-                      <span className="font-mono text-[10px] uppercase tracking-wide text-text-2">
-                        {b.label}
-                      </span>
-                      <span className="font-mono text-[10px] text-text-3">
-                        {b.tasks.length}
-                      </span>
-                    </header>
-                    <ul className="divide-y divide-border/40">
-                      {slice.map((t) =>
-                        tab === "delegated" ? (
-                          <DelegatedRow
-                            key={`${b.key}:${t.id}`}
-                            task={t as DelegatedTask}
-                            ticker={tickerById[t.terminal_id]}
-                            terminalName={terminalNameById?.[t.terminal_id]}
-                          />
-                        ) : (
-                          <AssignedRow
-                            key={`${b.key}:${t.id}`}
-                            task={t}
-                            ticker={tickerById[t.terminal_id]}
-                            terminalName={terminalNameById?.[t.terminal_id]}
-                          />
-                        ),
-                      )}
-                    </ul>
+                    <TaskSectionHeader
+                      label={b.label}
+                      count={b.tasks.length}
+                      tone={groupTone(groupBy, b.key)}
+                      collapsed={collapsed}
+                      onToggle={() => toggleGroupCollapsed(collapseKey)}
+                    />
+                    {!collapsed ? (
+                      <ul className="divide-y divide-border/40">
+                        {b.tasks.map((t) =>
+                          tab === "delegated" ? (
+                            <DelegatedRow
+                              key={`${b.key}:${t.id}`}
+                              task={t as DelegatedTask}
+                              ticker={tickerById[t.terminal_id]}
+                              terminalName={terminalNameById?.[t.terminal_id]}
+                            />
+                          ) : (
+                            <AssignedRow
+                              key={`${b.key}:${t.id}`}
+                              task={t}
+                              ticker={tickerById[t.terminal_id]}
+                              terminalName={terminalNameById?.[t.terminal_id]}
+                            />
+                          ),
+                        )}
+                      </ul>
+                    ) : null}
                   </section>
                 );
               })}
@@ -487,7 +562,13 @@ function AssignedRow({
   return (
     <li
       data-row
-      className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-2"
+      className={cn(
+        // 2px priority left-edge (High red, Medium amber) matching the
+        // in-terminal pane; pl-[10px] + 2px border = the base px-3 so
+        // colouring never shifts the row.
+        "flex items-center gap-2 border-l-2 px-3 py-1 pl-[10px] text-xs hover:bg-bg-2",
+        priorityEdge(task.priority),
+      )}
     >
       <button
         type="button"
@@ -534,7 +615,10 @@ function DelegatedRow({
   const body = (
     <div
       data-row
-      className="flex items-center gap-2 px-3 py-1 text-xs hover:bg-bg-2"
+      className={cn(
+        "flex items-center gap-2 border-l-2 px-3 py-1 pl-[10px] text-xs hover:bg-bg-2",
+        priorityEdge(task.priority),
+      )}
     >
       <ArrowRight className="h-3 w-3 flex-shrink-0 text-text-3" />
       <span className="flex-1 truncate text-text-0">{task.title}</span>
