@@ -285,7 +285,7 @@ export function ExplorerRail({
 
   return (
     <div className="flex h-full flex-col bg-bg-0">
-      <div className="flex h-11 flex-shrink-0 items-center border-b border-border px-3">
+      <div className="flex h-10 flex-shrink-0 items-center border-b border-border px-3">
         <span className="text-xs font-semibold uppercase tracking-wide text-text-3">
           Explorer
         </span>
