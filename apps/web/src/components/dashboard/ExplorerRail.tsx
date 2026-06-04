@@ -10,12 +10,19 @@ import {
   X,
 } from "lucide-react";
 import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
+import { cn } from "@/lib/utils";
 import { AccountBlock } from "@/components/AccountBlock";
 import {
   COLLAPSED_SPACES_KEY,
   readRecentTerminals,
   type RecentTerminal,
 } from "@/lib/recent-terminals";
+import {
+  applyOrder,
+  reorder,
+  EXPLORER_SPACE_ORDER_KEY,
+  EXPLORER_TERMINAL_ORDER_KEY,
+} from "@/lib/explorer-order";
 
 interface ExplorerRailProps {
   spaces: DashSpace[];
@@ -130,6 +137,102 @@ export function ExplorerRail({
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+
+  // ---- Drag-to-reorder (per-device, same model as collapse state) -----
+  // Saved orders: a list of space ids, and per-space lists of terminal
+  // ids. Hydrated after mount for SSR safety; ids not present sink to the
+  // end (see applyOrder), so a newly created space/terminal shows up at
+  // the bottom rather than disappearing.
+  const [spaceOrder, setSpaceOrder] = useState<string[]>([]);
+  const [terminalOrder, setTerminalOrder] = useState<
+    Record<string, string[]>
+  >({});
+
+  useEffect(() => {
+    try {
+      const s = window.localStorage.getItem(EXPLORER_SPACE_ORDER_KEY);
+      if (s) {
+        const parsed = JSON.parse(s) as unknown;
+        if (Array.isArray(parsed)) {
+          setSpaceOrder(
+            parsed.filter((v): v is string => typeof v === "string"),
+          );
+        }
+      }
+      const t = window.localStorage.getItem(EXPLORER_TERMINAL_ORDER_KEY);
+      if (t) {
+        const parsed = JSON.parse(t) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          setTerminalOrder(parsed as Record<string, string[]>);
+        }
+      }
+    } catch {
+      // ignore — fall back to server order
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(
+        EXPLORER_SPACE_ORDER_KEY,
+        JSON.stringify(spaceOrder),
+      );
+    } catch {
+      /* non-fatal */
+    }
+  }, [spaceOrder, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(
+        EXPLORER_TERMINAL_ORDER_KEY,
+        JSON.stringify(terminalOrder),
+      );
+    } catch {
+      /* non-fatal */
+    }
+  }, [terminalOrder, hydrated]);
+
+  // Live drag state. Reordering is disabled while filtering — the visible
+  // set is a subset then, so persisting that order would be misleading.
+  const dndEnabled = !isFiltering;
+  const [dragSpaceId, setDragSpaceId] = useState<string | null>(null);
+  const [overSpaceId, setOverSpaceId] = useState<string | null>(null);
+  const [dragTerm, setDragTerm] = useState<{
+    id: string;
+    spaceId: string;
+  } | null>(null);
+  const [overTermId, setOverTermId] = useState<string | null>(null);
+
+  // Spaces in the user's saved order (server order until hydrated, to
+  // avoid an SSR/CSR mismatch on first paint).
+  const orderedSpaces = useMemo(
+    () =>
+      hydrated ? applyOrder(visibleSpaces, (s) => s.id, spaceOrder) : visibleSpaces,
+    [visibleSpaces, spaceOrder, hydrated],
+  );
+
+  function handleSpaceDrop(targetSpaceId: string | null) {
+    if (!dragSpaceId) return;
+    const currentIds = orderedSpaces.map((s) => s.id);
+    setSpaceOrder(reorder(currentIds, dragSpaceId, targetSpaceId));
+    setDragSpaceId(null);
+    setOverSpaceId(null);
+  }
+
+  function handleTermDrop(
+    spaceId: string,
+    displayedIds: string[],
+    targetTermId: string | null,
+  ) {
+    if (!dragTerm || dragTerm.spaceId !== spaceId) return;
+    const moved = reorder(displayedIds, dragTerm.id, targetTermId);
+    setTerminalOrder((prev) => ({ ...prev, [spaceId]: moved }));
+    setDragTerm(null);
+    setOverTermId(null);
+  }
 
   // Recently-viewed terminals. Hydrate on mount + listen for the
   // custom event the tracker dispatches when a new terminal is opened.
@@ -276,16 +379,73 @@ export function ExplorerRail({
             </p>
           ) : (
             <ul className="space-y-0.5 text-sm">
-              {visibleSpaces.map((s) => {
+              {orderedSpaces.map((s) => {
                 const children =
                   filteredTerminalsBySpace.get(s.id) ??
                   terminalsBySpace.get(s.id) ??
                   [];
+                const orderedChildren =
+                  hydrated && dndEnabled
+                    ? applyOrder(children, (t) => t.id, terminalOrder[s.id] ?? [])
+                    : children;
                 const isCollapsed = isFiltering ? false : collapsed.has(s.id);
                 const canMakeTerminal = s.role === "owner" || s.role === "admin";
                 return (
                   <li key={s.id}>
-                    <div className="group flex items-center gap-1 rounded-sm px-1 py-0.5 hover:bg-bg-2">
+                    <div
+                      draggable={dndEnabled}
+                      onDragStart={
+                        dndEnabled
+                          ? (e) => {
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", s.id);
+                              setDragSpaceId(s.id);
+                            }
+                          : undefined
+                      }
+                      onDragOver={
+                        dndEnabled && dragSpaceId
+                          ? (e) => {
+                              if (dragSpaceId === s.id) return;
+                              e.preventDefault();
+                              e.dataTransfer.dropEffect = "move";
+                              if (overSpaceId !== s.id) setOverSpaceId(s.id);
+                            }
+                          : undefined
+                      }
+                      onDragLeave={
+                        dndEnabled
+                          ? () => {
+                              if (overSpaceId === s.id) setOverSpaceId(null);
+                            }
+                          : undefined
+                      }
+                      onDrop={
+                        dndEnabled
+                          ? (e) => {
+                              e.preventDefault();
+                              handleSpaceDrop(s.id);
+                            }
+                          : undefined
+                      }
+                      onDragEnd={
+                        dndEnabled
+                          ? () => {
+                              setDragSpaceId(null);
+                              setOverSpaceId(null);
+                            }
+                          : undefined
+                      }
+                      title={dndEnabled ? "Drag to reorder" : undefined}
+                      className={cn(
+                        "group flex items-center gap-1 rounded-sm px-1 py-0.5 hover:bg-bg-2",
+                        dndEnabled && "cursor-grab active:cursor-grabbing",
+                        overSpaceId === s.id &&
+                          dragSpaceId !== s.id &&
+                          "outline outline-2 -outline-offset-2 outline-accent",
+                        dragSpaceId === s.id && "opacity-50",
+                      )}
+                    >
                       <button
                         onClick={() => toggle(s.id)}
                         aria-label={isCollapsed ? "Expand" : "Collapse"}
@@ -299,6 +459,7 @@ export function ExplorerRail({
                       </button>
                       <Link
                         href={`/s/${s.slug}`}
+                        draggable={false}
                         className="flex-1 truncate text-text-1 hover:text-text-0"
                         title={`Open ${s.name}`}
                       >
@@ -320,6 +481,7 @@ export function ExplorerRail({
                       {canMakeTerminal ? (
                         <Link
                           href={`/s/${s.slug}/settings`}
+                          draggable={false}
                           aria-label={`Settings for ${s.name}`}
                           title="Space settings"
                           className="rounded-sm p-0.5 text-text-3 hover:bg-bg-3 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
@@ -328,21 +490,72 @@ export function ExplorerRail({
                         </Link>
                       ) : null}
                     </div>
-                    {!isCollapsed && children.length > 0 ? (
+                    {!isCollapsed && orderedChildren.length > 0 ? (
                       <ul className="mt-0.5 space-y-0.5">
-                        {children.map((t) => (
-                          <li key={t.id}>
+                        {orderedChildren.map((t) => (
+                          <li
+                            key={t.id}
+                            draggable={dndEnabled}
+                            onDragStart={
+                              dndEnabled
+                                ? (e) => {
+                                    e.dataTransfer.effectAllowed = "move";
+                                    e.dataTransfer.setData("text/plain", t.id);
+                                    setDragTerm({ id: t.id, spaceId: s.id });
+                                  }
+                                : undefined
+                            }
+                            onDragOver={
+                              dndEnabled && dragTerm?.spaceId === s.id
+                                ? (e) => {
+                                    if (dragTerm.id === t.id) return;
+                                    e.preventDefault();
+                                    e.dataTransfer.dropEffect = "move";
+                                    if (overTermId !== t.id) setOverTermId(t.id);
+                                  }
+                                : undefined
+                            }
+                            onDragLeave={
+                              dndEnabled
+                                ? () => {
+                                    if (overTermId === t.id) setOverTermId(null);
+                                  }
+                                : undefined
+                            }
+                            onDrop={
+                              dndEnabled
+                                ? (e) => {
+                                    e.preventDefault();
+                                    handleTermDrop(
+                                      s.id,
+                                      orderedChildren.map((c) => c.id),
+                                      t.id,
+                                    );
+                                  }
+                                : undefined
+                            }
+                            onDragEnd={
+                              dndEnabled
+                                ? () => {
+                                    setDragTerm(null);
+                                    setOverTermId(null);
+                                  }
+                                : undefined
+                            }
+                            className={cn(
+                              dndEnabled && "cursor-grab active:cursor-grabbing",
+                              overTermId === t.id &&
+                                dragTerm?.id !== t.id &&
+                                dragTerm?.spaceId === s.id &&
+                                "rounded-sm outline outline-2 -outline-offset-2 outline-accent",
+                              dragTerm?.id === t.id && "opacity-50",
+                            )}
+                          >
                             <Link
                               href={`/p/${t.slug}`}
+                              draggable={false}
                               // pl-5 gives terminals a clear "child of"
-                              // indent under the space row's chevron
-                              // (chevron sits at px-1 + 14px = ~18px;
-                              // pl-5 = 20px lands the name just past
-                              // it). The old pl-7 was sized to align
-                              // with a 48px ticker column that we just
-                              // removed — keeping the same indent
-                              // would leave terminals visually orphaned
-                              // far from their parent.
+                              // indent under the space row's chevron.
                               className="flex items-center gap-2 rounded-sm py-0.5 pl-5 pr-2 text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
                               title={t.name}
                             >
