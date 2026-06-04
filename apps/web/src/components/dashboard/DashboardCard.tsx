@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Maximize2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { usePanelHandle } from "./panel-handle";
+import { usePanelHandle, usePanelMaximize } from "./panel-handle";
 
 /**
  * Shared card primitive used across the dashboard. Always has:
@@ -40,9 +40,11 @@ export function DashboardCard({
   bodyClassName,
   children,
 }: DashboardCardProps) {
-  // When hosted inside a rearrangeable DashboardPanels, this is the
-  // panel's drag grip; everywhere else it's null and renders nothing.
+  // When hosted inside a rearrangeable DashboardPanels, these are the
+  // panel's drag grip and maximize/restore toggle; everywhere else they
+  // are null (no grip; the expand button stays a plain link).
   const handle = usePanelHandle();
+  const maximize = usePanelMaximize();
   return (
     <section
       // Stronger border + subtle ring/shadow so cards separate from the
@@ -68,7 +70,11 @@ export function DashboardCard({
         </div>
         <div className="flex items-center gap-2">
           {headerRight}
-          {expandHref ? (
+          {/* Hosted in DashboardPanels → maximize/restore toggle.
+              Otherwise the original full-page expand link. */}
+          {maximize ? (
+            maximize
+          ) : expandHref ? (
             <Link
               href={expandHref}
               aria-label={`Open ${title}`}

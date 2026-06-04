@@ -1,8 +1,25 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { DashboardPanels } from "./DashboardPanels";
-import { usePanelHandle } from "./panel-handle";
+import { usePanelHandle, usePanelMaximize } from "./panel-handle";
+
+function setDesktop(matches: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
 
 beforeAll(() => {
   // jsdom has no matchMedia; the component subscribes to the lg breakpoint.
@@ -23,6 +40,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   window.localStorage.clear();
+  setDesktop(false);
 });
 
 afterEach(() => {
@@ -83,5 +101,34 @@ describe("DashboardPanels", () => {
     expect(screen.getByText("WEEK_PANEL")).toBeTruthy();
     expect(screen.getByText("TASKS_PANEL")).toBeTruthy();
     expect(screen.getByText("MESSAGES_PANEL")).toBeTruthy();
+  });
+
+  it("maximize fills the area and hides the other panels; restore brings them back", () => {
+    setDesktop(true);
+    function WeekProbe() {
+      return <div>WEEK{usePanelMaximize()}</div>;
+    }
+    render(
+      <DashboardPanels
+        briefing={null}
+        week={<WeekProbe />}
+        tasks={<div>t</div>}
+        messages={<div>m</div>}
+      />,
+    );
+    const tasksPanel = () =>
+      document.querySelector('[data-panel-id="tasks"]') as HTMLElement;
+
+    // Maximize Week → the other panels are hidden on desktop.
+    fireEvent.click(screen.getByLabelText("Maximize Week"));
+    expect(tasksPanel().className).toContain("lg:hidden");
+    // Button flips to Restore.
+    const restore = screen.getByLabelText("Restore Week");
+    expect(restore).toBeTruthy();
+
+    // Restore → the others come back.
+    fireEvent.click(restore);
+    expect(tasksPanel().className).not.toContain("lg:hidden");
+    expect(screen.getByLabelText("Maximize Week")).toBeTruthy();
   });
 });

@@ -10,9 +10,9 @@ import {
   type PointerEvent,
   type ReactNode,
 } from "react";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Maximize2, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PanelHandleProvider } from "./panel-handle";
+import { PanelControlsProvider } from "./panel-handle";
 import {
   DASH_LAYOUT_STORAGE_KEY,
   DEFAULT_DASH_LAYOUT,
@@ -74,6 +74,10 @@ export function DashboardPanels({
   const [centerFrac, setCenterFrac] = useState(0.6);
   const [dragId, setDragId] = useState<string | null>(null);
   const [hint, setHint] = useState<DropHint>(null);
+  // Which panel is maximized (fills the whole viewing area), or null.
+  // Deliberately NOT persisted — it's a transient view, not a saved
+  // preference, so a reload returns to the normal arrangement.
+  const [maximizedId, setMaximizedId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   // Track the lg breakpoint so the dynamic inline styles (panel flex,
@@ -261,14 +265,49 @@ export function DashboardPanels({
     );
   }
 
+  // Maximize / restore toggle. Replaces the card's expand link when the
+  // panel is hosted here (desktop only); clicking fills the viewing area
+  // with this module, clicking again restores the prior arrangement.
+  function panelMaxBtn(id: string): ReactNode {
+    const isMax = maximizedId === id;
+    return (
+      <button
+        type="button"
+        onClick={() => setMaximizedId(isMax ? null : id)}
+        aria-label={
+          isMax
+            ? `Restore ${TITLES[id] ?? "panel"}`
+            : `Maximize ${TITLES[id] ?? "panel"}`
+        }
+        title={isMax ? "Restore" : "Maximize"}
+        className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+      >
+        {isMax ? (
+          <Minimize2 className="h-3 w-3" aria-hidden="true" />
+        ) : (
+          <Maximize2 className="h-3 w-3" aria-hidden="true" />
+        )}
+      </button>
+    );
+  }
+
   function renderPanel(id: string, col: DashColumn) {
     const before = hint?.kind === "panel" && hint.id === id && !hint.after;
     const after = hint?.kind === "panel" && hint.id === id && hint.after;
+    const isMax = maximizedId === id;
+    const hiddenByMax = maximizedId != null && !isMax;
     const style: CSSProperties = isDesktop
-      ? { flex: `${weights[id] ?? 1} 1 0` }
+      ? { flex: isMax ? "1 1 0" : `${weights[id] ?? 1} 1 0` }
       : {};
     return (
-      <PanelHandleProvider value={panelGrip(id)} key={id}>
+      <PanelControlsProvider
+        key={id}
+        value={{
+          // No drag grip while a panel is maximized.
+          handle: maximizedId ? null : panelGrip(id),
+          maximize: isDesktop ? panelMaxBtn(id) : null,
+        }}
+      >
         <div
           data-panel-id={id}
           style={style}
@@ -279,6 +318,8 @@ export function DashboardPanels({
           }
           className={cn(
             "relative min-h-0 flex-none overflow-hidden lg:flex-1 lg:[&>*]:h-full",
+            // Hide the other panels (desktop) while one is maximized.
+            hiddenByMax && "lg:hidden",
             dragId === id && "opacity-40",
             before && "shadow-[inset_0_3px_0_0_var(--accent)]",
             after && "shadow-[inset_0_-3px_0_0_var(--accent)]",
@@ -286,7 +327,7 @@ export function DashboardPanels({
         >
           {nodes[id]}
         </div>
-      </PanelHandleProvider>
+      </PanelControlsProvider>
     );
   }
 
@@ -307,7 +348,7 @@ export function DashboardPanels({
         {ids.map((id, i) => (
           <Fragment key={id}>
             {renderPanel(id, col)}
-            {isDesktop && i < ids.length - 1 ? (
+            {isDesktop && !maximizedId && i < ids.length - 1 ? (
               <div
                 role="separator"
                 aria-orientation="horizontal"
@@ -325,17 +366,34 @@ export function DashboardPanels({
   }
 
   const forceTwo = dragId != null;
-  const grid = gridTemplate(layout, centerFrac, forceTwo);
+  // Which column the maximized panel lives in (so the grid collapses the
+  // other column to 0 and the maximized one takes the full width).
+  const maxCol = maximizedId
+    ? layout.center.includes(maximizedId)
+      ? "center"
+      : "right"
+    : null;
+  const grid = maximizedId
+    ? maxCol === "center"
+      ? "1fr 0 0"
+      : "0 0 1fr"
+    : gridTemplate(layout, centerFrac, forceTwo);
   const showColSplit =
-    isDesktop && (forceTwo || (layout.center.length > 0 && layout.right.length > 0));
+    isDesktop &&
+    !maximizedId &&
+    (forceTwo || (layout.center.length > 0 && layout.right.length > 0));
 
   return (
     <div
       ref={containerRef}
       className="flex min-h-0 flex-col gap-2 p-2 sm:p-3 lg:h-full"
     >
-      {focus}
-      {briefing}
+      {/* Briefing + focus banners hide while a module is maximized so it
+          truly fills the viewing area. */}
+      <div className={cn("flex flex-col gap-2", maximizedId && "lg:hidden")}>
+        {focus}
+        {briefing}
+      </div>
       <div
         data-cols
         className="grid grid-cols-1 gap-2 lg:min-h-0 lg:flex-1 lg:grid-cols-[1.6fr_9px_1fr] lg:gap-0 lg:overflow-hidden"

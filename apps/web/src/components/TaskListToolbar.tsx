@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Plus, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { usePanelHandle } from "./dashboard/panel-handle";
+import { usePanelHandle, usePanelMaximize } from "./dashboard/panel-handle";
 
 export interface GroupOption {
   value: string;
@@ -62,9 +62,11 @@ export function TaskListToolbar({
   /** Optional maximize/expand link (dashboard → full-page view). */
   expandHref?: string;
 }) {
-  // Drag grip when hosted in a rearrangeable DashboardPanels; null (no
-  // grip) inside a terminal, where the toolbar isn't a movable panel.
+  // Drag grip + maximize toggle when hosted in a rearrangeable
+  // DashboardPanels; null inside a terminal, where the toolbar isn't a
+  // movable panel (the expand button stays its normal link there).
   const handle = usePanelHandle();
+  const maximize = usePanelMaximize();
   return (
     <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-border px-4 py-3">
       <div className="flex flex-wrap items-center gap-3">
@@ -199,7 +201,11 @@ export function TaskListToolbar({
             </kbd>
           </button>
         )}
-        {expandHref ? (
+        {/* Hosted in DashboardPanels → maximize/restore toggle.
+            Otherwise the original full-page expand link. */}
+        {maximize ? (
+          maximize
+        ) : expandHref ? (
           <Link
             href={expandHref}
             aria-label="Open full task list"
