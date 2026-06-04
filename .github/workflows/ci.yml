@@ -165,6 +165,14 @@ jobs:
         if: steps.pw-cache.outputs.cache-hit == 'true'
         run: pnpm -C apps/web exec playwright install-deps chromium
 
+      - name: Build workspace dependencies
+        # @rokki/web imports @rokki/sdk, which ships compiled from dist/.
+        # The lint-typecheck-test job builds it transitively via `turbo
+        # run build`; this job builds the app directly, so without this
+        # the next build fails with: Can't resolve '@rokki/sdk'. `^...`
+        # selects web's workspace dependencies only (not the app itself).
+        run: pnpm turbo run build --filter='@rokki/web^...'
+
       - name: Build app
         run: pnpm -C apps/web build
         env:
@@ -231,6 +239,14 @@ jobs:
         if: steps.pw-cache-visual.outputs.cache-hit == 'true'
         run: pnpm -C apps/web exec playwright install-deps chromium
 
+      - name: Build workspace dependencies
+        # @rokki/web imports @rokki/sdk, which ships compiled from dist/.
+        # The lint-typecheck-test job builds it transitively via `turbo
+        # run build`; this job builds the app directly, so without this
+        # the next build fails with: Can't resolve '@rokki/sdk'. `^...`
+        # selects web's workspace dependencies only (not the app itself).
+        run: pnpm turbo run build --filter='@rokki/web^...'
+
       - name: Build app
         run: pnpm -C apps/web build
         env:
@@ -287,6 +303,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build workspace dependencies
+        # @rokki/web imports @rokki/sdk, which ships compiled from dist/.
+        # bundle:analyze runs `next build` directly, so without this the
+        # build fails with: Can't resolve '@rokki/sdk'. `^...` selects
+        # web's workspace dependencies only (not the app itself).
+        run: pnpm turbo run build --filter='@rokki/web^...'
 
       - name: Build with bundle analyzer
         run: pnpm -C apps/web bundle:analyze
