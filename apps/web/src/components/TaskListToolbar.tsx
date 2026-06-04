@@ -73,157 +73,171 @@ export function TaskListToolbar({
   const maximize = usePanelMaximize();
   const minimize = usePanelMinimize();
   return (
-    <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-border-strong px-3 py-2">
-      <div className="flex flex-wrap items-center gap-2">
-        {handle}
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-text-2">
-          {title}
-        </h2>
-        <span className="font-mono text-2xs text-text-3">{count}</span>
-
-        {/* Sort toggle. Auto = triage order (incomplete, priority, due,
-            created). Manual = drag-to-reorder (terminal only). */}
-        <span
-          role="tablist"
-          aria-label="Task sort order"
-          className="flex items-center gap-0 overflow-hidden rounded-sm border border-border text-2xs"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={sortMode === "auto"}
-            onClick={() => onSortMode("auto")}
-            className={cn(
-              "px-2 py-0.5 font-mono uppercase tracking-wide",
-              sortMode === "auto"
-                ? "bg-bg-3 text-text-0"
-                : "text-text-3 hover:bg-bg-2 hover:text-text-1",
-            )}
-          >
-            Auto
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={sortMode === "manual"}
-            disabled={!allowManual}
-            title={
-              allowManual
-                ? undefined
-                : "Manual drag-to-reorder is available inside a terminal"
-            }
-            onClick={() => allowManual && onSortMode("manual")}
-            className={cn(
-              "px-2 py-0.5 font-mono uppercase tracking-wide",
-              sortMode === "manual" && allowManual
-                ? "bg-bg-3 text-text-0"
-                : "text-text-3 hover:bg-bg-2 hover:text-text-1",
-              !allowManual && "cursor-not-allowed opacity-40 hover:bg-transparent",
-            )}
-          >
-            Manual
-          </button>
-        </span>
-
-        {/* Group-by selector — sections the list with sticky headers. */}
-        <label className="flex items-center gap-1 text-2xs">
-          <span className="font-mono uppercase tracking-wide text-text-3">
-            Group
-          </span>
-          <select
-            value={groupMode}
-            onChange={(e) => onGroupMode(e.target.value)}
-            className="rounded-sm border border-border bg-bg-1 px-1 py-0.5 font-mono text-2xs uppercase tracking-wide text-text-1 outline-none hover:border-border-focus focus:border-border-focus"
-            aria-label="Group tasks by"
-          >
-            {groupOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        {/* Hide-done toggle. Appears only when there are done tasks to
-            hide (or the filter is already on), with a count so the
-            hidden work isn't forgotten. */}
-        {doneCount > 0 || hideDone ? (
-          <button
-            type="button"
-            onClick={onHideDone}
-            aria-pressed={hideDone}
-            title={
-              hideDone
-                ? `Show ${doneCount} completed task${doneCount === 1 ? "" : "s"}`
-                : `Hide ${doneCount} completed task${doneCount === 1 ? "" : "s"} from the list`
-            }
-            className={cn(
-              "flex items-center gap-1 rounded-sm border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors",
-              hideDone
-                ? "border-border bg-bg-2 text-text-2 hover:bg-bg-3"
-                : "border-border bg-bg-1 text-text-3 hover:bg-bg-2 hover:text-text-1",
-            )}
-          >
-            {hideDone ? "Show done" : "Hide done"}
-            {doneCount > 0 ? <span className="text-text-3">{doneCount}</span> : null}
-          </button>
-        ) : null}
+    <>
+      {/* Row 1 — the title bar. Identical to DashboardCard's header
+          (h-9, same padding, divider, and title treatment) so the Tasks
+          box lines up header-for-header with Schedule and Messages. The
+          list controls live in the compact strip below (row 2). */}
+      <div className="flex h-9 flex-shrink-0 items-center justify-between border-b border-border px-3">
+        <div className="flex items-center gap-2">
+          {handle}
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-text-2">
+            {title}
+          </h2>
+          <span className="font-mono text-2xs text-text-3">{count}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {minimize}
+          {/* Hosted in DashboardPanels → maximize/restore toggle.
+              Otherwise the original full-page expand link. */}
+          {maximize ? (
+            maximize
+          ) : expandHref ? (
+            <Link
+              href={expandHref}
+              aria-label="Open full task list"
+              className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+            >
+              <Maximize2 className="h-3 w-3" />
+            </Link>
+          ) : null}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <TaskFilterInput value={query} onChange={onQuery} />
-        {newTaskHref ? (
-          newTaskDisabled ? (
-            <span
-              title="No terminals yet — create a terminal first"
-              aria-disabled="true"
-              className="flex cursor-not-allowed items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-3 opacity-60"
+      {/* Row 2 — the controls strip: sort / group / hide-done on the
+          left, filter + new task on the right. Compact density. */}
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Sort toggle. Auto = triage order (incomplete, priority, due,
+              created). Manual = drag-to-reorder (terminal only). */}
+          <span
+            role="tablist"
+            aria-label="Task sort order"
+            className="flex items-center gap-0 overflow-hidden rounded-sm border border-border text-2xs"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sortMode === "auto"}
+              onClick={() => onSortMode("auto")}
+              className={cn(
+                "px-2 py-0.5 font-mono uppercase tracking-wide",
+                sortMode === "auto"
+                  ? "bg-bg-3 text-text-0"
+                  : "text-text-3 hover:bg-bg-2 hover:text-text-1",
+              )}
             >
-              <Plus className="h-3 w-3" /> New task
+              Auto
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sortMode === "manual"}
+              disabled={!allowManual}
+              title={
+                allowManual
+                  ? undefined
+                  : "Manual drag-to-reorder is available inside a terminal"
+              }
+              onClick={() => allowManual && onSortMode("manual")}
+              className={cn(
+                "px-2 py-0.5 font-mono uppercase tracking-wide",
+                sortMode === "manual" && allowManual
+                  ? "bg-bg-3 text-text-0"
+                  : "text-text-3 hover:bg-bg-2 hover:text-text-1",
+                !allowManual && "cursor-not-allowed opacity-40 hover:bg-transparent",
+              )}
+            >
+              Manual
+            </button>
+          </span>
+
+          {/* Group-by selector — sections the list with sticky headers. */}
+          <label className="flex items-center gap-1 text-2xs">
+            <span className="font-mono uppercase tracking-wide text-text-3">
+              Group
             </span>
+            <select
+              value={groupMode}
+              onChange={(e) => onGroupMode(e.target.value)}
+              className="rounded-sm border border-border bg-bg-1 px-1 py-0.5 font-mono text-2xs uppercase tracking-wide text-text-1 outline-none hover:border-border-focus focus:border-border-focus"
+              aria-label="Group tasks by"
+            >
+              {groupOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {/* Hide-done toggle. Appears only when there are done tasks to
+              hide (or the filter is already on), with a count so the
+              hidden work isn't forgotten. */}
+          {doneCount > 0 || hideDone ? (
+            <button
+              type="button"
+              onClick={onHideDone}
+              aria-pressed={hideDone}
+              title={
+                hideDone
+                  ? `Show ${doneCount} completed task${doneCount === 1 ? "" : "s"}`
+                  : `Hide ${doneCount} completed task${doneCount === 1 ? "" : "s"} from the list`
+              }
+              className={cn(
+                "flex items-center gap-1 rounded-sm border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors",
+                hideDone
+                  ? "border-border bg-bg-2 text-text-2 hover:bg-bg-3"
+                  : "border-border bg-bg-1 text-text-3 hover:bg-bg-2 hover:text-text-1",
+              )}
+            >
+              {hideDone ? "Show done" : "Hide done"}
+              {doneCount > 0 ? <span className="text-text-3">{doneCount}</span> : null}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="flex items-center gap-2">
+          <TaskFilterInput value={query} onChange={onQuery} />
+          {newTaskHref ? (
+            newTaskDisabled ? (
+              <span
+                title="No terminals yet — create a terminal first"
+                aria-disabled="true"
+                className="flex cursor-not-allowed items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-3 opacity-60"
+              >
+                <Plus className="h-3 w-3" /> New task
+              </span>
+            ) : (
+              <Link
+                href={newTaskHref}
+                className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+              >
+                <Plus className="h-3 w-3" /> New task
+                <kbd className="ml-1 font-mono text-2xs text-text-3">
+                  {newTaskShortcut}
+                </kbd>
+              </Link>
+            )
           ) : (
-            <Link
-              href={newTaskHref}
-              className="flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0"
+            <button
+              type="button"
+              onClick={onNewTask}
+              disabled={newTaskDisabled}
+              className={cn(
+                "flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0",
+                newTaskDisabled && "cursor-not-allowed opacity-60",
+              )}
             >
               <Plus className="h-3 w-3" /> New task
               <kbd className="ml-1 font-mono text-2xs text-text-3">
                 {newTaskShortcut}
               </kbd>
-            </Link>
-          )
-        ) : (
-          <button
-            type="button"
-            onClick={onNewTask}
-            disabled={newTaskDisabled}
-            className={cn(
-              "flex items-center gap-1 rounded-sm px-2 py-1 text-xs text-text-2 hover:bg-bg-2 hover:text-text-0",
-              newTaskDisabled && "cursor-not-allowed opacity-60",
-            )}
-          >
-            <Plus className="h-3 w-3" /> New task
-            <kbd className="ml-1 font-mono text-2xs text-text-3">
-              {newTaskShortcut}
-            </kbd>
-          </button>
-        )}
-        {minimize}
-        {/* Hosted in DashboardPanels → maximize/restore toggle.
-            Otherwise the original full-page expand link. */}
-        {maximize ? (
-          maximize
-        ) : expandHref ? (
-          <Link
-            href={expandHref}
-            aria-label="Open full task list"
-            className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
-          >
-            <Maximize2 className="h-3 w-3" />
-          </Link>
-        ) : null}
+            </button>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

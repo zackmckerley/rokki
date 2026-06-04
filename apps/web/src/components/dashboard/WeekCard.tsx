@@ -153,7 +153,7 @@ export function WeekCard({
       {items.length === 0 ? (
         <EmptyWeek range={range} filtered={hiddenSourceIds.length > 0} />
       ) : (
-        <ul className="divide-y divide-border/60 text-sm">
+        <ul className="divide-y divide-border/40 text-sm">
           {grouped.map((day) => (
             <li key={day.key}>
               <div className="flex items-center gap-2 bg-bg-1 px-3 py-1">
@@ -167,7 +167,7 @@ export function WeekCard({
               {day.items.length === 0 ? (
                 <div className="px-3 py-1.5 text-xs text-text-3">—</div>
               ) : (
-                <ul className="divide-y divide-border/60">
+                <ul className="divide-y divide-border/40">
                   {day.items.map((it) => (
                     <WeekRow key={it.id} item={it} />
                   ))}
