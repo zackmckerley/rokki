@@ -9,7 +9,7 @@ import { Focus, X } from "lucide-react";
 import { DashboardShell } from "./dashboard/DashboardShell";
 import { ExplorerRail } from "./dashboard/ExplorerRail";
 import { MessagesCard } from "./dashboard/MessagesCard";
-import { ResizableCenterStack } from "./dashboard/ResizableCenterStack";
+import { DashboardPanels } from "./dashboard/DashboardPanels";
 import { TerminalScopeFilter } from "./dashboard/TerminalScopeFilter";
 import { TopBar } from "./TopBar";
 import { DensityProvider, type Density } from "@/lib/density";
@@ -208,7 +208,7 @@ export function DashboardClient({
           />
         }
         center={
-          <ResizableCenterStack
+          <DashboardPanels
             focus={
               focused ? (
                 <FocusBanner
@@ -226,12 +226,8 @@ export function DashboardClient({
             }
             week={weekSlot}
             tasks={tasksSlot}
+            messages={<MessagesCard />}
           />
-        }
-        right={
-          <div className="card-stack flex flex-col gap-3 p-2 sm:p-3">
-            <MessagesCard />
-          </div>
         }
       />
       {/* Conditional mounting (not just open=false) — combined with

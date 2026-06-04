@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Maximize2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { usePanelHandle } from "./panel-handle";
 
 /**
  * Shared card primitive used across the dashboard. Always has:
@@ -39,6 +40,9 @@ export function DashboardCard({
   bodyClassName,
   children,
 }: DashboardCardProps) {
+  // When hosted inside a rearrangeable DashboardPanels, this is the
+  // panel's drag grip; everywhere else it's null and renders nothing.
+  const handle = usePanelHandle();
   return (
     <section
       // Stronger border + subtle ring/shadow so cards separate from the
@@ -54,6 +58,7 @@ export function DashboardCard({
     >
       <header className="flex h-9 flex-shrink-0 items-center justify-between border-b border-border-strong px-3">
         <div className="flex items-center gap-2">
+          {handle}
           <h2 className="text-xs font-semibold uppercase tracking-wide text-text-2">
             {title}
           </h2>

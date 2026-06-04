@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Plus, Maximize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { usePanelHandle } from "./dashboard/panel-handle";
 
 export interface GroupOption {
   value: string;
@@ -61,9 +62,13 @@ export function TaskListToolbar({
   /** Optional maximize/expand link (dashboard → full-page view). */
   expandHref?: string;
 }) {
+  // Drag grip when hosted in a rearrangeable DashboardPanels; null (no
+  // grip) inside a terminal, where the toolbar isn't a movable panel.
+  const handle = usePanelHandle();
   return (
     <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-y-2 border-b border-border px-4 py-3">
       <div className="flex flex-wrap items-center gap-3">
+        {handle}
         <h2 className="text-sm font-semibold text-text-0">{title}</h2>
         <span className="font-mono text-xs text-text-3">{count}</span>
 
