@@ -52,6 +52,8 @@ export interface AssignedTask {
   due_date: string | null;
   terminal_id: string;
   ticker_seq: number;
+  /** "Highest priority of the day" star — rendered by the shared TaskRow. */
+  starred: boolean;
 }
 
 export interface DelegatedTask extends AssignedTask {
@@ -165,7 +167,7 @@ export async function loadAssignedTasks(
       const { data } = await supabase
         .from("task_assignees")
         .select(
-          "tasks!task_assignees_task_id_fkey(id, title, status, priority, due_date, terminal_id, ticker_seq)",
+          "tasks!task_assignees_task_id_fkey(id, title, status, priority, due_date, terminal_id, ticker_seq, starred)",
         )
         .eq("user_id", userId);
       type Row = {
@@ -177,6 +179,7 @@ export async function loadAssignedTasks(
           due_date: string | null;
           terminal_id: string;
           ticker_seq: number;
+          starred: boolean;
         } | null;
       };
       const rows = ((data ?? []) as unknown as Row[])
@@ -209,7 +212,7 @@ export async function loadDelegatedTasks(
       const { data } = await supabase
         .from("tasks")
         .select(
-          "id, title, status, priority, due_date, terminal_id, ticker_seq, task_assignees!task_assignees_task_id_fkey(user_id)",
+          "id, title, status, priority, due_date, terminal_id, ticker_seq, starred, task_assignees!task_assignees_task_id_fkey(user_id)",
         )
         .eq("created_by", userId)
         .neq("status", "done");
@@ -221,6 +224,7 @@ export async function loadDelegatedTasks(
         due_date: string | null;
         terminal_id: string;
         ticker_seq: number;
+        starred: boolean;
         task_assignees: { user_id: string }[] | null;
       };
       const rows = ((data ?? []) as unknown as Row[]).filter(
@@ -262,6 +266,7 @@ export async function loadDelegatedTasks(
         due_date: r.due_date,
         terminal_id: r.terminal_id,
         ticker_seq: r.ticker_seq,
+        starred: r.starred,
         assignees: (r.task_assignees ?? [])
           .filter((a) => a.user_id !== userId)
           .map((a) => ({
