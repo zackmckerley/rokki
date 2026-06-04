@@ -63,7 +63,7 @@ export function DashboardCard({
         className,
       )}
     >
-      <header className="flex h-10 flex-shrink-0 items-center justify-between border-b border-border px-3">
+      <header className="flex h-[var(--rk-card-header-h)] flex-shrink-0 items-center justify-between border-b border-border px-3">
         <div className="flex items-center gap-2">
           {handle}
           <h2 className="text-xs font-semibold uppercase tracking-wide text-text-2">

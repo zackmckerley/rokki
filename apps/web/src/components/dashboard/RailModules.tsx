@@ -17,7 +17,7 @@ export function RailModules() {
   const vis = useModuleVisibility();
   if (!vis) return null;
   return (
-    <ul className="space-y-0.5 pl-3 text-xs">
+    <ul className="space-y-0.5 pl-[var(--rk-rail-indent)] text-xs">
       {DASH_MODULES.map((m) => {
         const open = !vis.isMinimized(m.id);
         return (

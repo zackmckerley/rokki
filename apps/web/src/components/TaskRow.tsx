@@ -115,7 +115,7 @@ export function TaskRow({
         // signals priority at a glance — High red, Medium amber — and
         // is overridden by the amber selection edge when the row is
         // active. py-1.5 matches the Week/Messages rows for one density.
-        "group flex items-center gap-2 border-l-2 py-1.5 pr-3 pl-[10px] transition-colors",
+        "group flex items-center gap-2 border-l-2 py-[var(--rk-row-py)] pr-3 pl-[10px] transition-colors",
         onClick ? "cursor-pointer" : "",
         selected ? "bg-bg-2" : "hover:bg-bg-2",
         selected ? "border-l-border-focus" : priorityEdge(task.priority),

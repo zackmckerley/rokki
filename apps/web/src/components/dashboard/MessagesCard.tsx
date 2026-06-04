@@ -62,7 +62,7 @@ export function MessagesCard() {
             <li key={t.id}>
               <Link
                 href="/messages"
-                className="flex items-center gap-2 px-3 py-1.5 hover:bg-bg-2"
+                className="flex items-center gap-2 px-3 py-[var(--rk-row-py)] hover:bg-bg-2"
               >
                 {t.kind === "terminal" ? (
                   <Hash className="h-3 w-3 flex-shrink-0 text-text-3" />

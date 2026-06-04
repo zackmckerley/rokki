@@ -123,6 +123,16 @@
 :root {
   --row-padding-y: 6px;
   --card-gap: 12px;
+  /* Design-tunable layout knobs — consumed via Tailwind arbitrary values
+     (e.g. h-[var(--rk-card-header-h)]). Defaults equal the current values,
+     so nothing changes until the sandbox-only Design Mode panel (Shift+D)
+     overrides them at runtime. */
+  --rk-card-header-h: 40px;
+  --rk-row-py: 6px;
+  --rk-ctrl-py: 8px;
+  --rk-rail-header-h: 40px;
+  --rk-rail-indent: 12px;
+  --rk-rail-indent-child: 32px;
 }
 html[data-density="cozy"] {
   font-size: 16px;

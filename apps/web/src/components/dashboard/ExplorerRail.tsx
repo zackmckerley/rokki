@@ -285,7 +285,7 @@ export function ExplorerRail({
 
   return (
     <div className="flex h-full flex-col bg-bg-0">
-      <div className="flex h-10 flex-shrink-0 items-center border-b border-border px-3">
+      <div className="flex h-[var(--rk-rail-header-h)] flex-shrink-0 items-center border-b border-border px-3">
         <span className="text-xs font-semibold uppercase tracking-wide text-text-3">
           Explorer
         </span>
@@ -362,7 +362,7 @@ export function ExplorerRail({
               .
             </p>
           ) : (
-            <ul className="space-y-0.5 pl-3 text-xs">
+            <ul className="space-y-0.5 pl-[var(--rk-rail-indent)] text-xs">
               {orderedSpaces.map((s) => {
                 const children =
                   filteredTerminalsBySpace.get(s.id) ??
@@ -541,7 +541,7 @@ export function ExplorerRail({
                               // pl-8 indents terminals one step under the
                               // space name, so the tree reads SPACES → space
                               // → terminal at aligned, increasing depths.
-                              className="flex items-center gap-2 rounded-sm py-0.5 pl-8 pr-2 text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                              className="flex items-center gap-2 rounded-sm py-0.5 pl-[var(--rk-rail-indent-child)] pr-2 text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
                               title={t.name}
                             >
                               <span className="flex-1 truncate text-xs">

@@ -337,7 +337,7 @@ function WeekRow({ item }: { item: WeekItem }) {
       ? `/p/${item.terminal_ticker}`
       : undefined;
   const content = (
-    <div className="flex items-center gap-3 px-3 py-1.5 hover:bg-bg-2">
+    <div className="flex items-center gap-3 px-3 py-[var(--rk-row-py)] hover:bg-bg-2">
       <span className="flex h-4 w-12 flex-shrink-0 items-center justify-center font-mono text-2xs text-text-3">
         {item.kind === "event" ? formatTime(item.when) : "due"}
       </span>

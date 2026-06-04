@@ -84,6 +84,12 @@ const Toaster = dynamic(
   () => import("./Toaster").then((m) => ({ default: m.Toaster })),
   { ssr: false },
 );
+// Sandbox-only live design tuner (Shift+D). Self-gates to non-production
+// hosts and renders null on rokki.ai, so it ships everywhere harmlessly.
+const DesignMode = dynamic(
+  () => import("./DesignMode").then((m) => ({ default: m.DesignMode })),
+  { ssr: false },
+);
 
 export function ChromeShell({ children }: { children: ReactNode }) {
   return (
@@ -100,6 +106,7 @@ export function ChromeShell({ children }: { children: ReactNode }) {
       <NavigationFallback />
       <ServiceWorkerRegister />
       <Toaster />
+      <DesignMode />
     </>
   );
 }
