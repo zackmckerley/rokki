@@ -24,6 +24,7 @@ import { SubtasksList, type Subtask } from "./SubtasksList";
 import { TaskSectionHeader, groupTone } from "./TaskSectionHeader";
 import { TaskListToolbar, type GroupOption } from "./TaskListToolbar";
 import { TaskRow } from "./TaskRow";
+import { useRefreshOnFocus } from "@/lib/use-refresh-on-focus";
 import { groupTasks, type TaskGroupMode } from "@/lib/task-grouping";
 
 /** Group-by options for the in-terminal pane (no "Terminal" — you're
@@ -483,6 +484,14 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
     [tasks, selectedIdx, projectId],
   );
   useRegisterCommands(`tasks:${projectId}`, paletteCommands);
+
+  // Resilience fallback for blocked realtime websockets (corporate
+  // networks): re-pull the task list whenever the user returns to the
+  // tab or the browser reconnects, so the list is current even when the
+  // realtime channel below never delivers a push.
+  useRefreshOnFocus(() => {
+    void load();
+  });
 
   useRealtimeTable<Task>(
     {
