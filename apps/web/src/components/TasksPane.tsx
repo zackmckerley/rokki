@@ -39,6 +39,11 @@ import {
   StatusPill,
   DueChip,
 } from "./primitives";
+import {
+  TaskSectionHeader,
+  groupTone,
+  priorityEdge,
+} from "./TaskSectionHeader";
 import { groupTasks, type TaskGroupMode } from "@/lib/task-grouping";
 import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
@@ -112,37 +117,6 @@ function hideDoneStorageKey(projectId: string): string {
 
 function collapsedGroupsStorageKey(projectId: string): string {
   return `rokki_tasks_collapsed_groups:${projectId}`;
-}
-
-/**
- * Semantic accent for a group header's left tick + dot, derived from
- * the group-by mode and the bucket key. Carries the bucket's meaning
- * at a glance (overdue red, today amber, done green, …). Falls back to
- * a neutral text-3 for non-semantic groupings (assignee).
- *
- * Keys match the buckets produced in lib/task-grouping.ts.
- */
-function groupTone(mode: GroupMode, key: string): string {
-  if (mode === "due") {
-    if (key === "overdue") return "bg-danger";
-    if (key === "today") return "bg-accent";
-    if (key === "week") return "bg-warning";
-    return "bg-text-3"; // later / none
-  }
-  if (mode === "priority") {
-    if (key === "high") return "bg-danger";
-    if (key === "med") return "bg-warning";
-    return "bg-text-3"; // low / none
-  }
-  if (mode === "status") {
-    if (key === "blocked") return "bg-danger";
-    if (key === "review") return "bg-warning";
-    if (key === "in_progress") return "bg-info";
-    if (key === "done") return "bg-success";
-    return "bg-text-3"; // todo
-  }
-  // assignee — neutral.
-  return "bg-text-3";
 }
 
 interface TasksPaneProps {
@@ -1039,50 +1013,13 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
                   return (
                   <section key={group.key}>
                     {hasHeader ? (
-                      <header
-                        role="button"
-                        tabIndex={0}
-                        aria-expanded={!collapsed}
-                        onClick={() => toggleGroupCollapsed(collapseKey)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            toggleGroupCollapsed(collapseKey);
-                          }
-                        }}
-                        className="sticky top-0 z-[2] flex h-7 cursor-pointer select-none items-center gap-2 border-b border-border-strong bg-bg-2 pr-3 transition-colors hover:bg-bg-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-focus"
-                      >
-                        {/* Colored left tick carrying the bucket's
-                            meaning (overdue red, today amber, …). */}
-                        <span
-                          aria-hidden="true"
-                          className={cn("h-full w-[3px] flex-shrink-0", tone)}
-                        />
-                        {collapsed ? (
-                          <ChevronRight
-                            className="h-3 w-3 flex-shrink-0 text-text-3"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <ChevronDown
-                            className="h-3 w-3 flex-shrink-0 text-text-3"
-                            aria-hidden="true"
-                          />
-                        )}
-                        <span
-                          aria-hidden="true"
-                          className={cn(
-                            "h-1.5 w-1.5 flex-shrink-0 rounded-full",
-                            tone,
-                          )}
-                        />
-                        <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-text-1">
-                          {group.label}
-                        </span>
-                        <span className="ml-auto rounded-full bg-bg-3 px-1.5 py-0.5 font-mono text-[10px] leading-none text-text-2">
-                          {group.tasks.length}
-                        </span>
-                      </header>
+                      <TaskSectionHeader
+                        label={group.label}
+                        count={group.tasks.length}
+                        tone={tone}
+                        collapsed={collapsed}
+                        onToggle={() => toggleGroupCollapsed(collapseKey)}
+                      />
                     ) : null}
                     {!collapsed ? (
                     <ul className="divide-y divide-border">
@@ -1276,13 +1213,7 @@ function TaskRow({
         // active.
         "group flex cursor-pointer items-center gap-2 border-l-2 px-2 py-2.5 pl-[6px] transition-colors",
         selected ? "bg-bg-2" : "hover:bg-bg-2",
-        selected
-          ? "border-l-border-focus"
-          : task.priority === 1
-            ? "border-l-danger"
-            : task.priority === 2
-              ? "border-l-warning"
-              : "border-l-transparent",
+        selected ? "border-l-border-focus" : priorityEdge(task.priority),
       )}
     >
       {/* Drag handle. Only rendered when the parent is in Manual sort
