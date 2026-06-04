@@ -50,7 +50,13 @@ export function DashboardShell({
   ticker: ReactNode;
   left: ReactNode;
   center: ReactNode;
-  right: ReactNode;
+  /**
+   * Optional right rail (Messages). Omit it when the center already
+   * owns the full width — e.g. the rearrangeable dashboard, where
+   * Messages is a movable panel inside the center area rather than a
+   * fixed rail.
+   */
+  right?: ReactNode;
 }) {
   const leftRail = useResizable({
     storageKey: "rokki:dash-left-width",
@@ -93,25 +99,29 @@ export function DashboardShell({
           className="flex min-h-0 flex-1 flex-col overflow-y-auto focus:outline-none"
         >
           {center}
-          <div className="lg:hidden" aria-label="Messages">
-            {right}
-          </div>
+          {right ? (
+            <div className="lg:hidden" aria-label="Messages">
+              {right}
+            </div>
+          ) : null}
         </main>
-        <div className="hidden flex-shrink-0 self-stretch lg:flex">
-          <ResizeHandle
-            ariaLabel="Resize messages"
-            onMouseDown={(e) =>
-              rightRail.startDrag(e, { side: "after" })
-            }
-          />
-        </div>
-        <aside
-          aria-label="Messages"
-          style={{ width: rightRail.size }}
-          className="hidden flex-shrink-0 border-l border-border lg:flex lg:flex-col"
-        >
-          {right}
-        </aside>
+        {right ? (
+          <>
+            <div className="hidden flex-shrink-0 self-stretch lg:flex">
+              <ResizeHandle
+                ariaLabel="Resize messages"
+                onMouseDown={(e) => rightRail.startDrag(e, { side: "after" })}
+              />
+            </div>
+            <aside
+              aria-label="Messages"
+              style={{ width: rightRail.size }}
+              className="hidden flex-shrink-0 border-l border-border lg:flex lg:flex-col"
+            >
+              {right}
+            </aside>
+          </>
+        ) : null}
       </div>
       <MobileTabBar />
     </div>
