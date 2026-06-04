@@ -3,16 +3,27 @@
 import { createContext, useContext, type ReactNode } from "react";
 
 /**
- * Lets a card header render a drag handle supplied by its DashboardPanels
- * host, without the host having to clone the card element. DashboardPanels
- * wraps each panel in a `PanelHandleProvider` carrying that panel's grip;
- * `DashboardCard` / `TaskListToolbar` call `usePanelHandle()` and render it
- * (or nothing, when not hosted in a rearrangeable dashboard).
+ * Controls a DashboardPanels host injects into each panel's card header,
+ * so the card can render the host's chrome (drag grip, maximize/restore
+ * toggle) without the host cloning the card element. Outside a
+ * rearrangeable dashboard the context is null and the cards fall back to
+ * their own defaults (no grip; the expand button is a plain link).
  */
-const PanelHandleContext = createContext<ReactNode>(null);
+export interface PanelControls {
+  /** Drag grip for reordering / moving the panel. */
+  handle: ReactNode;
+  /** Maximize / restore toggle (replaces the card's expand link). */
+  maximize: ReactNode;
+}
 
-export const PanelHandleProvider = PanelHandleContext.Provider;
+const PanelControlsContext = createContext<PanelControls | null>(null);
+
+export const PanelControlsProvider = PanelControlsContext.Provider;
 
 export function usePanelHandle(): ReactNode {
-  return useContext(PanelHandleContext);
+  return useContext(PanelControlsContext)?.handle ?? null;
+}
+
+export function usePanelMaximize(): ReactNode {
+  return useContext(PanelControlsContext)?.maximize ?? null;
 }
