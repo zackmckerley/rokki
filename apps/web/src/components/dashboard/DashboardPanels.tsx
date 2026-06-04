@@ -16,7 +16,6 @@ import { PanelHandleProvider } from "./panel-handle";
 import {
   DASH_LAYOUT_STORAGE_KEY,
   DEFAULT_DASH_LAYOUT,
-  flattenLayout,
   gridTemplate,
   movePanel,
   normalizeLayout,
