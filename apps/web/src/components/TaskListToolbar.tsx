@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
-import { Plus, Maximize2 } from "lucide-react";
+import { Plus, Maximize2, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   usePanelHandle,
@@ -37,6 +37,8 @@ export function TaskListToolbar({
   hideDone,
   onHideDone,
   doneCount,
+  starredOnly = false,
+  onStarredOnly,
   query,
   onQuery,
   newTaskHref,
@@ -56,6 +58,9 @@ export function TaskListToolbar({
   hideDone: boolean;
   onHideDone: () => void;
   doneCount: number;
+  /** Starred-only filter. Omit `onStarredOnly` to hide the control. */
+  starredOnly?: boolean;
+  onStarredOnly?: () => void;
   query: string;
   onQuery: (q: string) => void;
   /** New-task destination. Provide a href OR an onClick, not both. */
@@ -193,6 +198,34 @@ export function TaskListToolbar({
             >
               {hideDone ? "Show done" : "Hide done"}
               {doneCount > 0 ? <span className="text-text-3">{doneCount}</span> : null}
+            </button>
+          ) : null}
+
+          {/* Starred-only filter. A pressed amber star shows just the tasks
+              you've starred (pinned to the top of the list). */}
+          {onStarredOnly ? (
+            <button
+              type="button"
+              onClick={onStarredOnly}
+              aria-pressed={starredOnly}
+              title={
+                starredOnly
+                  ? "Showing only starred tasks — click to show all"
+                  : "Show only starred tasks"
+              }
+              className={cn(
+                "flex items-center gap-1 rounded-sm border px-2 py-0.5 font-mono text-2xs uppercase tracking-wide transition-colors",
+                starredOnly
+                  ? "border-warning/50 bg-warning-subtle text-warning"
+                  : "border-border bg-bg-1 text-text-3 hover:bg-bg-2 hover:text-text-1",
+              )}
+            >
+              <Star
+                className="h-3 w-3"
+                fill={starredOnly ? "currentColor" : "none"}
+                aria-hidden="true"
+              />
+              Starred
             </button>
           ) : null}
         </div>

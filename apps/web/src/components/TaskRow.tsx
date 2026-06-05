@@ -238,20 +238,8 @@ export function TaskRow({
           </span>
         ) : null}
       </div>
-      {/* Dashboard-only terminal label (the list spans terminals). Fixed
-          width + right alignment so the terminal-name column lines up
-          across rows regardless of label length. */}
-      {terminalName ? (
-        <span
-          className="hidden w-20 flex-shrink-0 truncate text-right text-xs text-text-3 md:inline"
-          title={terminalName}
-        >
-          {terminalName}
-        </span>
-      ) : null}
-      {/* Subtask roll-up — surfaces the count without expanding. The
-          list endpoint already returns subtask_total/subtask_done
-          aggregates, so this is free. */}
+      {/* ---- metadata chips (variable; sit LEFT of the aligned columns) ---- */}
+      {/* Subtask roll-up — surfaces the count without expanding. */}
       {subtaskTotal > 0 ? (
         <span
           className="flex-shrink-0 rounded-sm bg-bg-3 px-1 font-mono text-2xs text-text-2"
@@ -268,6 +256,21 @@ export function TaskRow({
           @+{externalCount}
         </span>
       ) : null}
+      {task.recurrence_rule ? (
+        <span
+          className="flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-2xs uppercase tracking-wide text-text-2"
+          title={`Repeats ${recurrenceLabel(task.recurrence_rule)}`}
+        >
+          <Repeat className="h-3 w-3" aria-hidden="true" />
+          {recurrenceShortLabel(task.recurrence_rule)}
+        </span>
+      ) : null}
+      {/* Status pill: hidden when "todo" (every row here IS a to-do, so the
+          pill is redundant). Other statuses (in_progress / blocked / review
+          / done) still render. */}
+      {task.status !== "todo" ? <StatusPill status={task.status} /> : null}
+
+      {/* ---- hover row-actions (always reserve their space; fade in) ---- */}
       <Link
         href={href}
         onClick={(e) => e.stopPropagation()}
@@ -303,30 +306,34 @@ export function TaskRow({
           <Send className="h-3 w-3" />
         </button>
       ) : null}
-      {/* Right-side fixed-width column cells so dates / priority / status
-          align in vertical columns across rows. Empty cells hold the same
-          width so absent values don't shift the downstream columns.
-          NOTE: arbitrary w-[56px] — NOT w-14 — because this project's
-          Tailwind spacing scale omits the 14 step, so w-14 is a no-op. */}
+
+      {/* =====================================================================
+          Aligned category columns — fixed-width, right-aligned cells so they
+          form clean vertical columns across every row. Order, left → right:
+            LATE/DUE  →  PRIORITY  →  TERMINAL (far right, per Zack's spec).
+          Each cell keeps its width even when its value is empty, so a missing
+          value never shifts the neighbouring columns. Widths use arbitrary
+          values (w-[56px]) because this project's Tailwind spacing scale
+          omits the 14 step, so w-14 would be a no-op.
+          =================================================================== */}
+      {/* Late / due day */}
       <span className="flex w-[56px] flex-shrink-0 items-center justify-end">
         {task.due_date ? <DueChip date={task.due_date} /> : null}
       </span>
-      {task.recurrence_rule ? (
-        <span
-          className="flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-2xs uppercase tracking-wide text-text-2"
-          title={`Repeats ${recurrenceLabel(task.recurrence_rule)}`}
-        >
-          <Repeat className="h-2.5 w-2.5" aria-hidden="true" />
-          {recurrenceShortLabel(task.recurrence_rule)}
-        </span>
-      ) : null}
+      {/* Priority */}
       <span className="flex w-[56px] flex-shrink-0 items-center justify-end">
         <PriorityDots priority={task.priority} />
       </span>
-      {/* Status pill: hide "todo" — every row in this list is by definition
-          a to-do, so the pill is redundant. Other statuses (in_progress,
-          blocked, review, done) still render their pill. */}
-      {task.status !== "todo" ? <StatusPill status={task.status} /> : null}
+      {/* Terminal (far right). md:block (not md:inline) so the fixed width
+          actually applies and the column aligns; hidden on mobile. */}
+      {terminalName ? (
+        <span
+          className="hidden w-20 flex-shrink-0 truncate text-right text-xs text-text-3 md:block"
+          title={terminalName}
+        >
+          {terminalName}
+        </span>
+      ) : null}
     </div>
   );
 }

@@ -397,15 +397,12 @@ export function DashboardPanels({
     );
   }
 
-  // Keep the two-column grid visible on desktop whenever there are 2+
-  // non-minimized panels — this is the fix for "drag right-to-left
-  // collapses the layout into one column." Empty columns stay alive as
-  // drop targets so the user can put panels back. Below 2 panels (after
-  // minimizing) we collapse to a single column to give the lone panel
-  // the full width. Also forces two columns during an active drag so
-  // there's always somewhere to drop on the empty side.
-  const totalVisible = visibleInCol("center").length + visibleInCol("right").length;
-  const forceTwo = isDesktop && (totalVisible >= 2 || dragId != null);
+  // Two columns are forced only while a panel is mid-drag, so the emptied
+  // side stays a reachable drop target. When NOT dragging, an empty column
+  // collapses and the occupied column takes the FULL width (Zack: "if all
+  // the modules are in the same column, they should take up the full area,
+  // not just the column"). gridTemplate() handles the collapse.
+  const forceTwo = dragId != null;
   // Only the non-minimized panels affect the layout/collapse maths.
   const visLayout: DashLayout = {
     center: visibleInCol("center"),

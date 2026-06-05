@@ -160,6 +160,9 @@ export function TasksCard({
   // today — but the control is wired identically to the terminal so
   // the interface matches, and it works the moment done tasks appear.
   const [hideDone, setHideDone] = useState(true);
+  // Starred-only filter — shows just the tasks pinned with a star.
+  // Persisted globally so the choice sticks across reloads.
+  const [starredOnly, setStarredOnly] = useState(false);
   // Default to grouping by due date so the dashboard task list opens in
   // the same sectioned view as the in-terminal pane (Overdue / Today /
   // This week / Later) instead of a flat list. Persisted globally so
@@ -195,6 +198,27 @@ export function TasksCard({
       /* ignore */
     }
   }, [groupBy]);
+
+  // Hydrate + persist the starred-only filter.
+  useEffect(() => {
+    try {
+      setStarredOnly(
+        window.localStorage.getItem("rokki_dash_tasks_starred") === "1",
+      );
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "rokki_dash_tasks_starred",
+        starredOnly ? "1" : "0",
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [starredOnly]);
 
   // Hydrate + persist collapsed groups, keyed by `${groupBy}:${key}`.
   useEffect(() => {
@@ -251,7 +275,7 @@ export function TasksCard({
     hideDone ? combined.filter((t) => t.status !== "done") : combined,
     query,
     terminalNameById,
-  );
+  ).filter((t) => (starredOnly ? t.starred === true : true));
 
   return (
     // Plain card shell — no DashboardCard wrapper. The header chrome now
@@ -272,6 +296,8 @@ export function TasksCard({
         hideDone={hideDone}
         onHideDone={() => setHideDone((v) => !v)}
         doneCount={doneCount}
+        starredOnly={starredOnly}
+        onStarredOnly={() => setStarredOnly((v) => !v)}
         query={query}
         onQuery={setQuery}
         newTaskHref={createHref ?? undefined}
