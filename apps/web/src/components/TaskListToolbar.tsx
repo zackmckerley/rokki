@@ -78,7 +78,7 @@ export function TaskListToolbar({
           (h-9, same padding, divider, and title treatment) so the Tasks
           box lines up header-for-header with Schedule and Messages. The
           list controls live in the compact strip below (row 2). */}
-      <div className="flex h-10 flex-shrink-0 items-center justify-between border-b border-border px-3">
+      <div className="flex h-[var(--rk-card-header-h)] flex-shrink-0 items-center justify-between border-b border-border px-3">
         <div className="flex items-center gap-2">
           {handle}
           <h2 className="text-xs font-semibold uppercase tracking-wide text-text-2">
@@ -106,7 +106,7 @@ export function TaskListToolbar({
 
       {/* Row 2 — the controls strip: sort / group / hide-done on the
           left, filter + new task on the right. Compact density. */}
-      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+      <div className="flex flex-shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-[var(--rk-ctrl-py)]">
         <div className="flex flex-wrap items-center gap-2">
           {/* Sort toggle. Auto = triage order (incomplete, priority, due,
               created). Manual = drag-to-reorder (terminal only). */}
