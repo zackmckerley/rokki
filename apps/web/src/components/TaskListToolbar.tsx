@@ -291,7 +291,12 @@ function TaskFilterInput({
         }}
         placeholder="Filter tasks…"
         aria-label="Filter tasks"
-        className="w-44 rounded-sm border border-border bg-bg-1 px-2 py-1 pr-6 text-xs text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus"
+        style={{
+          width: "var(--rk-filter-w)",
+          height: "var(--rk-filter-h)",
+          fontSize: "var(--rk-filter-fs)",
+        }}
+        className="rounded-sm border border-border bg-bg-1 px-2 py-1 pr-6 text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus"
       />
       {value ? (
         <button

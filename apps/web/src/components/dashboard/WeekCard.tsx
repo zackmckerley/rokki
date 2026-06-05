@@ -338,7 +338,10 @@ function WeekRow({ item }: { item: WeekItem }) {
       : undefined;
   const content = (
     <div className="flex items-center gap-3 px-3 py-[var(--rk-row-py)] hover:bg-bg-2">
-      <span className="flex h-4 w-12 flex-shrink-0 items-center justify-center font-mono text-2xs text-text-3">
+      {/* w-16 + whitespace-nowrap so "10:00 AM" stays on a single line at
+          every supported font size. Was w-12 which wrapped AM/PM to a
+          second row. */}
+      <span className="flex h-4 w-16 flex-shrink-0 items-center justify-center whitespace-nowrap font-mono text-2xs text-text-3">
         {item.kind === "event" ? formatTime(item.when) : "due"}
       </span>
       {item.kind === "due" ? (
@@ -422,8 +425,9 @@ function formatTime(iso: string): string {
   // Events have full datetimes; tasks-as-due have only YYYY-MM-DD.
   if (!iso.includes("T")) return "";
   const d = new Date(iso);
-  return d.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  // Use a NON-BREAKING SPACE between time and AM/PM so the meridiem can
+  // never wrap to a separate visual line, even at tight widths.
+  return d
+    .toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+    .replace(" ", " ");
 }

@@ -10,18 +10,21 @@
 
 :root,
 [data-theme="dark"] {
-  --bg-0: #0a0a0b;
-  --bg-1: #121214;
+  /* bg-0 / bg-1 / bg-3 from Design Mode export 2026-06-04b: pure-black
+     surface (single flat background); bg-2 / bg-4 preserved for hover
+     and emphasis tone. */
+  --bg-0: #000000;
+  --bg-1: #000000;
   --bg-2: #1a1a1d;
-  --bg-3: #232327;
+  --bg-3: #000000;
   --bg-4: #2d2d32;
 
-  /* border/border-strong from Design Mode export 2026-06-04. Same value
-     intentionally — Zack wanted one visible border tone everywhere, no
-     soft/strong distinction. Frame and section dividers read the same. */
-  --border: #4a4a54;
-  --border-strong: #4a4a54;
-  --border-focus: #f5a623;
+  /* border / border-strong / border-focus from Design Mode export
+     2026-06-04b. Same border tone everywhere (no soft/strong split);
+     focus ring matches the new warmer accent. */
+  --border: #3b3b45;
+  --border-strong: #3b3b45;
+  --border-focus: #ff9d00;
 
   /* text-0/1/2 from Design Mode export 2026-06-04. text-0 and text-1 are
      intentionally the same here — Zack wanted primary and body to read at
@@ -37,10 +40,9 @@
   --text-3: #9099a4;
   --text-disabled: #3d3d44;
 
-  /* accent from Design Mode export 2026-06-04: warmer, slightly more
-     saturated orange. hover/active derived to keep the same step. */
+  /* accent / accent-hover from Design Mode export 2026-06-04b. */
   --accent: #ff9d00;
-  --accent-hover: #ffb340;
+  --accent-hover: #ff9900;
   --accent-active: #d68500;
   --accent-subtle: #3d2e14;
   --accent-subtle-hover: #4d3a1a;
@@ -58,23 +60,23 @@
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --font-serif: "GT Sectra", "Source Serif Pro", Georgia, serif;
 
-  /* Font sizes from Design Mode export 2026-06-04. */
+  /* Font sizes from Design Mode export 2026-06-04b. */
   --text-2xs: 11px;
   --text-xs: 13px;
-  --text-sm: 13px;
-  --text-base: 14px;
+  --text-sm: 12px;
+  --text-base: 15px;
   --text-md: 15px;
   --text-lg: 17px;
-  --text-xl: 20px;
+  --text-xl: 16px;
   --text-2xl: 24px;
   --text-3xl: 32px;
 
-  --leading-2xs: 13px;
-  --leading-xs: 14px;
-  /* leading-sm from Design Mode export 2026-06-04 (tighter content). */
-  --leading-sm: 14px;
-  --leading-base: 20px;
-  --leading-md: 22px;
+  /* Leading from Design Mode export 2026-06-04b (tighter throughout). */
+  --leading-2xs: 10px;
+  --leading-xs: 11px;
+  --leading-sm: 12px;
+  --leading-base: 14px;
+  --leading-md: 16px;
   --leading-lg: 24px;
   --leading-xl: 28px;
   --leading-2xl: 32px;
@@ -131,19 +133,24 @@
   /* Design-tunable layout knobs — consumed via Tailwind arbitrary values
      (e.g. h-[var(--rk-card-header-h)]). Live-editable via Design Mode
      (Shift+D on sandbox). Values updated from Design Mode export
-     2026-06-04: tighter headers + tighter rows for higher density. */
-  --rk-card-header-h: 28px;
-  --rk-row-py: 3px;
-  --rk-ctrl-py: 3px;
-  --rk-rail-header-h: 28px;
+     2026-06-04b: even tighter headers + rows for max density. */
+  --rk-card-header-h: 24px;
+  --rk-row-py: 2px;
+  --rk-ctrl-py: 1px;
+  --rk-rail-header-h: 24px;
   --rk-rail-indent: 12px;
-  --rk-rail-indent-child: 36px;
-  /* v2 additions — top-of-page chrome + element sizing. */
-  --rk-topbar-h: 44px;
-  --rk-ticker-h: 32px;
-  --rk-search-h: 32px;
-  --rk-section-head-h: 28px;
-  --rk-card-radius: 6px;
+  --rk-rail-indent-child: 28px;
+  --rk-topbar-h: 36px;
+  --rk-ticker-h: 24px;
+  --rk-search-h: 24px;
+  --rk-section-head-h: 20px;
+  --rk-card-radius: 7px;
+  /* v3 additions — filter input granular tuning (Design Mode v3). */
+  --rk-search-fs: 12px;
+  --rk-search-px: 8px;
+  --rk-filter-w: 176px;
+  --rk-filter-h: 28px;
+  --rk-filter-fs: 12px;
 }
 html[data-density="cozy"] {
   font-size: 16px;

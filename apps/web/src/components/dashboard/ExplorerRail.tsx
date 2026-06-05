@@ -317,7 +317,12 @@ export function ExplorerRail({
                 placeholder="Search…"
                 aria-label="Filter explorer"
                 title="Press / to focus"
-                className="h-[var(--rk-search-h)] w-full rounded-sm border border-border bg-bg-1 px-2 text-xs text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                style={{
+                  fontSize: "var(--rk-search-fs)",
+                  paddingLeft: "var(--rk-search-px)",
+                  paddingRight: "var(--rk-search-px)",
+                }}
+                className="h-[var(--rk-search-h)] w-full rounded-sm border border-border bg-bg-1 text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
               />
               {filter ? (
                 <button

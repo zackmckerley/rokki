@@ -238,10 +238,12 @@ export function TaskRow({
           </span>
         ) : null}
       </div>
-      {/* Dashboard-only terminal label (the list spans terminals). */}
+      {/* Dashboard-only terminal label (the list spans terminals). Fixed
+          width + right alignment so the terminal-name column lines up
+          across rows regardless of label length. */}
       {terminalName ? (
         <span
-          className="hidden max-w-[10ch] flex-shrink-0 truncate text-xs text-text-3 md:inline"
+          className="hidden w-20 flex-shrink-0 truncate text-right text-xs text-text-3 md:inline"
           title={terminalName}
         >
           {terminalName}
@@ -301,7 +303,13 @@ export function TaskRow({
           <Send className="h-3 w-3" />
         </button>
       ) : null}
-      {task.due_date ? <DueChip date={task.due_date} /> : null}
+      {/* Right-side fixed-width column cells so dates / priority / status
+          align in vertical columns across rows. Empty cells render a
+          placeholder of the same width so absent values don't shift the
+          downstream columns. */}
+      <span className="flex w-14 flex-shrink-0 items-center justify-end">
+        {task.due_date ? <DueChip date={task.due_date} /> : null}
+      </span>
       {task.recurrence_rule ? (
         <span
           className="flex flex-shrink-0 items-center gap-0.5 rounded-sm border border-border bg-bg-2 px-1 py-0.5 text-2xs uppercase tracking-wide text-text-2"
@@ -311,8 +319,13 @@ export function TaskRow({
           {recurrenceShortLabel(task.recurrence_rule)}
         </span>
       ) : null}
-      <PriorityDots priority={task.priority} />
-      <StatusPill status={task.status} />
+      <span className="flex w-14 flex-shrink-0 items-center justify-end">
+        <PriorityDots priority={task.priority} />
+      </span>
+      {/* Status pill: hide "todo" — every row in this list is by definition
+          a to-do, so the pill is redundant. Other statuses (in_progress,
+          blocked, review, done) still render their pill. */}
+      {task.status !== "todo" ? <StatusPill status={task.status} /> : null}
     </div>
   );
 }
