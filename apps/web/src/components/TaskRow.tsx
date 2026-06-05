@@ -304,10 +304,11 @@ export function TaskRow({
         </button>
       ) : null}
       {/* Right-side fixed-width column cells so dates / priority / status
-          align in vertical columns across rows. Empty cells render a
-          placeholder of the same width so absent values don't shift the
-          downstream columns. */}
-      <span className="flex w-14 flex-shrink-0 items-center justify-end">
+          align in vertical columns across rows. Empty cells hold the same
+          width so absent values don't shift the downstream columns.
+          NOTE: arbitrary w-[56px] — NOT w-14 — because this project's
+          Tailwind spacing scale omits the 14 step, so w-14 is a no-op. */}
+      <span className="flex w-[56px] flex-shrink-0 items-center justify-end">
         {task.due_date ? <DueChip date={task.due_date} /> : null}
       </span>
       {task.recurrence_rule ? (
@@ -319,7 +320,7 @@ export function TaskRow({
           {recurrenceShortLabel(task.recurrence_rule)}
         </span>
       ) : null}
-      <span className="flex w-14 flex-shrink-0 items-center justify-end">
+      <span className="flex w-[56px] flex-shrink-0 items-center justify-end">
         <PriorityDots priority={task.priority} />
       </span>
       {/* Status pill: hide "todo" — every row in this list is by definition
