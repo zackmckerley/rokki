@@ -164,6 +164,8 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
    * project remembers its own preference.
    */
   const [hideDone, setHideDone] = useState(false);
+  // Starred-only filter — show just the tasks pinned with a star.
+  const [starredOnly, setStarredOnly] = useState(false);
   /**
    * Collapsed group keys, stored as `${groupMode}:${groupKey}` so a
    * collapse in one group-by mode doesn't bleed into another. Persisted
@@ -856,6 +858,8 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
         hideDone={hideDone}
         onHideDone={() => setHideDone((v) => !v)}
         doneCount={tasks.filter((t) => t.status === "done").length}
+        starredOnly={starredOnly}
+        onStarredOnly={() => setStarredOnly((v) => !v)}
         query={query}
         onQuery={setQuery}
         onNewTask={() => setCreating(true)}
@@ -889,7 +893,10 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
             const visibleSource = hideDone
               ? tasks.filter((t) => t.status !== "done")
               : tasks;
-            const filtered = filterTasks(visibleSource, query, ticker);
+            const starScoped = starredOnly
+              ? visibleSource.filter((t) => t.starred)
+              : visibleSource;
+            const filtered = filterTasks(starScoped, query, ticker);
             const dragEnabled =
               sortMode === "manual" && groupMode === "none" && !query.trim();
             const groups = groupTasks(filtered, groupMode);
