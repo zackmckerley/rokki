@@ -77,7 +77,9 @@ const KNOBS: Knob[] = [
   { id: "--leading-base", label: "Base line spacing", group: "Type — line spacing", kind: "range", min: 14, max: 30, step: 1, unit: "px" },
   { id: "--leading-md", label: "Medium line spacing", group: "Type — line spacing", kind: "range", min: 16, max: 32, step: 1, unit: "px" },
 
-  // ---- Type — family (shared) ----
+  // ---- Type — family (shared). All options use system-fallback chains
+  // so they render on whatever machine — if the preferred face isn't
+  // installed it falls through to the next entry in the chain.
   {
     id: "--font-sans",
     label: "Font family",
@@ -86,11 +88,33 @@ const KNOBS: Knob[] = [
     options: [
       { value: "geist", label: "Geist (default)", cssValue: '"Geist", ui-sans-serif, system-ui, -apple-system, sans-serif' },
       { value: "system", label: "System UI", cssValue: "ui-sans-serif, system-ui, -apple-system, sans-serif" },
-      { value: "serif", label: "Serif", cssValue: '"GT Sectra", "Source Serif Pro", Georgia, serif' },
+      { value: "inter", label: "Inter", cssValue: '"Inter", ui-sans-serif, system-ui, -apple-system, sans-serif' },
+      { value: "roboto", label: "Roboto", cssValue: '"Roboto", ui-sans-serif, system-ui, -apple-system, sans-serif' },
+      { value: "helvetica", label: "Helvetica Neue", cssValue: '"Helvetica Neue", Helvetica, Arial, ui-sans-serif, sans-serif' },
+      { value: "ibmplex", label: "IBM Plex Sans", cssValue: '"IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, sans-serif' },
+      { value: "sfpro", label: "SF Pro", cssValue: '"SF Pro Text", -apple-system, ui-sans-serif, system-ui, sans-serif' },
+      { value: "segoe", label: "Segoe UI (Windows)", cssValue: '"Segoe UI", ui-sans-serif, system-ui, sans-serif' },
+      { value: "serif", label: "Serif (GT Sectra)", cssValue: '"GT Sectra", "Source Serif Pro", Georgia, serif' },
+      { value: "georgia", label: "Georgia (serif)", cssValue: 'Georgia, "Times New Roman", serif' },
+      { value: "times", label: "Times New Roman", cssValue: '"Times New Roman", Times, serif' },
       { value: "mono", label: "Geist Mono", cssValue: '"Geist Mono", ui-monospace, "SF Mono", Menlo, monospace' },
+      { value: "jetbrains", label: "JetBrains Mono", cssValue: '"JetBrains Mono", "Fira Code", ui-monospace, "SF Mono", Menlo, monospace' },
+      { value: "firacode", label: "Fira Code", cssValue: '"Fira Code", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace' },
+      { value: "courier", label: "Courier New", cssValue: '"Courier New", Courier, ui-monospace, monospace' },
     ],
     matchValue: (raw) => {
+      if (raw.includes("Inter")) return "inter";
+      if (raw.includes("Roboto")) return "roboto";
+      if (raw.includes("Helvetica")) return "helvetica";
+      if (raw.includes("IBM Plex")) return "ibmplex";
+      if (raw.includes("SF Pro")) return "sfpro";
+      if (raw.includes("Segoe")) return "segoe";
       if (raw.includes("GT Sectra") || raw.includes("Source Serif")) return "serif";
+      if (raw.includes("Times")) return "times";
+      if (raw.includes("Georgia")) return "georgia";
+      if (raw.includes("JetBrains")) return "jetbrains";
+      if (raw.includes("Fira Code")) return "firacode";
+      if (raw.includes("Courier")) return "courier";
       if (raw.includes("Geist Mono")) return "mono";
       if (raw.includes("Geist")) return "geist";
       return "system";
@@ -145,9 +169,18 @@ const KNOBS: Knob[] = [
 
   // ---- Explorer rail (shared) ----
   { id: "--rk-rail-header-h", label: "Rail header height", group: "Explorer rail", kind: "range", min: 24, max: 56, step: 1, unit: "px" },
-  { id: "--rk-search-h", label: "Search box height", group: "Explorer rail", kind: "range", min: 24, max: 44, step: 1, unit: "px" },
+  { id: "--rk-search-h", label: "Search box height", group: "Explorer rail", kind: "range", min: 20, max: 44, step: 1, unit: "px" },
+  { id: "--rk-search-fs", label: "Search text size", group: "Explorer rail", kind: "range", min: 9, max: 18, step: 1, unit: "px" },
+  { id: "--rk-search-px", label: "Search horizontal padding", group: "Explorer rail", kind: "range", min: 2, max: 16, step: 1, unit: "px" },
   { id: "--rk-rail-indent", label: "Item indent", group: "Explorer rail", kind: "range", min: 0, max: 28, step: 1, unit: "px" },
   { id: "--rk-rail-indent-child", label: "Terminal indent", group: "Explorer rail", kind: "range", min: 8, max: 56, step: 1, unit: "px" },
+
+  // ---- Task filter input (shared). Lets you tune the actual input
+  // dimensions — width, height, font — rather than just the surrounding
+  // strip's padding.
+  { id: "--rk-filter-w", label: "Task filter width", group: "Task filter", kind: "range", min: 80, max: 320, step: 4, unit: "px" },
+  { id: "--rk-filter-h", label: "Task filter height", group: "Task filter", kind: "range", min: 20, max: 44, step: 1, unit: "px" },
+  { id: "--rk-filter-fs", label: "Task filter text size", group: "Task filter", kind: "range", min: 9, max: 18, step: 1, unit: "px" },
 ];
 
 const GROUPS = Array.from(new Set(KNOBS.map((k) => k.group)));
@@ -614,20 +647,42 @@ export function DesignMode() {
             </button>
           </div>
 
-          {/* Theme indicator — the "what am I tuning?" cue */}
+          {/* Theme indicator + in-panel toggle. Clicking the pill flips
+              <html data-theme> directly, mirroring GlobalShortcuts —
+              that way you can switch themes without leaving the panel
+              and the MutationObserver re-inits the inputs. */}
           <div style={S.themeStrip}>
             <span style={S.themeLabel}>Tuning</span>
-            <span style={{ ...S.themePill, ...(theme === "dark" ? S.themePillDark : S.themePillLight) }}>
+            <button
+              type="button"
+              onClick={() => {
+                const next: Theme = theme === "dark" ? "light" : "dark";
+                document.documentElement.dataset.theme = next;
+                document.documentElement.style.colorScheme = next;
+                try {
+                  localStorage.setItem("rokki_theme", next);
+                } catch {
+                  /* ignore */
+                }
+              }}
+              title={`Click to switch to ${otherTheme} theme`}
+              style={{
+                ...S.themePill,
+                ...(theme === "dark" ? S.themePillDark : S.themePillLight),
+                cursor: "pointer",
+              }}
+            >
               {theme === "dark" ? "🌙 Dark theme" : "☀ Light theme"}
               {changedActiveTheme ? <span style={S.themeBadge}>{changedActiveTheme}</span> : null}
-            </span>
+              <span style={S.themeSwitchHint}>↻</span>
+            </button>
             {changedOtherTheme ? (
               <span style={S.themeOther} title={`${otherTheme} theme has ${changedOtherTheme} change(s)`}>
                 {otherTheme === "dark" ? "🌙" : "☀"} {otherTheme} · {changedOtherTheme}
               </span>
             ) : null}
             <span style={S.themeHint}>
-              Colors save per-theme · type/layout save shared
+              Click the pill to flip themes · Colors save per-theme · type/layout save shared
             </span>
           </div>
 
@@ -916,6 +971,12 @@ const S: Record<string, CSSProperties> = {
     fontWeight: 700,
     padding: "0 5px",
     borderRadius: 999,
+  },
+  themeSwitchHint: {
+    fontSize: 12,
+    color: "inherit",
+    opacity: 0.6,
+    marginLeft: 2,
   },
   themeOther: { color: "#8a8a92", fontSize: 11 },
   themeHint: {
