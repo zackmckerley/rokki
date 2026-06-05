@@ -16,29 +16,32 @@
   --bg-3: #232327;
   --bg-4: #2d2d32;
 
-  --border: #2a2a2f;
-  /* Softened from #3a3a42 — card/section outlines were reading as harsh
-     bright lines on the dark bg; this still defines surfaces without
-     shouting. The faintest dividers use --border (or its /40 alpha). */
-  --border-strong: #34343b;
+  /* border/border-strong from Design Mode export 2026-06-04. Same value
+     intentionally — Zack wanted one visible border tone everywhere, no
+     soft/strong distinction. Frame and section dividers read the same. */
+  --border: #4a4a54;
+  --border-strong: #4a4a54;
   --border-focus: #f5a623;
 
-  /* text-0 dampened from #f5f5f7 → softer off-white. Pure-white primary
-     text read as "blinding" against the near-black bg; this is a clear
-     step down while staying well above text-1 so content hierarchy
-     holds. Token-level, so it calms primary text app-wide. Tunable. */
-  --text-0: #dadadf;
-  --text-1: #c8c8cd;
-  --text-2: #8a8a92;
+  /* text-0/1/2 from Design Mode export 2026-06-04. text-0 and text-1 are
+     intentionally the same here — Zack wanted primary and body to read at
+     the same brightness in the dashboard. Hierarchy is carried by weight
+     and color tier (text-2/text-3), not by text-0 vs text-1. Tunable in
+     Design Mode (Shift+D on sandbox). */
+  --text-0: #dbdbdb;
+  --text-1: #dbdbdb;
+  --text-2: #a8a8b3;
   /* text-3 was #5a5a62 — failed WCAG-AA at 2.74-2.90:1 against bg-0/bg-1.
      Bumped to #9099a4 → 6.49-6.86:1 against bg-0/bg-1 (well above 4.5:1).
      See docs/08_UI_DESIGN.md §8.10.1 for the full table. */
   --text-3: #9099a4;
   --text-disabled: #3d3d44;
 
-  --accent: #f5a623;
-  --accent-hover: #ffb83d;
-  --accent-active: #d48a0a;
+  /* accent from Design Mode export 2026-06-04: warmer, slightly more
+     saturated orange. hover/active derived to keep the same step. */
+  --accent: #ff9d00;
+  --accent-hover: #ffb340;
+  --accent-active: #d68500;
   --accent-subtle: #3d2e14;
   --accent-subtle-hover: #4d3a1a;
 
@@ -55,8 +58,9 @@
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --font-serif: "GT Sectra", "Source Serif Pro", Georgia, serif;
 
-  --text-2xs: 10px;
-  --text-xs: 11px;
+  /* Font sizes from Design Mode export 2026-06-04. */
+  --text-2xs: 11px;
+  --text-xs: 13px;
   --text-sm: 13px;
   --text-base: 14px;
   --text-md: 15px;
@@ -67,7 +71,8 @@
 
   --leading-2xs: 13px;
   --leading-xs: 14px;
-  --leading-sm: 18px;
+  /* leading-sm from Design Mode export 2026-06-04 (tighter content). */
+  --leading-sm: 14px;
   --leading-base: 20px;
   --leading-md: 22px;
   --leading-lg: 24px;
@@ -124,15 +129,15 @@
   --row-padding-y: 6px;
   --card-gap: 12px;
   /* Design-tunable layout knobs — consumed via Tailwind arbitrary values
-     (e.g. h-[var(--rk-card-header-h)]). Defaults equal the current values,
-     so nothing changes until the sandbox-only Design Mode panel (Shift+D)
-     overrides them at runtime. */
-  --rk-card-header-h: 40px;
-  --rk-row-py: 6px;
-  --rk-ctrl-py: 8px;
-  --rk-rail-header-h: 40px;
+     (e.g. h-[var(--rk-card-header-h)]). Live-editable via Design Mode
+     (Shift+D on sandbox). Values updated from Design Mode export
+     2026-06-04: tighter headers + tighter rows for higher density. */
+  --rk-card-header-h: 28px;
+  --rk-row-py: 3px;
+  --rk-ctrl-py: 3px;
+  --rk-rail-header-h: 28px;
   --rk-rail-indent: 12px;
-  --rk-rail-indent-child: 32px;
+  --rk-rail-indent-child: 36px;
 }
 html[data-density="cozy"] {
   font-size: 16px;
