@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -122,6 +123,25 @@ export function DueChip({
   date: string;
   className?: string;
 }) {
+  // Relative labels ("3d ago", "today") are derived from the CURRENT time,
+  // which differs between the server (UTC) and the client (the user's
+  // timezone). For a task ~23–24 days overdue, the UTC vs local midnight
+  // boundary makes the server render "24d ago" and the client "23d ago"
+  // → a React #418 hydration mismatch (the same reason WeekCard defers its
+  // date grouping to mount). Render an empty, width-stable placeholder
+  // during SSR + the first client paint, then the real label after mount.
+  // The enclosing fixed-width column already reserves space, so there is
+  // no layout shift.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) {
+    return (
+      <span
+        className={cn("font-mono text-2xs", className)}
+        aria-hidden="true"
+      />
+    );
+  }
   const d = new Date(date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
