@@ -43,7 +43,7 @@ export function TaskSectionHeader({
           onToggle();
         }
       }}
-      className="sticky top-0 z-[2] flex h-7 cursor-pointer select-none items-center gap-2 border-b border-border bg-bg-2 pr-3 transition-colors hover:bg-bg-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-focus"
+      className="sticky top-0 z-[2] flex h-[var(--rk-section-head-h)] cursor-pointer select-none items-center gap-2 border-b border-border bg-bg-2 pr-3 transition-colors hover:bg-bg-3 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-focus"
     >
       {/* Colored left tick carrying the bucket's meaning. */}
       <span aria-hidden="true" className={cn("h-full w-[3px] flex-shrink-0", tone)} />

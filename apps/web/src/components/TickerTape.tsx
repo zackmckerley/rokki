@@ -146,7 +146,7 @@ export function TickerTape({
 
   if (combined.length === 0) {
     return (
-      <div className="flex h-8 flex-shrink-0 items-center gap-2 border-b border-border bg-bg-1 px-3 text-xs text-text-3">
+      <div className="flex h-[var(--rk-ticker-h)] flex-shrink-0 items-center gap-2 border-b border-border bg-bg-1 px-3 text-xs text-text-3">
         <span
           className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", dotClass)}
           title={dotTitle}
@@ -171,7 +171,7 @@ export function TickerTape({
   const doubled = [...combined, ...combined];
 
   return (
-    <div className="flex h-8 flex-shrink-0 items-center gap-2 overflow-hidden border-b border-border bg-bg-1 px-3 text-xs text-text-2">
+    <div className="flex h-[var(--rk-ticker-h)] flex-shrink-0 items-center gap-2 overflow-hidden border-b border-border bg-bg-1 px-3 text-xs text-text-2">
       <span
         className={cn("h-1.5 w-1.5 flex-shrink-0 rounded-full", dotClass)}
         title={dotTitle}

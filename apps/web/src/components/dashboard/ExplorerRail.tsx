@@ -317,7 +317,7 @@ export function ExplorerRail({
                 placeholder="Search…"
                 aria-label="Filter explorer"
                 title="Press / to focus"
-                className="h-8 w-full rounded-sm border border-border bg-bg-1 px-2 text-xs text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+                className="h-[var(--rk-search-h)] w-full rounded-sm border border-border bg-bg-1 px-2 text-xs text-text-0 placeholder:text-text-3 focus:border-border-focus focus:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
               />
               {filter ? (
                 <button
