@@ -257,7 +257,7 @@ export function TasksCard({
     // Plain card shell — no DashboardCard wrapper. The header chrome now
     // lives entirely in the shared TaskListToolbar so this surface is
     // byte-for-byte the same interface as the in-terminal TasksPane.
-    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded border border-border-strong bg-bg-1 shadow-sm">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--rk-card-radius)] border border-border-strong bg-bg-1 shadow-sm">
       <TaskListToolbar
         count={visibleAssigned.length}
         sortMode={sortMode}

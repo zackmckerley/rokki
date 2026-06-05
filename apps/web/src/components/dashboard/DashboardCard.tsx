@@ -59,7 +59,7 @@ export function DashboardCard({
       // dark and light mode. Zack's feedback: the previous border was
       // too thin to differentiate sections.
       className={cn(
-        "flex min-h-0 flex-col overflow-hidden rounded border border-border-strong bg-bg-1 shadow-sm",
+        "flex min-h-0 flex-col overflow-hidden rounded-[var(--rk-card-radius)] border border-border-strong bg-bg-1 shadow-sm",
         className,
       )}
     >

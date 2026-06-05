@@ -138,6 +138,12 @@
   --rk-rail-header-h: 28px;
   --rk-rail-indent: 12px;
   --rk-rail-indent-child: 36px;
+  /* v2 additions — top-of-page chrome + element sizing. */
+  --rk-topbar-h: 44px;
+  --rk-ticker-h: 32px;
+  --rk-search-h: 32px;
+  --rk-section-head-h: 28px;
+  --rk-card-radius: 6px;
 }
 html[data-density="cozy"] {
   font-size: 16px;

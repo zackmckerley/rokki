@@ -41,7 +41,7 @@ export function TopBar({ children }: TopBarProps) {
   const homeHref = pathname?.startsWith("/admin") ? "/admin" : "/";
   return (
     <header
-      className="flex h-11 flex-shrink-0 items-center border-b border-border bg-bg-1 px-4"
+      className="flex h-[var(--rk-topbar-h)] flex-shrink-0 items-center border-b border-border bg-bg-1 px-4"
       role="banner"
     >
       <Link
