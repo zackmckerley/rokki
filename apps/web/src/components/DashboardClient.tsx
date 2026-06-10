@@ -165,6 +165,36 @@ export function DashboardClient({
     return () => window.removeEventListener("keydown", onKey);
   }, [terminals.length]);
 
+  // "New task" buttons (dashboard TasksCard) dispatch this cancelable event
+  // instead of navigating to `/?new=task`. Opening the dialog in place
+  // avoids an App Router searchParams navigation that would refetch every
+  // streamed slot (Tasks / Week / Ticker) — the visible flash + delay Zack
+  // reported. preventDefault() tells the dispatcher we handled it so it
+  // skips its URL fallback.
+  useEffect(() => {
+    function onOpen(e: Event) {
+      if (terminals.length === 0) return;
+      e.preventDefault();
+      setTaskDialog(true);
+    }
+    window.addEventListener("rokki:open-new-task", onOpen);
+    return () => window.removeEventListener("rokki:open-new-task", onOpen);
+  }, [terminals.length]);
+
+  // Warm the quick-task dialog chunk once the dashboard is idle so the
+  // FIRST open is instant rather than waiting on its lazy import.
+  useEffect(() => {
+    const warm = () => {
+      void import("./QuickTaskDialog");
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(warm);
+      return () => window.cancelIdleCallback(id);
+    }
+    const t = setTimeout(warm, 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   return (
     <DensityProvider initial={initialDensity}>
       <ModuleVisibilityProvider>
