@@ -270,7 +270,11 @@ export function DashboardPanels({
         title="Drag to move or reorder"
         className="hidden h-5 w-4 flex-shrink-0 cursor-grab items-center justify-center rounded-sm text-text-3 hover:bg-bg-3 hover:text-text-1 active:cursor-grabbing lg:flex"
       >
-        <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+        {/* h-4 w-4, NOT h-3.5 — the custom Tailwind spacing scale has no 3.5
+            step, so h-3.5/w-3.5 generate no CSS and the icon falls back to
+            its 24px intrinsic size (oversized). 16px is a valid, grabbable
+            handle. */}
+        <GripVertical className="h-4 w-4" aria-hidden="true" />
       </button>
     );
   }
