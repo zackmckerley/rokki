@@ -300,7 +300,25 @@ export function TasksCard({
         onStarredOnly={() => setStarredOnly((v) => !v)}
         query={query}
         onQuery={setQuery}
-        newTaskHref={createHref ?? undefined}
+        onNewTask={
+          createHref == null
+            ? undefined
+            : () => {
+                // Open the quick-task dialog IN PLACE via a cancelable event
+                // the dashboard listens for — instead of navigating to
+                // `/?new=task`. The navigation re-ran the page's server
+                // component and refetched every streamed slot (Tasks / Week /
+                // Ticker), which is the flash ("trippy") + delay Zack saw.
+                // If no host is listening (e.g. a full-page task list with no
+                // DashboardClient), fall back to the URL so the button still
+                // works everywhere.
+                const ev = new CustomEvent("rokki:open-new-task", {
+                  cancelable: true,
+                });
+                const handled = !window.dispatchEvent(ev);
+                if (!handled) router.push(createHref);
+              }
+        }
         newTaskDisabled={createDisabled}
         newTaskShortcut="⌘N"
         expandHref="/tasks/mine"
