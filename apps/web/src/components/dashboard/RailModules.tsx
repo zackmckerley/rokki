@@ -29,13 +29,11 @@ export function RailModules() {
               title={open ? `Minimize ${m.label}` : `Open ${m.label}`}
               className="group flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
             >
-              {/* Empty chevron column so module names line up with space
-                  names (not the space arrows). MUST use w-3, not w-3.5 —
-                  this project's Tailwind config has a custom spacing scale
-                  with NO 3.5 step, so w-3.5 generates no CSS and the spacer
-                  collapses to 0, pulling the label left to the arrow column.
-                  w-3 (12px) matches the space chevron's rendered width. */}
-              <span className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+              {/* Empty chevron column so module names line up with the
+                  space NAMES (not the arrows). h-3.5/w-3.5 = 14px to match
+                  the space chevron button, now that width/height carry the
+                  3.5 step (tailwind.config `extend`). */}
+              <span className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
               <span className="flex-1 truncate text-xs">{m.label}</span>
               {/* far-right open indicator — the only color in the list */}
               <span
