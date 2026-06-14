@@ -141,7 +141,7 @@ describe("bucketDashTasks", () => {
     ...over,
   });
 
-  it("terminal mode buckets per terminal_id with TICKER · Name labels", () => {
+  it("terminal mode dedupes identical ticker/name, keeps TICKER · Name when they differ", () => {
     const out = bucketDashTasks(
       [
         dt({ id: "a", terminal_id: "t1" }),
@@ -154,7 +154,10 @@ describe("bucketDashTasks", () => {
     );
     expect(out).toHaveLength(2);
     const labels = out.map((g) => g.label);
-    expect(labels).toContain("HELIOS · Helios");
+    // t1: ticker "HELIOS" equals name "Helios" (case-insensitive) → shown once.
+    expect(labels).toContain("Helios");
+    expect(labels).not.toContain("HELIOS · Helios");
+    // t2: ticker "CASA" genuinely differs from "Casablanca" → keep both.
     expect(labels).toContain("CASA · Casablanca");
   });
 
