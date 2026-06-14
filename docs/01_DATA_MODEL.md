@@ -1259,3 +1259,69 @@ VALUES ('pane_shell_enabled', 'global', 'false'::jsonb, 0,
 Off (0% rollout) by default. Per-user overrides (scope = `user`,
 `scope_id = <uid>`, `value = true`) let staff dogfood without flipping
 for everyone.
+
+## 1.14 Personal spaces
+
+Migration: `20260614120000_personal_spaces.sql`. ADR: `docs/adr/0005-personal-spaces.md`.
+
+Every user gets exactly one private **Personal space** — an ordinary
+`spaces` row, auto-provisioned at signup, that holds personal terminals /
+tasks / files. It behaves like any space (the owner can create terminals
+inside it) but is private to the owner and can't be shared or deleted.
+
+### 1.14.1 Columns
+
+```sql
+ALTER TABLE spaces
+  ADD COLUMN is_personal BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN personal_owner_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+
+-- A personal space names its owner; a shared space never does.
+ALTER TABLE spaces ADD CONSTRAINT spaces_personal_owner_consistency CHECK (
+  (is_personal AND personal_owner_id IS NOT NULL)
+  OR (NOT is_personal AND personal_owner_id IS NULL)
+);
+
+-- Exactly one personal space per user.
+CREATE UNIQUE INDEX spaces_personal_owner_key
+  ON spaces (personal_owner_id) WHERE is_personal;
+```
+
+### 1.14.2 Provisioning
+
+`provision_personal_space(uuid)` (SECURITY DEFINER, idempotent) inserts the
+row with slug `'p' || <32 hex of user id>` (33 chars, satisfies the spaces
+slug CHECK) and name `'Personal'`. It is called from the existing
+`handle_new_user()` trigger so it bypasses the platform-admin-only
+`spaces_insert` policy (same pattern as the profiles insert), and from a
+one-time backfill loop over `auth.users`. The existing
+`trg_space_creator → add_space_creator_as_owner` trigger seeds the owner's
+`space_members` row (role `owner`) automatically.
+
+### 1.14.3 Rules enforced at the DB (RLS)
+
+- **One per user** — partial unique index above.
+- **Owner-only / no invites** — `space_members_insert` (replaces
+  `org_members_insert`) adds `AND NOT EXISTS (SELECT 1 FROM spaces s WHERE
+  s.id = space_id AND s.is_personal)`. The provisioning trigger
+  (SECURITY DEFINER) still seeds the sole owner.
+- **Undeletable** — `spaces_delete` (replaces `orgs_delete`) adds
+  `AND NOT is_personal`.
+- **Isolation** — unchanged. The existing `orgs_select`
+  (`is_space_member OR created_by OR has_emergency_access`) already limits a
+  personal space to its owner.
+- **Admin visibility** — none added. Platform admins reach a personal space
+  exactly the way they reach every space: `has_emergency_access()`
+  (break-glass) or the service-role admin routes. No normal-session admin
+  read exists for any space, so personal spaces inherit that behaviour with
+  no special-casing.
+- **Terminal creation** — unchanged. `terminals_insert`
+  (`is_space_member(space_id) AND created_by = auth.uid()`) already lets the
+  sole owner create terminals inside their personal space.
+
+### 1.14.4 Surfacing
+
+`is_personal` is returned by `loadDashSpaces` and `GET /api/v1/orgs`. The
+explorer pins the personal space to the top with a person glyph and disables
+drag-reorder on it; its settings page hides the members / invites / danger
+cards (rename only).

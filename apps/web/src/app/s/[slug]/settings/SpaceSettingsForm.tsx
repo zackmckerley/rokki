@@ -32,6 +32,7 @@ const ROLES: SpaceRole[] = ["owner", "admin", "member"];
  */
 export function SpaceSettingsForm({
   initial,
+  isPersonal = false,
   members: initialMembers,
   pendingInvites: initialInvites,
   canManage,
@@ -39,6 +40,13 @@ export function SpaceSettingsForm({
   myUserId,
 }: {
   initial: { slug: string; name: string };
+  /**
+   * The viewer's private Personal space. When true we show only the
+   * Identity (rename) card — a personal space is owner-only, can't be
+   * shared, and can't be deleted, so members/invites/danger-zone are
+   * hidden (and blocked at the database level regardless).
+   */
+  isPersonal?: boolean;
   members: SpaceMember[];
   pendingInvites: PendingInvite[];
   canManage: boolean;
@@ -57,6 +65,7 @@ export function SpaceSettingsForm({
         slug={slug}
         initial={initial}
         canManage={canManage}
+        isPersonal={isPersonal}
         onRenamed={(nextSlug) => {
           setSlug(nextSlug);
           router.push(`/s/${nextSlug}/settings`);
@@ -64,24 +73,47 @@ export function SpaceSettingsForm({
         }}
         onSaved={() => router.refresh()}
       />
-      <MembersCard
-        slug={slug}
-        members={members}
-        canManage={canManage}
-        myRole={myRole}
-        myUserId={myUserId}
-        onChange={setMembers}
-      />
-      <InvitesCard
-        slug={slug}
-        invites={invites}
-        canManage={canManage}
-        onAdd={(invite) => setInvites((prev) => [invite, ...prev])}
-      />
-      {myRole === "owner" ? (
-        <DangerZoneCard slug={slug} spaceName={initial.name} />
-      ) : null}
+      {isPersonal ? (
+        <PersonalNote />
+      ) : (
+        <>
+          <MembersCard
+            slug={slug}
+            members={members}
+            canManage={canManage}
+            myRole={myRole}
+            myUserId={myUserId}
+            onChange={setMembers}
+          />
+          <InvitesCard
+            slug={slug}
+            invites={invites}
+            canManage={canManage}
+            onAdd={(invite) => setInvites((prev) => [invite, ...prev])}
+          />
+          {myRole === "owner" ? (
+            <DangerZoneCard slug={slug} spaceName={initial.name} />
+          ) : null}
+        </>
+      )}
     </div>
+  );
+}
+
+/**
+ * Stand-in for the members/invites/danger cards on a personal space —
+ * explains why they're absent rather than leaving a bare page.
+ */
+function PersonalNote() {
+  return (
+    <Card title="Private">
+      <p className="px-4 py-3 text-xs text-text-2">
+        This is your personal space. It&apos;s private to you — no one else can
+        be added, and it can&apos;t be deleted. Create terminals, tasks, and
+        files inside it just like any other space. To collaborate with other
+        people, use or create a shared space instead.
+      </p>
+    </Card>
   );
 }
 
@@ -91,12 +123,14 @@ function IdentityCard({
   slug,
   initial,
   canManage,
+  isPersonal = false,
   onRenamed,
   onSaved,
 }: {
   slug: string;
   initial: { slug: string; name: string };
   canManage: boolean;
+  isPersonal?: boolean;
   onRenamed: (slug: string) => void;
   onSaved: () => void;
 }) {
@@ -156,14 +190,19 @@ function IdentityCard({
           disabled={!canManage}
           maxLength={120}
         />
-        <LabelledInput
-          label="Slug"
-          value={nextSlug}
-          onChange={(v) => setNextSlug(v.toLowerCase())}
-          disabled={!canManage}
-          maxLength={40}
-          hint={`Currently /s/${initial.slug} — renaming breaks existing URLs.`}
-        />
+        {/* A personal space has an auto-generated internal slug that's never
+            shown to the user, so we hide the Slug field — only the display
+            name is renamable here. */}
+        {isPersonal ? null : (
+          <LabelledInput
+            label="Slug"
+            value={nextSlug}
+            onChange={(v) => setNextSlug(v.toLowerCase())}
+            disabled={!canManage}
+            maxLength={40}
+            hint={`Currently /s/${initial.slug} — renaming breaks existing URLs.`}
+          />
+        )}
         <Footer
           saving={saving}
           savedAt={savedAt}

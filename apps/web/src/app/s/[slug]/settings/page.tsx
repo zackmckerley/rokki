@@ -29,7 +29,7 @@ export default async function SpaceSettingsPage({ params }: Props) {
 
   const { data: space } = await supabase
     .from("spaces")
-    .select("id, slug, name, created_at")
+    .select("id, slug, name, created_at, is_personal")
     .eq("slug", lower)
     .maybeSingle();
   if (!space) notFound();
@@ -38,6 +38,7 @@ export default async function SpaceSettingsPage({ params }: Props) {
     slug: string;
     name: string;
     created_at: string;
+    is_personal: boolean;
   };
 
   const { data: me } = await supabase
@@ -121,16 +122,19 @@ export default async function SpaceSettingsPage({ params }: Props) {
       <main className="mx-auto w-full max-w-3xl flex-1 p-6">
         <header className="mb-6">
           <div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-text-3">
-            Space · {terminalCount ?? 0} terminal{terminalCount === 1 ? "" : "s"}
+            {s.is_personal ? "Personal space" : "Space"} · {terminalCount ?? 0}{" "}
+            terminal{terminalCount === 1 ? "" : "s"}
           </div>
           <h1 className="text-xl font-semibold text-text-0">{s.name}</h1>
           <p className="mt-1 text-xs text-text-3">
-            Rename, manage members, and invite new people. Terminal-level
-            membership is managed in each terminal&apos;s settings.
+            {s.is_personal
+              ? "Your private space — only you can see it. Rename it if you like; it can't be shared or deleted."
+              : "Rename, manage members, and invite new people. Terminal-level membership is managed in each terminal’s settings."}
           </p>
         </header>
         <SpaceSettingsForm
           initial={{ slug: s.slug, name: s.name }}
+          isPersonal={s.is_personal}
           members={members}
           pendingInvites={
             (invites ?? []) as {
