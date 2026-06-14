@@ -95,6 +95,16 @@ export default {
       full: "9999px",
     },
     extend: {
+      // The custom `spacing` scale above (which padding/margin/gap read
+      // from) intentionally omits half-steps to keep density tight. But
+      // width/height ALSO read from spacing, so icon/dot SIZING classes
+      // like h-3.5/w-3.5 (14px) and h-1.5/w-1.5 (6px) produced no CSS and
+      // collapsed — icons fell back to their 24px intrinsic size, and dots
+      // (priority / status / online / section) rendered at 0 and vanished.
+      // Re-add ONLY the fractional sizes to width + height so icons and
+      // dots size correctly, WITHOUT touching padding/gap (no loosening).
+      width: { 1.5: "6px", 2.5: "10px", 3.5: "14px" },
+      height: { 1.5: "6px", 2.5: "10px", 3.5: "14px" },
       transitionTimingFunction: {
         DEFAULT: "cubic-bezier(0.2, 0, 0, 1)",
       },
