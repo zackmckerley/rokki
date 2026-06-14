@@ -17,7 +17,7 @@ async function handleGet() {
 
   const { data, error } = await supabase
     .from("space_members")
-    .select("role, spaces(id, slug, name, created_at)")
+    .select("role, spaces(id, slug, name, created_at, is_personal)")
     .eq("user_id", user.id);
 
   if (error) return internal(error.message);

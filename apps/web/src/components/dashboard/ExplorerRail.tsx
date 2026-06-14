@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, User, X } from "lucide-react";
 import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
 import { cn } from "@/lib/utils";
 import { AccountBlock } from "@/components/AccountBlock";
@@ -198,12 +198,17 @@ export function ExplorerRail({
   const [overTermId, setOverTermId] = useState<string | null>(null);
 
   // Spaces in the user's saved order (server order until hydrated, to
-  // avoid an SSR/CSR mismatch on first paint).
-  const orderedSpaces = useMemo(
-    () =>
-      hydrated ? applyOrder(visibleSpaces, (s) => s.id, spaceOrder) : visibleSpaces,
-    [visibleSpaces, spaceOrder, hydrated],
-  );
+  // avoid an SSR/CSR mismatch on first paint). The personal space is then
+  // force-pinned to the very top regardless of saved drag order — it's the
+  // user's home and shouldn't get buried under shared spaces.
+  const orderedSpaces = useMemo(() => {
+    const base = hydrated
+      ? applyOrder(visibleSpaces, (s) => s.id, spaceOrder)
+      : visibleSpaces;
+    const personal = base.filter((s) => s.is_personal);
+    if (personal.length === 0) return base;
+    return [...personal, ...base.filter((s) => !s.is_personal)];
+  }, [visibleSpaces, spaceOrder, hydrated]);
 
   function handleSpaceDrop(targetSpaceId: string | null) {
     if (!dragSpaceId) return;
@@ -379,12 +384,15 @@ export function ExplorerRail({
                     : children;
                 const isCollapsed = isFiltering ? false : collapsed.has(s.id);
                 const canMakeTerminal = s.role === "owner" || s.role === "admin";
+                // The personal space is pinned, not reorderable — it stays
+                // at the top, so it can't be picked up and dragged.
+                const canDrag = dndEnabled && !s.is_personal;
                 return (
                   <li key={s.id}>
                     <div
-                      draggable={dndEnabled}
+                      draggable={canDrag}
                       onDragStart={
-                        dndEnabled
+                        canDrag
                           ? (e) => {
                               e.dataTransfer.effectAllowed = "move";
                               e.dataTransfer.setData("text/plain", s.id);
@@ -425,10 +433,10 @@ export function ExplorerRail({
                             }
                           : undefined
                       }
-                      title={dndEnabled ? "Drag to reorder" : undefined}
+                      title={canDrag ? "Drag to reorder" : undefined}
                       className={cn(
                         "group flex items-center gap-1 rounded-sm px-1 py-0.5 hover:bg-bg-2",
-                        dndEnabled && "cursor-grab active:cursor-grabbing",
+                        canDrag && "cursor-grab active:cursor-grabbing",
                         overSpaceId === s.id &&
                           dragSpaceId !== s.id &&
                           "outline outline-2 -outline-offset-2 outline-accent",
@@ -446,11 +454,24 @@ export function ExplorerRail({
                           <ChevronDown className="h-3 w-3" />
                         )}
                       </button>
+                      {/* The personal space gets a person glyph so it
+                          reads as "yours / private" at a glance, set apart
+                          from the shared spaces below it. */}
+                      {s.is_personal ? (
+                        <User
+                          className="h-3 w-3 flex-shrink-0 text-text-3"
+                          aria-hidden="true"
+                        />
+                      ) : null}
                       <Link
                         href={`/s/${s.slug}`}
                         draggable={false}
                         className="flex-1 truncate text-text-1 hover:text-text-0"
-                        title={`Open ${s.name}`}
+                        title={
+                          s.is_personal
+                            ? "Your private space"
+                            : `Open ${s.name}`
+                        }
                       >
                         {s.name}
                       </Link>

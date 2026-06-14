@@ -20,6 +20,12 @@ export interface DashSpace {
   slug: string;
   name: string;
   role: "owner" | "admin" | "member";
+  /**
+   * The user's private "Personal" space — exactly one per user,
+   * owner-only, pinned to the top of the explorer. See the
+   * 20260614120000_personal_spaces migration.
+   */
+  is_personal: boolean;
 }
 
 export interface DashTerminal {
@@ -113,7 +119,7 @@ export async function loadDashSpaces(
       const { data } = await supabase
         .from("space_members")
         .select(
-          "role, spaces!space_members_space_id_fkey(id, slug, name, archived_at)",
+          "role, spaces!space_members_space_id_fkey(id, slug, name, archived_at, is_personal)",
         )
         .eq("user_id", userId);
       type Row = {
@@ -123,6 +129,7 @@ export async function loadDashSpaces(
           slug: string;
           name: string;
           archived_at: string | null;
+          is_personal: boolean;
         } | null;
       };
       return ((data ?? []) as unknown as Row[])
@@ -135,6 +142,7 @@ export async function loadDashSpaces(
           slug: r.spaces.slug,
           name: r.spaces.name,
           role: r.role,
+          is_personal: r.spaces.is_personal ?? false,
         }));
     },
   );
