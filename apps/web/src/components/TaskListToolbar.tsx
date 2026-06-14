@@ -329,7 +329,7 @@ function TaskFilterInput({
           height: "var(--rk-filter-h)",
           fontSize: "var(--rk-filter-fs)",
         }}
-        className="rounded-sm border border-border bg-bg-1 px-2 py-1 pr-6 text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus"
+        className="rounded-sm border border-border bg-bg-1 px-2 pr-6 text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus"
       />
       {value ? (
         <button
