@@ -1,0 +1,22 @@
+title = "Rokki gitleaks config"
+
+# Keep gitleaks' full default ruleset...
+[extend]
+useDefault = true
+
+# ...but do not flag the well-known PUBLIC local-Supabase demo JWTs. These
+# anon + service_role keys ship with the Supabase CLI for every local stack
+# (JWT header alg HS256, issuer "supabase-demo", exp 2033). They are not
+# secrets, are identical on every developer machine, never touch
+# staging/prod, and are required by the tests/rls integration suite to mint
+# local sessions. Allowlisted by token value (covers every test file that
+# uses them) and, belt-and-suspenders, by the RLS test path.
+[allowlist]
+description = "Public local-Supabase demo JWTs (anon + service_role) used only by local RLS integration tests"
+regexTarget = "match"
+regexes = [
+  '''eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\.eyJpc3MiOiJzdXBhYmFzZS1kZW1v[A-Za-z0-9_.\-]+''',
+]
+paths = [
+  '''apps/web/tests/rls/.*\.test\.ts''',
+]
