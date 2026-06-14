@@ -97,13 +97,18 @@ export function bucketDashTasks<T extends DashGroupableTask>(
     }
     return Array.from(buckets.entries())
       .map(([key, list]) => {
-        const ticker = tickerById[key] ?? "";
-        const name = terminalNameById?.[key] ?? "";
-        const label = ticker
-          ? name
-            ? `${ticker} · ${name}`
-            : ticker
-          : name || "Terminal";
+        const ticker = (tickerById[key] ?? "").trim();
+        const name = (terminalNameById?.[key] ?? "").trim();
+        // When a terminal's ticker and display name are identical (common —
+        // many terminals use the code as the name), show it ONCE rather than
+        // "Casablanca · Casablanca". Keep "TICKER · Name" only when the two
+        // actually differ and the ticker adds information.
+        const label =
+          ticker && name
+            ? ticker.toLowerCase() === name.toLowerCase()
+              ? name
+              : `${ticker} · ${name}`
+            : name || ticker || "Terminal";
         return { key, label, tasks: list };
       })
       .sort((a, b) => a.label.localeCompare(b.label));
