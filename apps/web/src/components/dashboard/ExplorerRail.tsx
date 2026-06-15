@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Settings, User, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
 import { cn } from "@/lib/utils";
 import { AccountBlock } from "@/components/AccountBlock";
@@ -454,24 +454,11 @@ export function ExplorerRail({
                           <ChevronDown className="h-3 w-3" />
                         )}
                       </button>
-                      {/* The personal space gets a person glyph so it
-                          reads as "yours / private" at a glance, set apart
-                          from the shared spaces below it. */}
-                      {s.is_personal ? (
-                        <User
-                          className="h-3 w-3 flex-shrink-0 text-text-3"
-                          aria-hidden="true"
-                        />
-                      ) : null}
                       <Link
                         href={`/s/${s.slug}`}
                         draggable={false}
                         className="flex-1 truncate text-text-1 hover:text-text-0"
-                        title={
-                          s.is_personal
-                            ? "Your private space"
-                            : `Open ${s.name}`
-                        }
+                        title={`Open ${s.name}`}
                       >
                         {s.name}
                       </Link>
