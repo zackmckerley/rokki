@@ -156,7 +156,7 @@ describe("ModulePrefs provider", () => {
 
   it("pulls server prefs when sync is on (GET /api/v1/me)", async () => {
     seed({ sync: true });
-    const fetchMock = vi.fn(() =>
+    const fetchMock = vi.fn((_url: string, _opts?: RequestInit) =>
       Promise.resolve({
         ok: true,
         json: () =>
@@ -190,7 +190,7 @@ describe("ModulePrefs provider", () => {
   });
 
   it("pushes prefs to the server when sync is enabled (PATCH /api/v1/me)", async () => {
-    const fetchMock = vi.fn(() =>
+    const fetchMock = vi.fn((_url: string, _opts?: RequestInit) =>
       Promise.resolve({
         ok: true,
         json: () => Promise.resolve({ data: { preferences: {} } }),
