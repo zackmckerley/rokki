@@ -2,13 +2,20 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Hash, User as UserIcon, MessageSquarePlus, Settings2 } from "lucide-react";
+import {
+  Hash,
+  User as UserIcon,
+  MessageSquare,
+  MessageSquarePlus,
+  Settings2,
+} from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 
 interface ThreadSummary {
   id: string;
-  kind: "dm" | "terminal" | "space";
+  kind: "dm" | "terminal" | "space" | "group" | "reminders" | "signal";
+  source?: "rokki" | "signal";
   label: string;
   last_message_at: string;
 }
@@ -76,6 +83,8 @@ export function MessagesCard() {
               >
                 {t.kind === "terminal" ? (
                   <Hash className="h-3 w-3 flex-shrink-0 text-text-3" />
+                ) : t.source === "signal" ? (
+                  <MessageSquare className="h-3 w-3 flex-shrink-0 text-success" />
                 ) : (
                   <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
                 )}

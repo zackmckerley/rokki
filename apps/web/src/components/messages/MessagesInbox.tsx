@@ -2,18 +2,30 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Send, Hash, User as UserIcon, Pin, Bell, RefreshCw } from "lucide-react";
+import {
+  Send,
+  Hash,
+  User as UserIcon,
+  Pin,
+  Bell,
+  RefreshCw,
+  MessageSquare,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
+import { SignalThreadView } from "./SignalThreadView";
 
 interface ThreadSummary {
   id: string;
-  kind: "dm" | "terminal" | "space" | "group" | "reminders";
+  kind: "dm" | "terminal" | "space" | "group" | "reminders" | "signal";
+  source?: "rokki" | "signal";
   label: string;
   last_message_at: string;
   href_ticker?: string | null;
   other_user_id?: string | null;
+  signal_id?: string;
+  signal_kind?: "direct" | "group";
 }
 
 interface PingingTask {
@@ -63,6 +75,11 @@ export function MessagesInbox() {
   const [refreshingReminders, setRefreshingReminders] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
 
+  const active = threads.find((t) => t.id === activeId) ?? null;
+  // Signal threads load + send through a different pipeline (the bridge), so
+  // the native message-load and realtime below skip them.
+  const activeIsSignal = active?.source === "signal";
+
   // Who am I?
   useEffect(() => {
     const supa = createClient();
@@ -99,20 +116,21 @@ export function MessagesInbox() {
     });
   }, []);
   useEffect(() => {
-    if (activeId) void loadMessages(activeId);
-  }, [activeId, loadMessages]);
+    if (activeId && !activeIsSignal) void loadMessages(activeId);
+  }, [activeId, activeIsSignal, loadMessages]);
 
-  // Realtime: any message insert under the active thread appends in place.
+  // Realtime: any message insert under the active (native) thread appends in
+  // place. Signal threads have their own realtime inside SignalThreadView.
   useRealtimeTable<{ id: string; thread_id: string }>(
     {
       table: "messages",
       filter: activeId ? `thread_id=eq.${activeId}` : undefined,
-      enabled: !!activeId,
+      enabled: !!activeId && !activeIsSignal,
       channelKey: activeId ? `msg:${activeId}` : undefined,
     },
     {
       onInsert: () => {
-        if (activeId) void loadMessages(activeId);
+        if (activeId && !activeIsSignal) void loadMessages(activeId);
         void loadThreads();
       },
     },
@@ -207,8 +225,6 @@ export function MessagesInbox() {
     }
   }
 
-  const active = threads.find((t) => t.id === activeId) ?? null;
-
   return (
     <div className="flex h-full min-h-0 rounded border border-border bg-bg-1">
       <aside className="w-[260px] flex-shrink-0 border-r border-border">
@@ -256,6 +272,8 @@ export function MessagesInbox() {
                     <Hash className="h-3 w-3 flex-shrink-0 text-text-3" />
                   ) : t.kind === "reminders" ? (
                     <Bell className="h-3 w-3 flex-shrink-0 text-accent" />
+                  ) : t.source === "signal" ? (
+                    <MessageSquare className="h-3 w-3 flex-shrink-0 text-success" />
                   ) : (
                     <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
                   )}
@@ -271,6 +289,15 @@ export function MessagesInbox() {
       </aside>
 
       <section className="flex min-h-0 flex-1 flex-col">
+        {activeIsSignal && active ? (
+          <SignalThreadView
+            threadId={active.id}
+            signalId={active.signal_id ?? ""}
+            signalKind={active.signal_kind ?? "direct"}
+            label={active.label}
+          />
+        ) : (
+          <>
         <header className="flex h-9 flex-shrink-0 items-center gap-2 border-b border-border bg-bg-0 px-3">
           {active ? (
             <>
@@ -459,6 +486,8 @@ export function MessagesInbox() {
             </button>
           </form>
         ) : null}
+          </>
+        )}
       </section>
     </div>
   );
