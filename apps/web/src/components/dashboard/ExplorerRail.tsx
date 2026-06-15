@@ -7,6 +7,8 @@ import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
 import { cn } from "@/lib/utils";
 import { AccountBlock } from "@/components/AccountBlock";
 import { RailModules } from "./RailModules";
+import { ModuleSettings } from "./ModuleSettings";
+import { useModulePrefs } from "./module-visibility";
 import { COLLAPSED_SPACES_KEY } from "@/lib/recent-terminals";
 import {
   applyOrder,
@@ -260,6 +262,22 @@ export function ExplorerRail({
   }, [sectionsOpen, hydrated]);
   const toggleSection = (k: "spaces" | "modules") =>
     setSectionsOpen((s) => ({ ...s, [k]: !s[k] }));
+
+  // The MODULES section collapse is driven by module prefs when the
+  // dashboard provider is present, so the chevron stays in sync with the
+  // gear's "Collapse on load" setting (#6). Falls back to the local
+  // per-rail state on pages without modules (terminal / space).
+  const modulePrefs = useModulePrefs();
+  const modulesOpen = modulePrefs
+    ? !modulePrefs.prefs.sectionCollapsed
+    : sectionsOpen.modules;
+  const toggleModules = () => {
+    if (modulePrefs) {
+      modulePrefs.setSectionCollapsed(!modulePrefs.prefs.sectionCollapsed);
+    } else {
+      toggleSection("modules");
+    }
+  };
 
   const filterRef = useRef<HTMLInputElement>(null);
 
@@ -572,19 +590,24 @@ export function ExplorerRail({
           )}
 
           {/* ---- MODULES section (collapsible) ---- */}
-          <button
-            type="button"
-            onClick={() => toggleSection("modules")}
-            className="mt-3 flex w-full items-center gap-1 px-1 py-1 text-xs font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
-          >
-            {sectionsOpen.modules ? (
-              <ChevronDown className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-            ) : (
-              <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-            )}
-            Modules
-          </button>
-          {sectionsOpen.modules ? <RailModules /> : null}
+          <div className="mt-3 flex items-center gap-1 px-1 py-1">
+            <button
+              type="button"
+              onClick={toggleModules}
+              className="flex flex-1 items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
+            >
+              {modulesOpen ? (
+                <ChevronDown className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+              ) : (
+                <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+              )}
+              Modules
+            </button>
+            {/* The gear — per-user settings for the whole module shelf.
+                Renders nothing on pages without a module provider. */}
+            <ModuleSettings />
+          </div>
+          {modulesOpen ? <RailModules /> : null}
         </div>
       </div>
 
