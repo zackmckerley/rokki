@@ -29,36 +29,35 @@ All non-health routes require header `x-bridge-secret: $BRIDGE_SECRET`.
 | `PORT` | default 8080 |
 | `SIGNAL_CLI_PATH` | default `signal-cli` |
 
-## Deploy to Fly.io (Zack — the one new account)
+## Deploy
+
+Deploys run through **GitHub Actions** (`.github/workflows/deploy-signal-bridge.yml`)
+on every change to `apps/signal-bridge/**`, or manually via
+`gh workflow run deploy-signal-bridge.yml`. The build happens on **Fly's remote
+builders** — no Docker needed.
+
+### One-time bootstrap (from your machine, run once)
+Install + log in to flyctl → https://fly.io/docs/flyctl/install/ , then:
 ```bash
-# 1. one-time: install flyctl + log in
-#    https://fly.io/docs/flyctl/install/
-fly auth login
-
-# 2. from apps/signal-bridge/
-fly launch --no-deploy            # creates the app from fly.toml (keep the name)
-fly volumes create signal_data --size 1 -r iad   # persistent signal-cli session
-
-# 3. secrets
-fly secrets set \
+fly apps create rokki-signal-bridge
+fly volumes create signal_data --size 1 -r iad -a rokki-signal-bridge   # persists the signal-cli session
+fly secrets set -a rokki-signal-bridge \
   BRIDGE_SECRET="$(openssl rand -hex 32)" \
-  SUPABASE_URL="https://<prod-ref>.supabase.co" \
+  SUPABASE_URL="https://<ref>.supabase.co" \
   SUPABASE_SERVICE_ROLE_KEY="<service-role-key>"
-
-# 4. ship it
-fly deploy
-
-# 5. verify
-curl https://rokki-signal-bridge.fly.dev/health
+fly tokens create deploy -a rokki-signal-bridge   # → copy this, add to GitHub as FLY_API_TOKEN
+```
+Add the deploy token as the repo secret **`FLY_API_TOKEN`** (GitHub → Settings →
+Secrets and variables → Actions). Then trigger the first deploy:
+`gh workflow run deploy-signal-bridge.yml`. Verify:
+```bash
+curl https://rokki-signal-bridge.fly.dev/health   # {"ok":true,...}
 ```
 
-Then Rokki (Messages → Connect Signal) calls `/accounts/:userId/link`, shows the
-QR, you scan it from **Signal app → Settings → Linked Devices**, and your
-threads start syncing.
-
-> Keep `BRIDGE_SECRET` and the service-role key in Fly secrets only — never in
-> the repo. The `signal-cli` session lives on the mounted volume; treat that host
-> as holding decrypted message plaintext (the inherent E2E-bridge tradeoff).
+> Keep `BRIDGE_SECRET`, the service-role key, and the Fly token in their secret
+> stores only — never in the repo. The `signal-cli` session lives on the mounted
+> volume; treat that host as holding decrypted message plaintext (the inherent
+> E2E-bridge tradeoff).
 
 ## Local dev
 ```bash
