@@ -3,6 +3,7 @@
 import {
   Fragment,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -13,9 +14,10 @@ import {
 import { GripVertical, Maximize2, Minimize2, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PanelControlsProvider } from "./panel-handle";
-import { useModuleVisibility } from "./module-visibility";
+import { useModulePrefs } from "./module-visibility";
 import {
   DASH_LAYOUT_STORAGE_KEY,
+  DASH_PANEL_IDS,
   DEFAULT_DASH_LAYOUT,
   gridTemplate,
   movePanel,
@@ -23,6 +25,7 @@ import {
   type DashColumn,
   type DashLayout,
 } from "@/lib/dashboard-layout";
+import { presetToDashLayout, type DashLayoutPreset } from "@/lib/module-prefs";
 
 const TITLES: Record<string, string> = {
   week: "Week",
@@ -81,13 +84,23 @@ export function DashboardPanels({
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Minimized modules (shared with the explorer rail's Modules list).
-  // A minimized panel is dropped from the viewing area but kept in
-  // `layout`, so restoring it from the rail puts it back in its slot.
-  const vis = useModuleVisibility();
+  // Module prefs (shared with the explorer rail's Modules list + the
+  // settings gear). A minimized panel is dropped from the viewing area but
+  // kept in `layout`, so restoring it puts it back in its slot; a hidden
+  // module (#1) is dropped entirely until it's shown again.
+  const mods = useModulePrefs();
+  const activeIds = useMemo(
+    () =>
+      new Set<string>(
+        mods ? mods.visibleModules.map((m) => m.id) : [...DASH_PANEL_IDS],
+      ),
+    [mods],
+  );
   function visibleInCol(col: DashColumn): string[] {
-    const m = vis?.minimized;
-    return m ? layout[col].filter((id) => !m.has(id)) : layout[col];
+    const min = mods?.minimized;
+    return layout[col].filter(
+      (id) => activeIds.has(id) && !(min ? min.has(id) : false),
+    );
   }
 
   // Track the lg breakpoint so the dynamic inline styles (panel flex,
@@ -134,6 +147,27 @@ export function DashboardPanels({
       /* non-fatal */
     }
   }, [layout, weights, centerFrac, hydrated]);
+
+  // Apply the default-layout preset (#5) when the user changes it in the
+  // module settings gear. The first observed value is skipped so the saved
+  // drag arrangement wins on load — only an explicit preset change in
+  // settings rearranges the columns into the stacked/split shape.
+  const lastPreset = useRef<DashLayoutPreset | null>(null);
+  useEffect(() => {
+    if (!hydrated) return;
+    const preset = mods?.prefs.layout;
+    if (!preset) return;
+    if (lastPreset.current === null) {
+      lastPreset.current = preset;
+      return;
+    }
+    if (lastPreset.current !== preset) {
+      lastPreset.current = preset;
+      const order = mods?.prefs.order ?? [...DASH_PANEL_IDS];
+      setLayout(presetToDashLayout(preset, order));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mods?.prefs.layout, hydrated]);
 
   /* ---------------- drag-and-drop (rearrange) ---------------- */
   function endDrag() {
@@ -308,13 +342,13 @@ export function DashboardPanels({
   // Minimize — drops the panel out of the viewing area into the rail's
   // Modules list (click it there to bring it back).
   function panelMinBtn(id: string): ReactNode {
-    if (!vis) return null;
+    if (!mods) return null;
     return (
       <button
         type="button"
         onClick={() => {
           if (maximizedId === id) setMaximizedId(null);
-          vis.toggle(id);
+          mods.toggle(id);
         }}
         aria-label={`Minimize ${TITLES[id] ?? "panel"}`}
         title="Minimize"
