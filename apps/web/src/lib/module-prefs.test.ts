@@ -36,8 +36,6 @@ import {
   type ModulePrefs,
 } from "./module-prefs";
 
-const ID = { week: "week", tasks: "tasks", messages: "messages" } as const;
-
 function prefs(over: Partial<ModulePrefs> = {}): ModulePrefs {
   return { ...defaultModulePrefs(), ...over };
 }

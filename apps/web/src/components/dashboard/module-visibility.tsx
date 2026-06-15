@@ -22,8 +22,6 @@ import {
   modulePrefsEqual,
   orderedVisibleModules,
   hiddenModules as selectHiddenModules,
-  hideModule as pHide,
-  showModule as pShow,
   setModuleHidden as pSetHidden,
   toggleModuleHidden as pToggleHidden,
   moveModule as pMove,
