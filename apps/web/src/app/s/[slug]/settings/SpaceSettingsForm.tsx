@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Check, UserMinus, UserPlus, Mail } from "lucide-react";
 import { Avatar } from "@/components/primitives";
 import { cn } from "@/lib/utils";
+import { SettingsCard } from "@/components/settings/settings-ui";
 
 type SpaceRole = "owner" | "admin" | "member";
 
@@ -181,7 +182,10 @@ function IdentityCard({
     name.trim() !== initial.name || nextSlug.trim() !== initial.slug;
 
   return (
-    <Card title="Identity">
+    <Card
+      title="Identity"
+      description="Rename this space — the slug is part of every link to it."
+    >
       <form onSubmit={submit} className="flex flex-col gap-3 px-4 py-3">
         <LabelledInput
           label="Name"
@@ -274,6 +278,7 @@ function MembersCard({
   return (
     <Card
       title="Members"
+      description="People in this space and the role each one has."
       subtitle={`${members.length} ${members.length === 1 ? "person" : "people"}`}
     >
       <ul className="divide-y divide-border">
@@ -409,7 +414,11 @@ function InvitesCard({
   }
 
   return (
-    <Card title="Invitations" subtitle={`${invites.length} pending`}>
+    <Card
+      title="Invitations"
+      description="Invite people by email. Existing Rokki users are added right away; everyone else gets a magic link."
+      subtitle={`${invites.length} pending`}
+    >
       {canManage ? (
         <form
           onSubmit={submit}
@@ -505,22 +514,20 @@ function InvitesCard({
 function Card({
   title,
   subtitle,
+  description,
   children,
 }: {
   title: string;
   subtitle?: string;
+  description?: string;
   children: React.ReactNode;
 }) {
+  // Delegates to the shared settings card so the space page and the module
+  // settings page render the exact same component (one source of truth).
   return (
-    <section className="overflow-hidden rounded border border-border bg-bg-1">
-      <header className="flex items-center justify-between border-b border-border bg-bg-2 px-4 py-2 text-[10px] font-semibold uppercase tracking-wide text-text-3">
-        <span>{title}</span>
-        {subtitle ? (
-          <span className="normal-case text-text-3">{subtitle}</span>
-        ) : null}
-      </header>
+    <SettingsCard title={title} meta={subtitle} description={description}>
       {children}
-    </section>
+    </SettingsCard>
   );
 }
 

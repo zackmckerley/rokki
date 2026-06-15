@@ -7,7 +7,6 @@ import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
 import { cn } from "@/lib/utils";
 import { AccountBlock } from "@/components/AccountBlock";
 import { RailModules } from "./RailModules";
-import { ModuleSettings } from "./ModuleSettings";
 import { useModulePrefs } from "./module-visibility";
 import { COLLAPSED_SPACES_KEY } from "@/lib/recent-terminals";
 import {
@@ -603,9 +602,18 @@ export function ExplorerRail({
               )}
               Modules
             </button>
-            {/* The gear — per-user settings for the whole module shelf.
-                Renders nothing on pages without a module provider. */}
-            <ModuleSettings />
+            {/* The gear → the full Module settings page. Shown only on the
+                dashboard (where the module provider is mounted). */}
+            {modulePrefs ? (
+              <Link
+                href="/settings/modules"
+                aria-label="Module settings"
+                title="Module settings"
+                className="rounded-sm p-0.5 text-text-3 hover:bg-bg-3 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+              >
+                <Settings className="h-3 w-3" aria-hidden="true" />
+              </Link>
+            ) : null}
           </div>
           {modulesOpen ? <RailModules /> : null}
         </div>
