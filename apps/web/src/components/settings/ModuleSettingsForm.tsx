@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   Calendar,
   CheckSquare,
@@ -9,6 +10,7 @@ import {
   EyeOff,
   Plus,
   RotateCcw,
+  Settings2,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -25,6 +27,11 @@ const ICONS: Record<string, LucideIcon> = {
   week: Calendar,
   tasks: CheckSquare,
   messages: MessageSquare,
+};
+
+/** Modules with their own settings page get a Configure gear on their row. */
+const MODULE_SETTINGS_HREF: Record<string, string> = {
+  messages: "/settings/modules/messages",
 };
 
 const LAYOUT_OPTIONS: readonly { value: DashLayoutPreset; label: string }[] = [
@@ -89,6 +96,16 @@ export function ModuleSettingsForm() {
                 <span className="flex-1 truncate text-xs text-text-1">
                   {m.label}
                 </span>
+                {MODULE_SETTINGS_HREF[m.id] ? (
+                  <Link
+                    href={MODULE_SETTINGS_HREF[m.id]}
+                    aria-label={`${m.label} settings`}
+                    title="Configure"
+                    className="rounded-sm p-1 text-text-3 hover:bg-bg-3 hover:text-text-0"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Link>
+                ) : null}
                 <span className="flex items-center gap-2 text-2xs text-text-3">
                   Open on load
                   <Toggle
