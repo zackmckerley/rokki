@@ -87,14 +87,20 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Fast-forward production to main HEAD
         run: |
           git config user.name "rokki-deploy[bot]"
           git config user.email "deploy@rokki.ai"
-          git fetch origin main:main
-          git push origin main:production
+          # `ref: main` above already checked out main at its HEAD, so push
+          # that commit straight to the production branch. The previous
+          # `git fetch origin main:main` failed every run with
+          # "refusing to fetch into branch 'refs/heads/main' checked out".
+          # A non-fast-forward (a diverged production branch) is rejected
+          # here by design — promote a single feature via cherry-pick then.
+          git push origin HEAD:production
           echo "Pushed main → production. Vercel will auto-build."
 
   smoke-test-prod:
