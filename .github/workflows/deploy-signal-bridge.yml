@@ -1,0 +1,30 @@
+name: Deploy signal-bridge
+
+# Auto-deploys the Signal bridge to Fly.io whenever its code changes on main.
+# Builds on Fly's remote builders (no Docker in CI). One-time bootstrap (app +
+# volume + secrets + token) is done from your machine once — see
+# apps/signal-bridge/README.md. After that, this owns every deploy.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/signal-bridge/**"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-signal-bridge
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy → Fly.io
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy
+        working-directory: apps/signal-bridge
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only
