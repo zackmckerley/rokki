@@ -2,7 +2,7 @@
 # (Fly.io). Build context is this directory; run `pnpm build` first locally OR
 # let the image build it. signal-cli is a Java app from AsamK/signal-cli.
 
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 # Java runtime for signal-cli + tools to fetch it.
 RUN apt-get update \
