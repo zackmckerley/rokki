@@ -1,0 +1,23 @@
+app = "rokki-signal-bridge"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  SIGNAL_CLI_PATH = "signal-cli"
+
+# Always-on: the receive loop must keep running, so machines never auto-stop.
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+# Persistent volume for signal-cli's account/session data so the linked device
+# survives restarts. Create with: fly volumes create signal_data --size 1
+[mounts]
+  source = "signal_data"
+  destination = "/root/.local/share/signal-cli"
