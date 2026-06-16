@@ -88,7 +88,10 @@ async function bridgeFetch<T>(
 export function bridgeStartLink(userId: string): Promise<{ uri: string }> {
   return bridgeFetch<{ uri: string }>(
     `/accounts/${encodeURIComponent(userId)}/link`,
-    { method: "POST", timeoutMs: 25_000 },
+    // signal-cli spins a JVM, connects to Signal, and generates keys before it
+    // emits the device-link URI — usually ~5s, but a cold VM can take ~25s.
+    // Allow generous headroom so we never abort a link that's about to succeed.
+    { method: "POST", timeoutMs: 55_000 },
   );
 }
 

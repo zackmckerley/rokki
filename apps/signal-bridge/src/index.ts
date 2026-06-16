@@ -22,6 +22,20 @@ const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const SIGNAL_CLI = process.env.SIGNAL_CLI_PATH ?? "signal-cli";
 
+// JVM tuning for signal-cli, inherited by every spawn:
+//  - preferIPv4Stack: Fly resolves chat.signal.org to IPv6 too, and signal-cli
+//    tries IPv6 first and stalls ~20s before falling back — forcing IPv4 makes
+//    `link` return in ~5s instead of ~25s (the cause of the timeout).
+//  - egd=/dev/./urandom: seed from non-blocking urandom so key generation never
+//    blocks on a low-entropy container VM.
+process.env.JAVA_TOOL_OPTIONS = [
+  process.env.JAVA_TOOL_OPTIONS,
+  "-Djava.net.preferIPv4Stack=true",
+  "-Djava.security.egd=file:/dev/./urandom",
+]
+  .filter(Boolean)
+  .join(" ");
+
 const db = createClient(SUPABASE_URL, SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
@@ -52,19 +66,30 @@ function runSignalCli(args: string[]): Promise<string> {
  */
 function startLink(userId: string): Promise<string> {
   return new Promise((resolve, reject) => {
+    const t0 = Date.now();
+    console.log(`[link] spawn signal-cli for ${userId}`);
     const proc = spawn(SIGNAL_CLI, ["link", "-n", "Rokki"]);
     let gotUri = false;
-    proc.stdout.on("data", (d: Buffer) => {
-      const m = d.toString().match(/sgnl:\/\/linkdevice\S+/);
+    // Watch both streams: the URI prints to stdout, but logs go to stderr —
+    // capturing both makes failures legible and is robust if Signal moves it.
+    const scan = (d: Buffer, stream: "out" | "err") => {
+      const text = d.toString();
+      console.log(`[link] ${stream} +${Date.now() - t0}ms: ${text.slice(0, 240)}`);
+      const m = text.match(/sgnl:\/\/linkdevice\S+/);
       if (m && !gotUri) {
         gotUri = true;
+        console.log(`[link] got URI for ${userId} after ${Date.now() - t0}ms`);
         resolve(m[0]);
       }
-    });
+    };
+    proc.stdout.on("data", (d: Buffer) => scan(d, "out"));
+    proc.stderr.on("data", (d: Buffer) => scan(d, "err"));
     proc.on("error", (e) => {
+      console.log(`[link] spawn error: ${String(e)}`);
       if (!gotUri) reject(e);
     });
     proc.on("close", (code) => {
+      console.log(`[link] closed code=${code} gotUri=${gotUri} after ${Date.now() - t0}ms`);
       if (code === 0) {
         void db
           .from("signal_accounts")

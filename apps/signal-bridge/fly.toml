@@ -8,6 +8,13 @@ primary_region = "iad"
   PORT = "8080"
   SIGNAL_CLI_PATH = "signal-cli"
 
+# 1 GB gives the signal-cli JVM heap headroom. CPU isn't the bottleneck
+# (signal-cli cold-starts in ~2s), so the cheap shared CPU is fine — the link
+# hang was entropy, fixed in code with -Djava.security.egd.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+
 # Always-on: the receive loop must keep running, so machines never auto-stop.
 [http_service]
   internal_port = 8080

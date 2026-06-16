@@ -11,9 +11,9 @@ import { unauth, bridgeErrorResponse } from "@/lib/signal/responses";
  * the request body, so you can only link your own account.
  */
 
-// signal-cli boots a JVM and emits the device-link URI; give it headroom past
-// the default serverless timeout.
-export const maxDuration = 30;
+// signal-cli boots a JVM, connects to Signal, and emits the device-link URI;
+// give the serverless function headroom for a slow cold start (~25s worst case).
+export const maxDuration = 60;
 
 async function handlePost() {
   const supabase = await createClient();
