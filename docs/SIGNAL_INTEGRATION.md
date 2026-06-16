@@ -1,7 +1,8 @@
 # Signal integration — implementation instructions
 
-**Status:** Phase 0 **shipped** — the bridge is live on Fly.io
-(`https://rokki-signal-bridge.fly.dev/health`). Phase 1 **built** — Connect
+**Status:** Phase 0 **shipped** — the bridge is live on Fly.io at
+`https://bridge.rokki.ai` (custom domain; `https://rokki-signal-bridge.fly.dev`
+also works). Phase 1 **built** — Connect
 Signal lives in the Messages module settings (`/settings/modules/messages`):
 linking QR flow, status, disconnect, synced-thread count, send route. Remaining
 to go live: set `SIGNAL_BRIDGE_URL` + `SIGNAL_BRIDGE_SECRET` in Vercel, then link
@@ -13,8 +14,10 @@ Meetings + audio/video are wanted "if possible."
 > [!NOTE]
 > **Configuring Rokki → bridge (one-time, per environment).** The web app reaches
 > the bridge through two server-only env vars: `SIGNAL_BRIDGE_URL`
-> (`https://rokki-signal-bridge.fly.dev`) and `SIGNAL_BRIDGE_SECRET` (must equal
-> the bridge's `BRIDGE_SECRET`). Set both in Vercel (sandbox first). If they're
+> (`https://bridge.rokki.ai`) and `SIGNAL_BRIDGE_SECRET` (must equal the
+> bridge's `BRIDGE_SECRET`). Set both in Vercel for **Production *and* Preview**
+> — sandbox.rokki.ai builds from the `main` branch, which Vercel treats as a
+> Preview environment, so Production-only vars never reach it. If they're
 > blank, `/settings/modules/messages` shows a graceful "not set up yet" state
 > instead of erroring. The Connect-Signal UI only ever calls our own
 > `/api/v1/signal/*` routes — the secret never reaches the browser.
