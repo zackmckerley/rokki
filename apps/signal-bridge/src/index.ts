@@ -70,17 +70,21 @@ function startLink(userId: string): Promise<string> {
     console.log(`[link] spawn signal-cli for ${userId}`);
     const proc = spawn(SIGNAL_CLI, ["link", "-n", "Rokki"]);
     let gotUri = false;
+    let number: string | null = null;
     // Watch both streams: the URI prints to stdout, but logs go to stderr —
-    // capturing both makes failures legible and is robust if Signal moves it.
+    // capturing both makes failures legible and lets us grab the linked number
+    // ("Associated with: +1...") so we can start receiving for it.
     const scan = (d: Buffer, stream: "out" | "err") => {
       const text = d.toString();
       console.log(`[link] ${stream} +${Date.now() - t0}ms: ${text.slice(0, 240)}`);
-      const m = text.match(/sgnl:\/\/linkdevice\S+/);
-      if (m && !gotUri) {
+      const uri = text.match(/sgnl:\/\/linkdevice\S+/);
+      if (uri && !gotUri) {
         gotUri = true;
         console.log(`[link] got URI for ${userId} after ${Date.now() - t0}ms`);
-        resolve(m[0]);
+        resolve(uri[0]);
       }
+      const assoc = text.match(/Associated with:\s*(\+\d+)/);
+      if (assoc) number = assoc[1];
     };
     proc.stdout.on("data", (d: Buffer) => scan(d, "out"));
     proc.stderr.on("data", (d: Buffer) => scan(d, "err"));
@@ -89,12 +93,27 @@ function startLink(userId: string): Promise<string> {
       if (!gotUri) reject(e);
     });
     proc.on("close", (code) => {
-      console.log(`[link] closed code=${code} gotUri=${gotUri} after ${Date.now() - t0}ms`);
+      console.log(
+        `[link] closed code=${code} gotUri=${gotUri} number=${number} after ${Date.now() - t0}ms`,
+      );
       if (code === 0) {
-        void db
-          .from("signal_accounts")
-          .update({ status: "active", linked_at: new Date().toISOString() })
-          .eq("user_id", userId);
+        // NOTE: supabase-js queries are lazy — they only run when awaited or
+        // `.then()`d. The old `void db…update()` never executed, so the link
+        // completed on the phone but Rokki stayed on "linking". `.then()` runs
+        // it and logs the result.
+        db.from("signal_accounts")
+          .update({
+            status: "active",
+            signal_number: number,
+            linked_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId)
+          .then(({ error }) => {
+            console.log(
+              `[link] marked active for ${userId}${error ? ` — error: ${error.message}` : ""}`,
+            );
+          });
+        if (number) startReceiver(userId, number);
       } else if (!gotUri) {
         reject(new Error(`link ended (${code}) before emitting a URI`));
       }
