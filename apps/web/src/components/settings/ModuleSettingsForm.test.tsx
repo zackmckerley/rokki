@@ -52,12 +52,24 @@ describe("ModuleSettingsForm", () => {
     it("moves a module up and persists", () => {
       renderForm();
       fireEvent.click(screen.getByRole("button", { name: "Move Tasks up" }));
-      expect(readPrefs().order).toEqual(["tasks", "week", "messages"]);
+      expect(readPrefs().order).toEqual([
+        "tasks",
+        "week",
+        "messages",
+        "markets",
+        "goals",
+      ]);
     });
     it("moves a module down and persists", () => {
       renderForm();
       fireEvent.click(screen.getByRole("button", { name: "Move Schedule down" }));
-      expect(readPrefs().order).toEqual(["tasks", "week", "messages"]);
+      expect(readPrefs().order).toEqual([
+        "tasks",
+        "week",
+        "messages",
+        "markets",
+        "goals",
+      ]);
     });
     it("disables Move up on the first module", () => {
       renderForm();
@@ -68,7 +80,7 @@ describe("ModuleSettingsForm", () => {
     it("disables Move down on the last module", () => {
       renderForm();
       expect(
-        (screen.getByRole("button", { name: "Move Messages down" }) as HTMLButtonElement).disabled,
+        (screen.getByRole("button", { name: "Move Goals down" }) as HTMLButtonElement).disabled,
       ).toBe(true);
     });
   });
@@ -96,6 +108,8 @@ describe("ModuleSettingsForm", () => {
       fireEvent.click(screen.getByRole("button", { name: "Hide Schedule" }));
       fireEvent.click(screen.getByRole("button", { name: "Hide Tasks" }));
       fireEvent.click(screen.getByRole("button", { name: "Hide Messages" }));
+      fireEvent.click(screen.getByRole("button", { name: "Hide Markets" }));
+      fireEvent.click(screen.getByRole("button", { name: "Hide Goals" }));
       expect(screen.getByText(/All modules are hidden/i)).toBeTruthy();
     });
   });

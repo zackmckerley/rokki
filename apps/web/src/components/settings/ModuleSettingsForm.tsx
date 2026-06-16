@@ -5,6 +5,8 @@ import {
   Calendar,
   CheckSquare,
   MessageSquare,
+  TrendingUp,
+  Target,
   ChevronUp,
   ChevronDown,
   EyeOff,
@@ -27,6 +29,8 @@ const ICONS: Record<string, LucideIcon> = {
   week: Calendar,
   tasks: CheckSquare,
   messages: MessageSquare,
+  markets: TrendingUp,
+  goals: Target,
 };
 
 /** Modules with their own settings page get a Configure gear on their row. */

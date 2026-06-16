@@ -65,6 +65,8 @@ describe("DashboardPanels", () => {
         week={<div>WEEK_PANEL</div>}
         tasks={<div>TASKS_PANEL</div>}
         messages={<div>MESSAGES_PANEL</div>}
+        markets={<div>MARKETS_PANEL</div>}
+        goals={<div>GOALS_PANEL</div>}
       />,
     );
     expect(screen.getByText("BRIEFING")).toBeTruthy();
@@ -80,6 +82,8 @@ describe("DashboardPanels", () => {
         week={<HandleProbe />}
         tasks={<div>t</div>}
         messages={<div>m</div>}
+        markets={<div>mk</div>}
+        goals={<div>g</div>}
       />,
     );
     expect(screen.getByTestId("probe").textContent).toBe("has-handle");
@@ -100,6 +104,8 @@ describe("DashboardPanels", () => {
         week={<div>WEEK_PANEL</div>}
         tasks={<div>TASKS_PANEL</div>}
         messages={<div>MESSAGES_PANEL</div>}
+        markets={<div>MARKETS_PANEL</div>}
+        goals={<div>GOALS_PANEL</div>}
       />,
     );
     // Whatever the saved arrangement, no panel is ever lost.
@@ -119,6 +125,8 @@ describe("DashboardPanels", () => {
         week={<WeekProbe />}
         tasks={<div>t</div>}
         messages={<div>m</div>}
+        markets={<div>mk</div>}
+        goals={<div>g</div>}
       />,
     );
     const tasksPanel = () =>
@@ -149,6 +157,8 @@ describe("DashboardPanels", () => {
           week={<WeekProbe />}
           tasks={<div>TASKS_PANEL</div>}
           messages={<div>m</div>}
+        markets={<div>mk</div>}
+        goals={<div>g</div>}
         />
       </ModuleVisibilityProvider>,
     );
