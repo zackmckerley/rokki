@@ -4,9 +4,18 @@
 
 FROM node:22-bookworm-slim
 
-# Java runtime for signal-cli + tools to fetch it.
+# Java 21 runtime for signal-cli + tools to fetch it. signal-cli 0.13.x is
+# compiled for Java 21, but Debian bookworm only ships Java 17 — so pull the
+# JRE from Eclipse Temurin (Adoptium) instead of default-jre-headless.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends default-jre-headless ca-certificates wget \
+  && apt-get install -y --no-install-recommends wget gnupg ca-certificates \
+  && mkdir -p /etc/apt/keyrings \
+  && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public \
+       | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" \
+       > /etc/apt/sources.list.d/adoptium.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends temurin-21-jre \
   && rm -rf /var/lib/apt/lists/*
 
 # Pin signal-cli. Bump as new releases land (it tracks the Signal protocol).
