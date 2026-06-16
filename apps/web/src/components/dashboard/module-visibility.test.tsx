@@ -87,7 +87,9 @@ describe("ModulePrefs provider", () => {
         <Probe />
       </ModuleVisibilityProvider>,
     );
-    expect(screen.getByTestId("order").textContent).toBe("week,tasks,messages");
+    expect(screen.getByTestId("order").textContent).toBe(
+      "week,tasks,messages,markets,goals",
+    );
     expect(screen.getByTestId("layout").textContent).toBe("split");
     expect(screen.getByTestId("sync").textContent).toBe("false");
   });
@@ -100,7 +102,9 @@ describe("ModulePrefs provider", () => {
       </ModuleVisibilityProvider>,
     );
     await waitFor(() =>
-      expect(screen.getByTestId("order").textContent).toBe("messages,tasks,week"),
+      expect(screen.getByTestId("order").textContent).toBe(
+        "messages,tasks,week,markets,goals",
+      ),
     );
     expect(screen.getByTestId("layout").textContent).toBe("stacked");
   });
@@ -137,7 +141,13 @@ describe("ModulePrefs provider", () => {
       </ModuleVisibilityProvider>,
     );
     fireEvent.click(screen.getByText("move"));
-    expect(readPrefs().order).toEqual(["messages", "week", "tasks"]);
+    expect(readPrefs().order).toEqual([
+      "messages",
+      "week",
+      "tasks",
+      "markets",
+      "goals",
+    ]);
   });
 
   it("reset restores defaults but keeps sync", async () => {

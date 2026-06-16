@@ -10,7 +10,10 @@ import {
 describe("movePanel", () => {
   it("moves a panel from one column to another at an index", () => {
     const out = movePanel(DEFAULT_DASH_LAYOUT, "messages", "center", 1);
-    expect(out).toEqual({ center: ["week", "messages", "tasks"], right: [] });
+    expect(out).toEqual({
+      center: ["week", "messages", "tasks"],
+      right: ["markets", "goals"],
+    });
   });
 
   it("reorders within a column (down)", () => {
@@ -38,7 +41,7 @@ describe("movePanel", () => {
 describe("normalizeLayout", () => {
   it("returns the default-shaped layout when given nothing", () => {
     expect(normalizeLayout(null)).toEqual({
-      center: ["week", "tasks", "messages"],
+      center: ["week", "tasks", "messages", "markets", "goals"],
       right: [],
     });
   });
@@ -52,13 +55,22 @@ describe("normalizeLayout", () => {
       center: ["week", "ghost", "week"],
       right: ["messages", "tasks", "messages"],
     });
-    expect(out).toEqual({ center: ["week"], right: ["messages", "tasks"] });
+    expect(out).toEqual({
+      center: ["week", "markets", "goals"],
+      right: ["messages", "tasks"],
+    });
   });
 
   it("appends a missing known panel to center (nothing disappears)", () => {
     const out = normalizeLayout({ center: ["tasks"], right: ["messages"] });
     expect(out.center).toContain("week");
-    expect(flattenLayout(out).sort()).toEqual(["messages", "tasks", "week"]);
+    expect(flattenLayout(out).sort()).toEqual([
+      "goals",
+      "markets",
+      "messages",
+      "tasks",
+      "week",
+    ]);
   });
 });
 
