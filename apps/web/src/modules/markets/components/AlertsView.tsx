@@ -62,7 +62,7 @@ export function AlertsView({ initial }: { initial: MktAlertRow[] }) {
     <div className="space-y-4 p-2 sm:p-3">
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold text-text-0">Price Alerts</h1>
-        <Link href="/app/markets" className="text-xs text-text-2 hover:text-text-0">
+        <Link href="/modules/markets" className="text-xs text-text-2 hover:text-text-0">
           ← Dashboard
         </Link>
       </div>

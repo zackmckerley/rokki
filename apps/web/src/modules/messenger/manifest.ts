@@ -1,8 +1,8 @@
 /**
  * Messenger module manifest.
  *
- * Phase 0 stub. Phase 1 wraps the existing `apps/web/src/app/messages/`
- * page at `/app/messenger`, adds a space-scope view that shows channels
+ * Phase 0 stub. Phase 1 wraps the existing `apps/web/src/modules/messages/`
+ * page at `/modules/messenger`, adds a space-scope view that shows channels
  * per space, and a terminal-scope view that surfaces one thread per
  * terminal.
  */
@@ -15,7 +15,7 @@ export const messengerManifest: ModuleManifest = {
   icon: "message-square",
   scopes: ["user", "space", "terminal"],
   routes: {
-    user: "/app/messenger",
+    user: "/modules/messenger",
     space: "/s/[slug]/messages",
     terminal: "/p/[ticker]/messages",
   },

@@ -37,8 +37,8 @@ export interface FKeyPin {
  */
 const FIXED: Record<number, string | null> = {
   1: "/help",
-  2: "/app/tasks",
-  3: "/app/messenger",
+  2: "/modules/tasks",
+  3: "/modules/messenger",
   4: null,
 };
 

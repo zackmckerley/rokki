@@ -17,7 +17,7 @@ const TASKS: ModuleManifest = {
   icon: "check-square",
   scopes: ["user", "space", "terminal"],
   routes: {
-    user: "/app/tasks",
+    user: "/modules/tasks",
     space: "/s/[slug]/tasks",
     terminal: "/p/[ticker]/tasks",
   },
@@ -86,7 +86,7 @@ describe("module-registry", () => {
 
   it("resolves route for the right scope", () => {
     registerModule(TASKS);
-    expect(routeForScope(TASKS, "user")).toBe("/app/tasks");
+    expect(routeForScope(TASKS, "user")).toBe("/modules/tasks");
     expect(routeForScope(TASKS, "space")).toBe("/s/[slug]/tasks");
     expect(routeForScope(TASKS, "terminal")).toBe("/p/[ticker]/tasks");
   });

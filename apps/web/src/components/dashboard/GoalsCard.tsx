@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 /**
  * Dashboard Goals panel. Shows how many goal areas (categories) the viewer
  * can see across their spaces/terminals; the full per-scope logging view
- * lives at /app/goals. RLS scopes the count to what the user can already see.
+ * lives at /modules/goals. RLS scopes the count to what the user can already see.
  */
 export function GoalsCard() {
   const [count, setCount] = useState<number | null>(null);
@@ -33,7 +33,7 @@ export function GoalsCard() {
     <DashboardCard
       title="Goals"
       count={count ?? undefined}
-      expandHref="/app/goals"
+      expandHref="/modules/goals"
     >
       {count === null ? (
         <p className="px-3 py-4 text-center text-xs text-text-3">Loading…</p>
@@ -47,7 +47,7 @@ export function GoalsCard() {
           </p>
           <p className="text-xs text-text-3">Weekly targets with daily entries.</p>
           <Link
-            href="/app/goals"
+            href="/modules/goals"
             className="mt-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-xs text-text-1 hover:bg-bg-3"
           >
             Open Goals
@@ -67,7 +67,7 @@ function Empty() {
         Set weekly numeric targets and log daily progress.
       </p>
       <Link
-        href="/app/goals"
+        href="/modules/goals"
         className="mt-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-xs text-text-1 hover:bg-bg-3"
       >
         Open Goals

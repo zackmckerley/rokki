@@ -6,7 +6,7 @@ import { ScopedModuleShell } from "@/components/pane/ScopedModuleShell";
 import { DashboardCard } from "@/components/dashboard/DashboardCard";
 
 /**
- * `/app/goals` — user-aggregated Goals view.
+ * `/modules/goals` — user-aggregated Goals view.
  *
  * Lists every scope (space or terminal) the viewer has Goals data
  * for, with a count of goals at each. Each row deep-links into the

@@ -24,7 +24,7 @@ export default async function PortfolioPage({ params }: Props) {
     .select("*")
     .eq("id", id)
     .maybeSingle();
-  if (!portfolio) redirect("/app/markets");
+  if (!portfolio) redirect("/modules/markets");
 
   const { data: lots } = await db
     .from("mkt_lots")

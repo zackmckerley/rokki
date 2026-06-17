@@ -57,7 +57,7 @@ export function SymbolSearch({
     setQ("");
     setResults([]);
     if (onPick) onPick(symbol);
-    else router.push(`/app/markets/quote/${encodeURIComponent(symbol)}`);
+    else router.push(`/modules/markets/quote/${encodeURIComponent(symbol)}`);
   }
 
   function onKey(e: React.KeyboardEvent) {

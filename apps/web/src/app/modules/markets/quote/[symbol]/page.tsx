@@ -20,7 +20,7 @@ export default async function QuotePage({ params }: Props) {
   if (!user) redirect("/login");
 
   const symbol = normalizeSymbol(decodeURIComponent(raw));
-  if (!isValidSymbol(symbol)) redirect("/app/markets");
+  if (!isValidSymbol(symbol)) redirect("/modules/markets");
 
   let quote: Quote | null = null;
   let profile: CompanyProfile | null = null;

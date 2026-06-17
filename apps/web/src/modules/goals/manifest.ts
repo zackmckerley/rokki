@@ -4,7 +4,7 @@
  * Phase 0 stub. Phase 2 ports the standalone `Claude/rokki-goals/`
  * Next.js app into a first-class Rokki module: translate the JSON
  * store to Postgres tables with `space_id` / `terminal_id` columns,
- * mount routes at `/app/goals`, `/s/[slug]/goals`, `/p/[ticker]/goals`,
+ * mount routes at `/modules/goals`, `/s/[slug]/goals`, `/p/[ticker]/goals`,
  * and ship a one-off import script at
  * `Claude/rokki-goals/scripts/import-to-supabase.ts`.
  *
@@ -20,7 +20,7 @@ export const goalsManifest: ModuleManifest = {
   icon: "target",
   scopes: ["user", "space", "terminal"],
   routes: {
-    user: "/app/goals",
+    user: "/modules/goals",
     space: "/s/[slug]/goals",
     terminal: "/p/[ticker]/goals",
   },

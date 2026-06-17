@@ -12,7 +12,7 @@ import {
 /**
  * Dashboard Markets panel. Shows the viewer's personal watchlists with their
  * symbol counts; the full board (quotes, charts, portfolios, screener) lives
- * at /app/markets. Intentionally quote-free so it renders fine before the
+ * at /modules/markets. Intentionally quote-free so it renders fine before the
  * market-data API keys are configured.
  */
 export function MarketsCard() {
@@ -40,7 +40,7 @@ export function MarketsCard() {
     <DashboardCard
       title="Markets"
       count={watchlists.length || undefined}
-      expandHref="/app/markets"
+      expandHref="/modules/markets"
     >
       {loading && watchlists.length === 0 ? (
         <p className="px-3 py-4 text-center text-xs text-text-3">Loading…</p>
@@ -51,7 +51,7 @@ export function MarketsCard() {
           {watchlists.slice(0, 8).map((w) => (
             <li key={w.id}>
               <Link
-                href="/app/markets"
+                href="/modules/markets"
                 className="flex items-center gap-2 px-3 py-[var(--rk-row-py)] hover:bg-bg-2"
               >
                 <TrendingUp className="h-3 w-3 flex-shrink-0 text-success" />
@@ -77,7 +77,7 @@ function Empty() {
         Track quotes, charts, portfolios, and alerts.
       </p>
       <Link
-        href="/app/markets"
+        href="/modules/markets"
         className="mt-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-xs text-text-1 hover:bg-bg-3"
       >
         Open Markets
