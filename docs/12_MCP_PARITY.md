@@ -23,17 +23,24 @@ For each row:
 
 ## 12.2 Counts
 
-Last reconciled: 2026-04-27 against:
+Last reconciled: 2026-06-17 against:
 - `apps/web/src/app/api/v1/**/route.ts`
-- `apps/mcp-server/src/tools.ts`
+- `apps/mcp-server/src/tools.ts` + `markets-tools.ts`
 
 | Status | Count |
 |---|---|
-| Present | 35 |
+| Present | 44 |
 | Partial | 6 |
-| Missing | 35 |
-| UI-only | 16 |
-| **Total** | 92 |
+| Missing | 52 |
+| UI-only | 17 |
+| **Total** | 119 |
+
+> The 2026-06-17 reconcile added the **Markets** module: 27 rows (9 present,
+> 17 missing, 1 internal cron). A regression test —
+> `apps/web/src/lib/mcp-parity.test.ts` — now cross-checks the matrix against
+> the OpenAPI spec (every markets REST endpoint is documented and vice-versa)
+> and against the shipped `rokki_markets_*` tool set, so this section can't
+> silently drift from the code again.
 
 ## 12.3 Closing the gaps — recommended priority order
 
@@ -120,6 +127,27 @@ These improve agent UX but don't unblock new workflows.
 - **Specialized assignee tools** — `rokki_add_task_assignee`,
   `rokki_remove_task_assignee`. Currently set at create/update; explicit
   add/remove tools are nicer ergonomics for agents.
+
+### 12.3.4 Markets module
+
+Shipped 2026-06-16 with 22 REST endpoints and 9 MCP tools. The tools cover
+the core loop (quote, search, watchlist add/remove, portfolio add-lot +
+performance, alert list/create); the read-heavy data surface is the gap.
+
+- **High priority** — `rokki_markets_candles` (OHLC for trend analysis),
+  `rokki_markets_news` (recent headlines for a symbol), and
+  `rokki_markets_overview` (indices/sectors/commodities/FX snapshot). These
+  are the things an agent needs to actually reason about a position.
+- **Medium priority** — `rokki_markets_profile`, `rokki_markets_movers`,
+  `rokki_markets_financials`, `rokki_markets_calendar`,
+  `rokki_markets_screener`, list portfolios, and alert edit/delete
+  (`rokki_markets_alert_update` / `_delete`).
+- **Low priority** — batch quotes, watchlist rename/delete, portfolio
+  lifecycle (create/rename/delete), lot list/delete, `rokki_markets_fx`,
+  and options (REST is a paid-feed stub).
+
+The `/v1/cron/evaluate-price-alerts` endpoint is an internal scheduled job
+(CRON_SECRET auth) and is intentionally MCP-exempt — see §12.4.
 
 ## 12.4 Intentionally not exposed via MCP
 

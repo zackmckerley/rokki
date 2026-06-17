@@ -428,6 +428,390 @@ const schemas = {
   },
 
   EmptyObject: { type: "object", additionalProperties: false },
+
+  // -- Markets ------------------------------------------------------------
+  // Normalized, provider-agnostic shapes (see lib/markets/providers/types.ts)
+  // plus the persisted mkt_* rows (see lib/markets/db.ts). Markets responses
+  // use the standard `{ data: { … } }` envelope but with named inner keys
+  // (e.g. `{ data: { quote, cached } }`), so the path entries below wrap
+  // these schemas in inline objects rather than `dataResp(ref(...))`.
+
+  MktQuote: {
+    type: "object",
+    required: ["symbol", "price", "change", "changePct", "currency", "marketState", "asOf", "provider"],
+    properties: {
+      symbol: { type: "string" },
+      name: { type: "string" },
+      price: { type: "number" },
+      change: { type: "number" },
+      changePct: { type: "number" },
+      open: { type: "number", nullable: true },
+      high: { type: "number", nullable: true },
+      low: { type: "number", nullable: true },
+      prevClose: { type: "number", nullable: true },
+      volume: { type: "number", nullable: true },
+      marketCap: { type: "number", nullable: true },
+      peRatio: { type: "number", nullable: true },
+      week52High: { type: "number", nullable: true },
+      week52Low: { type: "number", nullable: true },
+      currency: { type: "string" },
+      exchange: { type: "string", nullable: true },
+      marketState: { type: "string", enum: ["pre", "open", "post", "closed", "unknown"] },
+      asOf: { type: "string", format: "date-time", description: "ISO timestamp the quote was sourced." },
+      provider: { type: "string" },
+    },
+  },
+
+  MktSymbolMatch: {
+    type: "object",
+    required: ["symbol", "name", "type"],
+    properties: {
+      symbol: { type: "string" },
+      name: { type: "string" },
+      exchange: { type: "string", nullable: true },
+      type: { type: "string", description: "Instrument type (stock, etf, crypto, fx, index, …)." },
+    },
+  },
+
+  MktCompanyProfile: {
+    type: "object",
+    required: ["symbol", "name", "currency", "provider"],
+    properties: {
+      symbol: { type: "string" },
+      name: { type: "string" },
+      exchange: { type: "string", nullable: true },
+      industry: { type: "string", nullable: true },
+      sector: { type: "string", nullable: true },
+      country: { type: "string", nullable: true },
+      currency: { type: "string" },
+      marketCap: { type: "number", nullable: true },
+      sharesOutstanding: { type: "number", nullable: true },
+      logo: { type: "string", nullable: true },
+      weburl: { type: "string", nullable: true },
+      ipo: { type: "string", nullable: true },
+      description: { type: "string", nullable: true },
+      beta: { type: "number", nullable: true },
+      dividendYield: { type: "number", nullable: true },
+      provider: { type: "string" },
+    },
+  },
+
+  MktCandle: {
+    type: "object",
+    required: ["time", "open", "high", "low", "close", "volume"],
+    properties: {
+      time: { type: "integer", description: "Unix seconds." },
+      open: { type: "number" },
+      high: { type: "number" },
+      low: { type: "number" },
+      close: { type: "number" },
+      volume: { type: "number" },
+    },
+  },
+
+  MktNewsItem: {
+    type: "object",
+    required: ["id", "headline", "source", "url", "datetime", "symbols"],
+    properties: {
+      id: { type: "string" },
+      headline: { type: "string" },
+      summary: { type: "string", nullable: true },
+      source: { type: "string" },
+      url: { type: "string" },
+      imageUrl: { type: "string", nullable: true },
+      datetime: { type: "string", format: "date-time" },
+      symbols: { type: "array", items: { type: "string" } },
+    },
+  },
+
+  MktFinancialReport: {
+    type: "object",
+    required: ["symbol", "statement", "currency", "periods", "provider"],
+    properties: {
+      symbol: { type: "string" },
+      statement: { type: "string", enum: ["income", "balance", "cash"] },
+      currency: { type: "string" },
+      periods: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["fiscalDate", "period", "lineItems"],
+          properties: {
+            fiscalDate: { type: "string", format: "date", description: "Fiscal period end." },
+            period: { type: "string", enum: ["Q", "FY"] },
+            lineItems: { type: "object", additionalProperties: { type: "number", nullable: true } },
+          },
+        },
+      },
+      provider: { type: "string" },
+    },
+  },
+
+  MktEarningsEvent: {
+    type: "object",
+    required: ["symbol", "date"],
+    properties: {
+      symbol: { type: "string" },
+      date: { type: "string", format: "date" },
+      hour: { type: "string", enum: ["bmo", "amc", "dmh"], nullable: true },
+      epsEstimate: { type: "number", nullable: true },
+      epsActual: { type: "number", nullable: true },
+      revenueEstimate: { type: "number", nullable: true },
+      revenueActual: { type: "number", nullable: true },
+    },
+  },
+
+  MktMover: {
+    type: "object",
+    required: ["symbol", "price", "change", "changePct"],
+    properties: {
+      symbol: { type: "string" },
+      name: { type: "string", nullable: true },
+      price: { type: "number" },
+      change: { type: "number" },
+      changePct: { type: "number" },
+      volume: { type: "number", nullable: true },
+    },
+  },
+
+  MktOverviewRow: {
+    type: "object",
+    required: ["symbol", "label", "price", "change", "changePct"],
+    properties: {
+      symbol: { type: "string" },
+      label: { type: "string" },
+      price: { type: "number" },
+      change: { type: "number" },
+      changePct: { type: "number" },
+    },
+  },
+
+  MktWatchlistSymbol: {
+    type: "object",
+    required: ["id", "watchlist_id", "symbol", "display_order", "added_at"],
+    properties: {
+      id: { type: "string", format: "uuid" },
+      watchlist_id: { type: "string", format: "uuid" },
+      symbol: { type: "string" },
+      display_order: { type: "integer" },
+      note: { type: "string", nullable: true },
+      added_at: { type: "string", format: "date-time" },
+    },
+  },
+
+  MktWatchlist: {
+    type: "object",
+    required: ["id", "name", "display_order", "created_by", "created_at"],
+    properties: {
+      id: { type: "string", format: "uuid" },
+      user_id: { type: "string", format: "uuid", nullable: true },
+      space_id: { type: "string", format: "uuid", nullable: true },
+      terminal_id: { type: "string", format: "uuid", nullable: true },
+      name: { type: "string", maxLength: 120 },
+      display_order: { type: "integer" },
+      created_by: { type: "string", format: "uuid" },
+      created_at: { type: "string", format: "date-time" },
+      archived_at: { type: "string", format: "date-time", nullable: true },
+      symbols: {
+        type: "array",
+        items: { $ref: "#/components/schemas/MktWatchlistSymbol" },
+        description: "Present on list/read; ordered by display_order.",
+      },
+    },
+  },
+
+  MktWatchlistCreate: {
+    type: "object",
+    required: ["name"],
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 120 },
+      scope: { type: "string", enum: ["user", "space", "terminal"], default: "user" },
+      scopeId: { type: "string", description: "Required when scope is space or terminal (the space/terminal id)." },
+    },
+  },
+
+  MktWatchlistPatch: {
+    type: "object",
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 120 },
+      display_order: { type: "integer" },
+    },
+  },
+
+  MktWatchlistSymbolCreate: {
+    type: "object",
+    required: ["symbol"],
+    properties: {
+      symbol: { type: "string" },
+      note: { type: "string", nullable: true, maxLength: 280 },
+    },
+  },
+
+  MktPortfolio: {
+    type: "object",
+    required: ["id", "name", "base_currency", "created_by", "created_at"],
+    properties: {
+      id: { type: "string", format: "uuid" },
+      user_id: { type: "string", format: "uuid", nullable: true },
+      space_id: { type: "string", format: "uuid", nullable: true },
+      terminal_id: { type: "string", format: "uuid", nullable: true },
+      name: { type: "string", maxLength: 120 },
+      base_currency: { type: "string", description: "ISO 4217, 3 letters." },
+      created_by: { type: "string", format: "uuid" },
+      created_at: { type: "string", format: "date-time" },
+      archived_at: { type: "string", format: "date-time", nullable: true },
+    },
+  },
+
+  MktPortfolioCreate: {
+    type: "object",
+    required: ["name"],
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 120 },
+      baseCurrency: { type: "string", default: "USD" },
+      scope: { type: "string", enum: ["user", "space", "terminal"], default: "user" },
+      scopeId: { type: "string", description: "Required when scope is space or terminal." },
+    },
+  },
+
+  MktPortfolioPatch: {
+    type: "object",
+    properties: {
+      name: { type: "string", minLength: 1, maxLength: 120 },
+      baseCurrency: { type: "string" },
+    },
+  },
+
+  MktLot: {
+    type: "object",
+    required: ["id", "portfolio_id", "symbol", "side", "quantity", "price", "fees", "trade_date", "created_at"],
+    properties: {
+      id: { type: "string", format: "uuid" },
+      portfolio_id: { type: "string", format: "uuid" },
+      symbol: { type: "string" },
+      side: { type: "string", enum: ["buy", "sell"] },
+      quantity: { type: "number" },
+      price: { type: "number" },
+      fees: { type: "number" },
+      trade_date: { type: "string", format: "date" },
+      note: { type: "string", nullable: true },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+
+  MktLotCreate: {
+    type: "object",
+    required: ["symbol", "side", "quantity", "price"],
+    properties: {
+      symbol: { type: "string" },
+      side: { type: "string", enum: ["buy", "sell"] },
+      quantity: { type: "number", exclusiveMinimum: 0 },
+      price: { type: "number", minimum: 0 },
+      fees: { type: "number", minimum: 0, default: 0 },
+      tradeDate: { type: "string", format: "date", description: "Defaults to today (UTC) if omitted." },
+      note: { type: "string", nullable: true, maxLength: 280 },
+    },
+  },
+
+  MktPositionPerformance: {
+    type: "object",
+    required: ["symbol", "quantity", "avgCost", "costBasis", "realizedPL"],
+    properties: {
+      symbol: { type: "string" },
+      quantity: { type: "number" },
+      avgCost: { type: "number" },
+      costBasis: { type: "number" },
+      realizedPL: { type: "number" },
+      price: { type: "number", nullable: true },
+      marketValue: { type: "number", nullable: true },
+      unrealizedPL: { type: "number", nullable: true },
+      unrealizedPct: { type: "number", nullable: true },
+      dayChange: { type: "number", nullable: true },
+      weight: { type: "number", nullable: true },
+    },
+  },
+
+  MktPortfolioPerformance: {
+    type: "object",
+    required: [
+      "positions",
+      "totalMarketValue",
+      "totalCostBasis",
+      "totalUnrealizedPL",
+      "totalRealizedPL",
+      "totalDayChange",
+      "unrealizedPct",
+    ],
+    properties: {
+      positions: { type: "array", items: { $ref: "#/components/schemas/MktPositionPerformance" } },
+      totalMarketValue: { type: "number" },
+      totalCostBasis: { type: "number" },
+      totalUnrealizedPL: { type: "number" },
+      totalRealizedPL: { type: "number" },
+      totalDayChange: { type: "number" },
+      unrealizedPct: { type: "number" },
+    },
+  },
+
+  MktAlert: {
+    type: "object",
+    required: ["id", "user_id", "symbol", "condition", "threshold", "active", "created_at"],
+    properties: {
+      id: { type: "string", format: "uuid" },
+      user_id: { type: "string", format: "uuid" },
+      symbol: { type: "string" },
+      condition: { type: "string", enum: ["price_above", "price_below", "pct_up", "pct_down"] },
+      threshold: { type: "number" },
+      active: { type: "boolean" },
+      note: { type: "string", nullable: true },
+      last_triggered_at: { type: "string", format: "date-time", nullable: true },
+      created_at: { type: "string", format: "date-time" },
+    },
+  },
+
+  MktAlertCreate: {
+    type: "object",
+    required: ["symbol", "condition", "threshold"],
+    properties: {
+      symbol: { type: "string" },
+      condition: { type: "string", enum: ["price_above", "price_below", "pct_up", "pct_down"] },
+      threshold: { type: "number" },
+      note: { type: "string", nullable: true, maxLength: 280 },
+    },
+  },
+
+  MktAlertPatch: {
+    type: "object",
+    properties: {
+      active: { type: "boolean" },
+      threshold: { type: "number" },
+      note: { type: "string", nullable: true, maxLength: 280 },
+    },
+  },
+
+  MktScreenerRequest: {
+    type: "object",
+    properties: {
+      universe: {
+        type: "array",
+        items: { type: "string" },
+        description: "Optional symbol universe (max 100). Defaults to the built-in screener universe.",
+      },
+      filters: {
+        type: "object",
+        properties: {
+          minPrice: { type: "number" },
+          maxPrice: { type: "number" },
+          minChangePct: { type: "number" },
+          maxChangePct: { type: "number" },
+          minMarketCap: { type: "number" },
+          maxMarketCap: { type: "number" },
+        },
+      },
+      sort: { type: "string", enum: ["changePct", "price", "marketCap"], default: "changePct" },
+      limit: { type: "integer", minimum: 1, maximum: 100, default: 50 },
+    },
+  },
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -1820,6 +2204,357 @@ const paths: Record<string, AnyRecord> = {
     patch: todoStub("PATCH", "Update an outgoing webhook"),
     delete: todoStub("DELETE", "Delete an outgoing webhook"),
   },
+
+  // -- Markets ------------------------------------------------------------
+  "/v1/markets/quote/{symbol}": {
+    get: op({
+      tags: ["markets"],
+      summary: "Get a normalized quote",
+      description: "Served from a 15s TTL cache so free-tier provider limits are respected.",
+      parameters: paramsFor("/v1/markets/quote/{symbol}"),
+      responses: dataResp({
+        type: "object",
+        required: ["quote", "cached"],
+        properties: { quote: ref("MktQuote"), cached: { type: "boolean" } },
+      }),
+    }),
+  },
+  "/v1/markets/quotes": {
+    get: op({
+      tags: ["markets"],
+      summary: "Batch quotes for a watchlist",
+      parameters: [
+        {
+          name: "symbols",
+          in: "query",
+          required: true,
+          schema: { type: "string" },
+          description: "Comma-separated symbols (max 100).",
+        },
+      ],
+      responses: dataResp({
+        type: "object",
+        required: ["quotes"],
+        properties: {
+          quotes: {
+            type: "object",
+            additionalProperties: ref("MktQuote"),
+            description: "Keyed by symbol.",
+          },
+        },
+      }),
+    }),
+  },
+  "/v1/markets/search": {
+    get: op({
+      tags: ["markets"],
+      summary: "Search symbols by name or ticker",
+      parameters: [{ name: "q", in: "query", required: true, schema: { type: "string" } }],
+      responses: dataResp({
+        type: "object",
+        required: ["matches"],
+        properties: { matches: { type: "array", items: ref("MktSymbolMatch") } },
+      }),
+    }),
+  },
+  "/v1/markets/watchlists": {
+    get: op({
+      tags: ["markets"],
+      summary: "List watchlists in a scope",
+      parameters: [
+        { name: "scope", in: "query", required: false, schema: { type: "string", enum: ["user", "space", "terminal"], default: "user" } },
+        { name: "scopeId", in: "query", required: false, schema: { type: "string" }, description: "Required when scope is space or terminal." },
+      ],
+      responses: dataResp({
+        type: "object",
+        required: ["watchlists"],
+        properties: { watchlists: { type: "array", items: ref("MktWatchlist") } },
+      }),
+    }),
+    post: op({
+      tags: ["markets"],
+      summary: "Create a watchlist",
+      requestBody: { required: true, content: { "application/json": { schema: ref("MktWatchlistCreate") } } },
+      responses: dataResp({ type: "object", required: ["watchlist"], properties: { watchlist: ref("MktWatchlist") } }, 201),
+    }),
+  },
+  "/v1/markets/watchlists/{id}": {
+    patch: op({
+      tags: ["markets"],
+      summary: "Rename or reorder a watchlist",
+      parameters: paramsFor("/v1/markets/watchlists/{id}"),
+      requestBody: { required: true, content: { "application/json": { schema: ref("MktWatchlistPatch") } } },
+      responses: dataResp({ type: "object", required: ["watchlist"], properties: { watchlist: ref("MktWatchlist") } }),
+    }),
+    delete: op({
+      tags: ["markets"],
+      summary: "Delete a watchlist",
+      parameters: paramsFor("/v1/markets/watchlists/{id}"),
+      responses: noContent,
+    }),
+  },
+  "/v1/markets/watchlists/{id}/symbols": {
+    post: op({
+      tags: ["markets"],
+      summary: "Add a symbol to a watchlist",
+      parameters: paramsFor("/v1/markets/watchlists/{id}"),
+      requestBody: { required: true, content: { "application/json": { schema: ref("MktWatchlistSymbolCreate") } } },
+      responses: dataResp({ type: "object", required: ["symbol"], properties: { symbol: ref("MktWatchlistSymbol") } }, 201),
+    }),
+    delete: op({
+      tags: ["markets"],
+      summary: "Remove a symbol from a watchlist",
+      parameters: [
+        ...paramsFor("/v1/markets/watchlists/{id}"),
+        { name: "symbol", in: "query", required: true, schema: { type: "string" } },
+      ],
+      responses: noContent,
+    }),
+  },
+  "/v1/markets/alerts": {
+    get: op({
+      tags: ["markets"],
+      summary: "List your price alerts",
+      responses: dataResp({ type: "object", required: ["alerts"], properties: { alerts: { type: "array", items: ref("MktAlert") } } }),
+    }),
+    post: op({
+      tags: ["markets"],
+      summary: "Create a price alert",
+      requestBody: { required: true, content: { "application/json": { schema: ref("MktAlertCreate") } } },
+      responses: dataResp({ type: "object", required: ["alert"], properties: { alert: ref("MktAlert") } }, 201),
+    }),
+  },
+  "/v1/markets/alerts/{id}": {
+    patch: op({
+      tags: ["markets"],
+      summary: "Toggle or modify a price alert",
+      parameters: paramsFor("/v1/markets/alerts/{id}"),
+      requestBody: { required: true, content: { "application/json": { schema: ref("MktAlertPatch") } } },
+      responses: dataResp({ type: "object", required: ["alert"], properties: { alert: ref("MktAlert") } }),
+    }),
+    delete: op({
+      tags: ["markets"],
+      summary: "Delete a price alert",
+      parameters: paramsFor("/v1/markets/alerts/{id}"),
+      responses: noContent,
+    }),
+  },
+  "/v1/markets/portfolios": {
+    get: op({
+      tags: ["markets"],
+      summary: "List portfolios in a scope",
+      parameters: [
+        { name: "scope", in: "query", required: false, schema: { type: "string", enum: ["user", "space", "terminal"], default: "user" } },
+        { name: "scopeId", in: "query", required: false, schema: { type: "string" }, description: "Required when scope is space or terminal." },
+      ],
+      responses: dataResp({ type: "object", required: ["portfolios"], properties: { portfolios: { type: "array", items: ref("MktPortfolio") } } }),
+    }),
+    post: op({
+      tags: ["markets"],
+      summary: "Create a portfolio",
+      requestBody: { required: true, content: { "application/json": { schema: ref("MktPortfolioCreate") } } },
+      responses: dataResp({ type: "object", required: ["portfolio"], properties: { portfolio: ref("MktPortfolio") } }, 201),
+    }),
+  },
+  "/v1/markets/portfolios/{id}": {
+    get: op({
+      tags: ["markets"],
+      summary: "Portfolio detail with live performance",
+      description: "Returns the portfolio, its lot ledger, and computed positions/P&L from live quotes.",
+      parameters: paramsFor("/v1/markets/portfolios/{id}"),
+      responses: dataResp({
+        type: "object",
+        required: ["portfolio", "lots", "performance"],
+        properties: {
+          portfolio: ref("MktPortfolio"),
+          lots: { type: "array", items: ref("MktLot") },
+          performance: ref("MktPortfolioPerformance"),
+        },
+      }),
+    }),
+    patch: op({
+      tags: ["markets"],
+      summary: "Rename a portfolio / change base currency",
+      parameters: paramsFor("/v1/markets/portfolios/{id}"),
+      requestBody: { required: true, content: { "application/json": { schema: ref("MktPortfolioPatch") } } },
+      responses: dataResp({ type: "object", required: ["portfolio"], properties: { portfolio: ref("MktPortfolio") } }),
+    }),
+    delete: op({
+      tags: ["markets"],
+      summary: "Delete a portfolio",
+      parameters: paramsFor("/v1/markets/portfolios/{id}"),
+      responses: noContent,
+    }),
+  },
+  "/v1/markets/portfolios/{id}/lots": {
+    get: op({
+      tags: ["markets"],
+      summary: "List trade lots in a portfolio",
+      parameters: paramsFor("/v1/markets/portfolios/{id}"),
+      responses: dataResp({ type: "object", required: ["lots"], properties: { lots: { type: "array", items: ref("MktLot") } } }),
+    }),
+    post: op({
+      tags: ["markets"],
+      summary: "Record a trade lot",
+      parameters: paramsFor("/v1/markets/portfolios/{id}"),
+      requestBody: { required: true, content: { "application/json": { schema: ref("MktLotCreate") } } },
+      responses: dataResp({ type: "object", required: ["lot"], properties: { lot: ref("MktLot") } }, 201),
+    }),
+  },
+  "/v1/markets/portfolios/{id}/lots/{lotId}": {
+    delete: op({
+      tags: ["markets"],
+      summary: "Delete a trade lot",
+      parameters: paramsFor("/v1/markets/portfolios/{id}/lots/{lotId}"),
+      responses: noContent,
+    }),
+  },
+  "/v1/markets/candles/{symbol}": {
+    get: op({
+      tags: ["markets"],
+      summary: "OHLC candle series for charts",
+      parameters: [
+        ...paramsFor("/v1/markets/candles/{symbol}"),
+        { name: "range", in: "query", required: false, schema: { type: "string", enum: ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "MAX"], default: "1Y" } },
+      ],
+      responses: dataResp({
+        type: "object",
+        required: ["symbol", "range", "candles"],
+        properties: { symbol: { type: "string" }, range: { type: "string" }, candles: { type: "array", items: ref("MktCandle") } },
+      }),
+    }),
+  },
+  "/v1/markets/news/{symbol}": {
+    get: op({
+      tags: ["markets"],
+      summary: "Recent company news",
+      parameters: [
+        ...paramsFor("/v1/markets/news/{symbol}"),
+        { name: "days", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 60, default: 7 } },
+      ],
+      responses: dataResp({ type: "object", required: ["items"], properties: { items: { type: "array", items: ref("MktNewsItem") } } }),
+    }),
+  },
+  "/v1/markets/profile/{symbol}": {
+    get: op({
+      tags: ["markets"],
+      summary: "Company profile / fundamentals header",
+      parameters: paramsFor("/v1/markets/profile/{symbol}"),
+      responses: dataResp({ type: "object", required: ["profile"], properties: { profile: ref("MktCompanyProfile") } }),
+    }),
+  },
+  "/v1/markets/movers": {
+    get: op({
+      tags: ["markets"],
+      summary: "Top gainers / losers / most-active",
+      parameters: [
+        { name: "type", in: "query", required: false, schema: { type: "string", enum: ["gainers", "losers", "active"], default: "gainers" } },
+      ],
+      responses: dataResp({
+        type: "object",
+        required: ["type", "movers"],
+        properties: { type: { type: "string" }, movers: { type: "array", items: ref("MktMover") } },
+      }),
+    }),
+  },
+  "/v1/markets/options/{symbol}": {
+    get: op({
+      tags: ["markets"],
+      summary: "Options chain (stub — paid feed required)",
+      description: "Returns supported:false on the free tier; structure is stable for when a paid feed is wired in.",
+      parameters: paramsFor("/v1/markets/options/{symbol}"),
+      responses: dataResp({
+        type: "object",
+        required: ["symbol", "supported", "expirations", "contracts"],
+        properties: {
+          symbol: { type: "string" },
+          supported: { type: "boolean" },
+          expirations: { type: "array", items: { type: "string" } },
+          contracts: { type: "array", items: { type: "object", additionalProperties: true } },
+          note: { type: "string" },
+        },
+      }),
+    }),
+  },
+  "/v1/markets/financials/{symbol}": {
+    get: op({
+      tags: ["markets"],
+      summary: "Financial statements",
+      description: "Cached 24h.",
+      parameters: [
+        ...paramsFor("/v1/markets/financials/{symbol}"),
+        { name: "statement", in: "query", required: false, schema: { type: "string", enum: ["income", "balance", "cash"], default: "income" } },
+      ],
+      responses: dataResp({ type: "object", required: ["report"], properties: { report: ref("MktFinancialReport") } }),
+    }),
+  },
+  "/v1/markets/overview": {
+    get: op({
+      tags: ["markets"],
+      summary: "Market overview board",
+      description: "Indices, sectors, commodities, and FX in one call.",
+      responses: dataResp({
+        type: "object",
+        required: ["indices", "sectors", "commodities", "fx"],
+        properties: {
+          indices: { type: "array", items: ref("MktOverviewRow") },
+          sectors: { type: "array", items: ref("MktOverviewRow") },
+          commodities: { type: "array", items: ref("MktOverviewRow") },
+          fx: { type: "array", items: ref("MktOverviewRow") },
+        },
+      }),
+    }),
+  },
+  "/v1/markets/calendar": {
+    get: op({
+      tags: ["markets"],
+      summary: "Earnings calendar",
+      parameters: [
+        { name: "from", in: "query", required: false, schema: { type: "string", format: "date" } },
+        { name: "to", in: "query", required: false, schema: { type: "string", format: "date" } },
+      ],
+      responses: dataResp({
+        type: "object",
+        required: ["from", "to", "events"],
+        properties: { from: { type: "string", format: "date" }, to: { type: "string", format: "date" }, events: { type: "array", items: ref("MktEarningsEvent") } },
+      }),
+    }),
+  },
+  "/v1/markets/screener": {
+    post: op({
+      tags: ["markets"],
+      summary: "Screen stocks by price / % change / market cap",
+      description: "Fundamental filters (P/E, yield) require a paid feed; this screens from free quotes.",
+      requestBody: { required: false, content: { "application/json": { schema: ref("MktScreenerRequest") } } },
+      responses: dataResp({
+        type: "object",
+        required: ["count", "results"],
+        properties: { count: { type: "integer" }, results: { type: "array", items: ref("MktQuote") }, note: { type: "string" } },
+      }),
+    }),
+  },
+  "/v1/markets/fx": {
+    get: op({
+      tags: ["markets"],
+      summary: "Convert a currency amount",
+      parameters: [
+        { name: "from", in: "query", required: true, schema: { type: "string" } },
+        { name: "to", in: "query", required: true, schema: { type: "string" } },
+        { name: "amount", in: "query", required: false, schema: { type: "number", default: 1 } },
+      ],
+      responses: dataResp({
+        type: "object",
+        required: ["from", "to", "rate", "amount", "converted"],
+        properties: {
+          from: { type: "string" },
+          to: { type: "string" },
+          rate: { type: "number" },
+          amount: { type: "number" },
+          converted: { type: "number" },
+        },
+      }),
+    }),
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -1860,6 +2595,7 @@ export const openApiDocument = {
     { name: "terminals", description: "Working contexts inside a space (a project, matter, client)." },
     { name: "tasks", description: "Tasks, subtasks, comments, assignees, watchers." },
     { name: "files", description: "Files and folders inside a terminal." },
+    { name: "markets", description: "Quotes, charts, watchlists, portfolios, alerts, and market data." },
     { name: "tools", description: "Marketplace tools and invocations." },
     { name: "approvals", description: "Approval requests for guarded actions." },
     { name: "comments", description: "Comments on any commentable target." },

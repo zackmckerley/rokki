@@ -37,6 +37,7 @@ export type Resource =
   | "terminals"
   | "tasks"
   | "files"
+  | "markets"
   | "folders"
   | "comments"
   | "members"
@@ -83,9 +84,9 @@ export interface ParityRow {
  * The audit. Add a row per API endpoint or MCP tool, sorted by
  * resource then by action.
  *
- * Last reconciled: 2026-04-27 against:
+ * Last reconciled: 2026-06-17 against:
  *   - apps/web/src/app/api/v1/**\/route.ts (REST surface)
- *   - apps/mcp-server/src/tools.ts (MCP tool registry)
+ *   - apps/mcp-server/src/tools.ts + markets-tools.ts (MCP tool registry)
  */
 export const PARITY_ROWS: ParityRow[] = [
   // ----- auth -----
@@ -932,6 +933,252 @@ export const PARITY_ROWS: ParityRow[] = [
     mcpTool: "rokki_draft_update",
     status: "present",
     note: "MCP-only — uses sampling. Intentional.",
+  },
+
+  // ----- markets -----
+  // The 9 shipped rokki_markets_* tools cover the core read/manage loop
+  // (quote, search, watchlist add/remove, portfolio add-lot + performance,
+  // alert list/create). The remaining data + management endpoints exist in
+  // REST but have no MCP equivalent yet — tracked here as the gap backlog.
+  {
+    resource: "markets",
+    action: "Get a quote",
+    apiEndpoints: ["GET /v1/markets/quote/:symbol"],
+    mcpTool: "rokki_markets_quote",
+    status: "present",
+    note: "",
+  },
+  {
+    resource: "markets",
+    action: "Batch quotes for a watchlist",
+    apiEndpoints: ["GET /v1/markets/quotes"],
+    mcpTool: null,
+    status: "missing",
+    note: "rokki_markets_quote fetches one symbol; no batch tool. Low priority — agents can loop.",
+    priority: "low",
+  },
+  {
+    resource: "markets",
+    action: "Search symbols",
+    apiEndpoints: ["GET /v1/markets/search"],
+    mcpTool: "rokki_markets_search",
+    status: "present",
+    note: "",
+  },
+  {
+    resource: "markets",
+    action: "List watchlists",
+    apiEndpoints: ["GET /v1/markets/watchlists"],
+    mcpTool: "rokki_markets_watchlists",
+    status: "present",
+    note: "",
+  },
+  {
+    resource: "markets",
+    action: "Add symbol to watchlist",
+    apiEndpoints: ["POST /v1/markets/watchlists", "POST /v1/markets/watchlists/:id/symbols"],
+    mcpTool: "rokki_markets_watchlist_add",
+    status: "present",
+    note: "Tool creates the watchlist if it doesn't exist, then adds the symbol.",
+  },
+  {
+    resource: "markets",
+    action: "Remove symbol from watchlist",
+    apiEndpoints: ["DELETE /v1/markets/watchlists/:id/symbols"],
+    mcpTool: "rokki_markets_watchlist_remove",
+    status: "present",
+    note: "",
+  },
+  {
+    resource: "markets",
+    action: "Rename / reorder watchlist",
+    apiEndpoints: ["PATCH /v1/markets/watchlists/:id"],
+    mcpTool: null,
+    status: "missing",
+    note: "Management action; no MCP tool. Low priority.",
+    priority: "low",
+  },
+  {
+    resource: "markets",
+    action: "Delete watchlist",
+    apiEndpoints: ["DELETE /v1/markets/watchlists/:id"],
+    mcpTool: null,
+    status: "missing",
+    note: "Management action; no MCP tool. Low priority.",
+    priority: "low",
+  },
+  {
+    resource: "markets",
+    action: "List portfolios",
+    apiEndpoints: ["GET /v1/markets/portfolios"],
+    mcpTool: null,
+    status: "missing",
+    note: "performance tool takes a portfolio by name and auto-creates; no explicit list tool.",
+    priority: "medium",
+  },
+  {
+    resource: "markets",
+    action: "Create / rename / delete portfolio",
+    apiEndpoints: [
+      "POST /v1/markets/portfolios",
+      "PATCH /v1/markets/portfolios/:id",
+      "DELETE /v1/markets/portfolios/:id",
+    ],
+    mcpTool: null,
+    status: "missing",
+    note: "add-lot auto-creates a portfolio; explicit lifecycle management is REST-only.",
+    priority: "low",
+  },
+  {
+    resource: "markets",
+    action: "Add a trade lot",
+    apiEndpoints: ["POST /v1/markets/portfolios", "POST /v1/markets/portfolios/:id/lots"],
+    mcpTool: "rokki_markets_portfolio_add_lot",
+    status: "present",
+    note: "Tool creates the portfolio if needed, then records the lot.",
+  },
+  {
+    resource: "markets",
+    action: "List / delete trade lots",
+    apiEndpoints: [
+      "GET /v1/markets/portfolios/:id/lots",
+      "DELETE /v1/markets/portfolios/:id/lots/:lotId",
+    ],
+    mcpTool: null,
+    status: "missing",
+    note: "Lot ledger editing is REST-only. Low priority.",
+    priority: "low",
+  },
+  {
+    resource: "markets",
+    action: "Portfolio performance",
+    apiEndpoints: ["GET /v1/markets/portfolios/:id"],
+    mcpTool: "rokki_markets_portfolio_performance",
+    status: "present",
+    note: "Computes positions + unrealized P/L from live quotes.",
+  },
+  {
+    resource: "markets",
+    action: "List price alerts",
+    apiEndpoints: ["GET /v1/markets/alerts"],
+    mcpTool: "rokki_markets_alerts",
+    status: "present",
+    note: "",
+  },
+  {
+    resource: "markets",
+    action: "Create price alert",
+    apiEndpoints: ["POST /v1/markets/alerts"],
+    mcpTool: "rokki_markets_alert_create",
+    status: "present",
+    note: "",
+  },
+  {
+    resource: "markets",
+    action: "Toggle / modify / delete alert",
+    apiEndpoints: ["PATCH /v1/markets/alerts/:id", "DELETE /v1/markets/alerts/:id"],
+    mcpTool: null,
+    status: "missing",
+    note: "Alert editing/removal is REST-only. Medium priority — agents create but can't tidy.",
+    priority: "medium",
+  },
+  {
+    resource: "markets",
+    action: "Candle / chart series",
+    apiEndpoints: ["GET /v1/markets/candles/:symbol"],
+    mcpTool: null,
+    status: "missing",
+    note: "No MCP tool to fetch OHLC for an agent to analyze trends. High priority.",
+    priority: "high",
+  },
+  {
+    resource: "markets",
+    action: "Company news",
+    apiEndpoints: ["GET /v1/markets/news/:symbol"],
+    mcpTool: null,
+    status: "missing",
+    note: "No MCP tool; agents can't pull recent headlines for a symbol. High priority.",
+    priority: "high",
+  },
+  {
+    resource: "markets",
+    action: "Company profile / fundamentals",
+    apiEndpoints: ["GET /v1/markets/profile/:symbol"],
+    mcpTool: null,
+    status: "missing",
+    note: "No MCP tool. Medium priority.",
+    priority: "medium",
+  },
+  {
+    resource: "markets",
+    action: "Market movers",
+    apiEndpoints: ["GET /v1/markets/movers"],
+    mcpTool: null,
+    status: "missing",
+    note: "No MCP tool for gainers/losers/active. Medium priority.",
+    priority: "medium",
+  },
+  {
+    resource: "markets",
+    action: "Financial statements",
+    apiEndpoints: ["GET /v1/markets/financials/:symbol"],
+    mcpTool: null,
+    status: "missing",
+    note: "No MCP tool. Medium priority.",
+    priority: "medium",
+  },
+  {
+    resource: "markets",
+    action: "Market overview board",
+    apiEndpoints: ["GET /v1/markets/overview"],
+    mcpTool: null,
+    status: "missing",
+    note: "Indices/sectors/commodities/FX snapshot has no MCP tool. High priority.",
+    priority: "high",
+  },
+  {
+    resource: "markets",
+    action: "Earnings calendar",
+    apiEndpoints: ["GET /v1/markets/calendar"],
+    mcpTool: null,
+    status: "missing",
+    note: "No MCP tool. Medium priority.",
+    priority: "medium",
+  },
+  {
+    resource: "markets",
+    action: "Stock screener",
+    apiEndpoints: ["POST /v1/markets/screener"],
+    mcpTool: null,
+    status: "missing",
+    note: "No MCP tool to screen by price/%/market-cap. Medium priority.",
+    priority: "medium",
+  },
+  {
+    resource: "markets",
+    action: "FX convert",
+    apiEndpoints: ["GET /v1/markets/fx"],
+    mcpTool: null,
+    status: "missing",
+    note: "No MCP tool. Low priority.",
+    priority: "low",
+  },
+  {
+    resource: "markets",
+    action: "Options chain",
+    apiEndpoints: ["GET /v1/markets/options/:symbol"],
+    mcpTool: null,
+    status: "missing",
+    note: "REST endpoint is a stub (paid feed required); no MCP tool. Low priority.",
+    priority: "low",
+  },
+  {
+    resource: "markets",
+    action: "Evaluate price alerts (scheduled)",
+    apiEndpoints: ["GET /v1/cron/evaluate-price-alerts", "POST /v1/cron/evaluate-price-alerts"],
+    mcpTool: null,
+    status: "admin-only",
+    note: "Internal cron job (CRON_SECRET auth) that fans triggered alerts into notifications. Not user-facing.",
   },
 ];
 
