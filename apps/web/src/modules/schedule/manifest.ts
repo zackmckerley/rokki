@@ -1,10 +1,10 @@
 /**
  * Schedule module manifest.
  *
- * Phase 0 stub. Phase 1 renames `apps/web/src/app/calendar/` →
- * `apps/web/src/app/schedule/` (with a redirect on the old path) and
- * wraps it in the pane shell at `/app/schedule`. The terminal-scope
- * route already exists at `apps/web/src/app/p/[ticker]/schedule/` and
+ * Phase 0 stub. Phase 1 renames `apps/web/src/modules/calendar/` →
+ * `apps/web/src/modules/schedule/` (with a redirect on the old path) and
+ * wraps it in the pane shell at `/modules/schedule`. The terminal-scope
+ * route already exists at `apps/web/src/modules/p/[ticker]/schedule/` and
  * just needs the manifest wrap.
  *
  * Space view (`/s/[slug]/schedule`) is new and aggregates events
@@ -20,7 +20,7 @@ export const scheduleManifest: ModuleManifest = {
   icon: "calendar",
   scopes: ["user", "space", "terminal"],
   routes: {
-    user: "/app/schedule",
+    user: "/modules/schedule",
     space: "/s/[slug]/schedule",
     terminal: "/p/[ticker]/schedule",
   },

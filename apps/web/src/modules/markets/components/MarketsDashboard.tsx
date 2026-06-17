@@ -182,19 +182,19 @@ export function MarketsDashboard({
           </Button>
         </div>
         <Link
-          href="/app/markets/overview"
+          href="/modules/markets/overview"
           className="text-xs text-text-2 hover:text-text-0"
         >
           Markets ↗
         </Link>
         <Link
-          href="/app/markets/screener"
+          href="/modules/markets/screener"
           className="text-xs text-text-2 hover:text-text-0"
         >
           Screener ↗
         </Link>
         <Link
-          href="/app/markets/alerts"
+          href="/modules/markets/alerts"
           className="text-xs text-text-2 hover:text-text-0"
         >
           Alerts ↗
@@ -253,7 +253,7 @@ export function MarketsDashboard({
                     <tr key={p.id} className="group hover:bg-bg-2">
                       <td className="px-3 py-1.5">
                         <Link
-                          href={`/app/markets/portfolio/${p.id}`}
+                          href={`/modules/markets/portfolio/${p.id}`}
                           className="font-semibold text-text-0 hover:underline"
                         >
                           {p.name}

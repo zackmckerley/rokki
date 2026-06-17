@@ -61,7 +61,7 @@ export function WatchlistPanel({
                 <tr key={s.id} className="group hover:bg-bg-2">
                   <td className="px-3 py-1">
                     <Link
-                      href={`/app/markets/quote/${encodeURIComponent(s.symbol)}`}
+                      href={`/modules/markets/quote/${encodeURIComponent(s.symbol)}`}
                       className="font-mono font-semibold text-accent hover:underline"
                     >
                       {s.symbol}

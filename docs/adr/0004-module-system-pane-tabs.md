@@ -47,7 +47,7 @@ A few specifics that come with this decision:
   pane shell renders when no specific module is loaded for a scope.
   Never appears in `modules_catalog`.
 - **User-aggregated views get separate URLs.** Each module's user view
-  is at `/app/<slug>` (e.g. `/app/goals`, `/app/tasks`). Not a single
+  is at `/modules/<slug>` (e.g. `/modules/goals`, `/modules/tasks`). Not a single
   dashboard with filter chips.
 - **Templates carry module lists.** Each project template in
   `apps/web/src/lib/project-templates.ts` declares the slugs it
@@ -87,8 +87,8 @@ default until each phase passes acceptance.
   then scope.** We need to make sure the URL structure and `⌘K`
   search make both flows feel native.
 - **Old routes stay for the duration of the rollout.** `/tasks`,
-  `/calendar`, `/messages` are alongside `/app/tasks`,
-  `/app/schedule`, `/app/messenger`. Deletion happens only after
+  `/calendar`, `/messages` are alongside `/modules/tasks`,
+  `/modules/schedule`, `/modules/messenger`. Deletion happens only after
   the flag has been on for staff for ≥1 week without issue.
 
 ## Rollback strategy
@@ -119,7 +119,7 @@ module on every scope clutters the tab strip and adds noise.
 
 **Modules as a top-level concept independent of scope (e.g. a "Goals"
 app that lists every space's goals).** Rejected as the primary surface:
-the user-aggregated views *do* exist (`/app/goals` etc.) but they're a
+the user-aggregated views *do* exist (`/modules/goals` etc.) but they're a
 secondary view, not the default. The default is "I'm in HELIOS, here's
 HELIOS's Goals."
 

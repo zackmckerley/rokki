@@ -14,7 +14,7 @@ beforeEach(() => {
     icon: "check-square",
     scopes: ["user", "space", "terminal"],
     routes: {
-      user: "/app/tasks",
+      user: "/modules/tasks",
       space: "/s/[slug]/tasks",
       terminal: "/p/[ticker]/tasks",
     },
@@ -54,7 +54,7 @@ describe("urlForSlug", () => {
   });
 
   it("returns user-scope route as-is", () => {
-    expect(urlForSlug("tasks", { kind: "user" })).toBe("/app/tasks");
+    expect(urlForSlug("tasks", { kind: "user" })).toBe("/modules/tasks");
   });
 
   it("returns null when manifest doesn't support the scope", () => {
@@ -76,11 +76,11 @@ describe("resolveFKey — fixed bindings", () => {
   it("F1 → /help (always)", () => {
     expect(resolveFKey("F1", { kind: "user" }, [])).toBe("/help");
   });
-  it("F2 → /app/tasks", () => {
-    expect(resolveFKey("F2", { kind: "user" }, [])).toBe("/app/tasks");
+  it("F2 → /modules/tasks", () => {
+    expect(resolveFKey("F2", { kind: "user" }, [])).toBe("/modules/tasks");
   });
-  it("F3 → /app/messenger", () => {
-    expect(resolveFKey("F3", { kind: "user" }, [])).toBe("/app/messenger");
+  it("F3 → /modules/messenger", () => {
+    expect(resolveFKey("F3", { kind: "user" }, [])).toBe("/modules/messenger");
   });
   it("F4 → null (Tools out of scope per locked decision #5)", () => {
     expect(resolveFKey("F4", { kind: "user" }, [])).toBeNull();

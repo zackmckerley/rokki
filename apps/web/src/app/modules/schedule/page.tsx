@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { paneShellEnabled } from "@/lib/featureFlags";
 
 /**
- * `/app/schedule` — Phase 1 redirect to the existing `/calendar`.
+ * `/modules/schedule` — Phase 1 redirect to the existing `/calendar`.
  *
  * The calendar page is feature-complete and already drives every
  * acceptance item for the Schedule module's user view. Rather than

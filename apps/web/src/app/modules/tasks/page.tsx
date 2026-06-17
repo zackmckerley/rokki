@@ -9,7 +9,7 @@ import {
 } from "@/lib/dashboard-queries";
 
 /**
- * `/app/tasks` — user-scope tasks landing for the new module system.
+ * `/modules/tasks` — user-scope tasks landing for the new module system.
  *
  * Reuses `TasksCard` so the data + interactions are identical to the
  * dashboard's tasks card. Wrapped in `ScopedModuleShell` so the

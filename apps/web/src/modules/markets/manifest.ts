@@ -8,13 +8,13 @@
  *
  * Opt-in (not `enabled_by_default` in `modules_catalog`); installed per
  * scope via the marketplace. Available at all three scopes:
- *   - user     → `/app/markets`        (your watchlists + portfolios)
+ *   - user     → `/modules/markets`        (your watchlists + portfolios)
  *   - space    → `/s/[slug]/markets`   (shared firm watchlists / comps)
  *   - terminal → `/p/[ticker]/markets` (per-deal public-comp tracking)
  *
  * NOTE: the terminal route uses `[ticker]` — that is the TERMINAL ticker
  * (terminals.ticker), not a stock symbol. Stock symbols live under
- * `/app/markets/quote/[symbol]`.
+ * `/modules/markets/quote/[symbol]`.
  */
 import type { ModuleManifest } from "@rokki/sdk";
 
@@ -27,7 +27,7 @@ export const marketsManifest: ModuleManifest = {
   scopes: ["user", "space", "terminal"],
   vertical: null,
   routes: {
-    user: "/app/markets",
+    user: "/modules/markets",
     space: "/s/[slug]/markets",
     terminal: "/p/[ticker]/markets",
   },
