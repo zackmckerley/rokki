@@ -93,6 +93,13 @@ export function bridgeStartLink(userId: string): Promise<{ uri: string }> {
 }
 
 /** Send a message on the user's behalf through their linked Signal account. */
+export interface SignalAttachmentRef {
+  storage_key: string;
+  content_type: string | null;
+  filename: string | null;
+  size: number | null;
+}
+
 export function bridgeSend(
   userId: string,
   payload: {
@@ -100,6 +107,7 @@ export function bridgeSend(
     signalId: string;
     kind: "direct" | "group";
     text: string;
+    attachments?: SignalAttachmentRef[];
   },
 ): Promise<{ ok: true }> {
   return bridgeFetch<{ ok: true }>(

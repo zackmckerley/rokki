@@ -2,6 +2,9 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { spawn, type ChildProcess } from "node:child_process";
 import { connect, type Socket } from "node:net";
+import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createClient } from "@supabase/supabase-js";
 
 /**
@@ -35,6 +38,11 @@ const BRIDGE_SECRET = process.env.BRIDGE_SECRET ?? "";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const SIGNAL_CLI = process.env.SIGNAL_CLI_PATH ?? "signal-cli";
+// signal-cli auto-downloads received attachments here; the Fly volume is mounted
+// at this path (see fly.toml [mounts]).
+const SIGNAL_DATA_HOME =
+  process.env.SIGNAL_DATA_HOME ?? "/root/.local/share/signal-cli";
+const MEDIA_BUCKET = process.env.SIGNAL_MEDIA_BUCKET ?? "signal-media";
 const RPC_HOST = "127.0.0.1";
 const RPC_PORT = Number(process.env.SIGNAL_RPC_PORT ?? 7583);
 
@@ -106,11 +114,18 @@ async function refreshAccountMap(): Promise<void> {
 interface RawGroup {
   groupId?: string;
 }
+interface RawAttachment {
+  id?: string;
+  contentType?: string;
+  filename?: string;
+  size?: number;
+}
 interface RawDataMessage {
   message?: string;
   timestamp?: number;
   groupInfo?: RawGroup;
   groupV2?: { id?: string };
+  attachments?: RawAttachment[];
 }
 interface RawSentMessage {
   message?: string;
@@ -120,6 +135,7 @@ interface RawSentMessage {
   destinationUuid?: string;
   groupInfo?: RawGroup;
   groupV2?: { id?: string };
+  attachments?: RawAttachment[];
 }
 interface RawEnvelope {
   source?: string;
@@ -148,6 +164,13 @@ const STATUS_RANK: Record<MsgStatus, number> = {
   failed: 0,
 };
 
+interface StoredAttachment {
+  storage_key: string;
+  content_type: string | null;
+  filename: string | null;
+  size: number | null;
+}
+
 interface InboundMessage {
   userId: string;
   signalId: string;
@@ -158,6 +181,10 @@ interface InboundMessage {
   externalId: string;
   sentAt: string;
   status: MsgStatus;
+  /** Already-uploaded attachment metadata (outbound sends). */
+  attachments?: StoredAttachment[];
+  /** signal-cli attachment refs to download from disk + upload (inbound). */
+  signalAttachments?: RawAttachment[];
 }
 
 const groupOf = (m: { groupInfo?: RawGroup; groupV2?: { id?: string } }): string | undefined =>
@@ -179,7 +206,11 @@ function toInbound(userId: string, evt: unknown): InboundMessage | null {
   const source = env.sourceNumber ?? env.source ?? env.sourceUuid ?? "unknown";
 
   const dm = env.dataMessage;
-  if (dm && typeof dm.message === "string" && dm.message.length > 0) {
+  const dmHasContent =
+    !!dm &&
+    ((typeof dm.message === "string" && dm.message.length > 0) ||
+      (dm.attachments?.length ?? 0) > 0);
+  if (dm && dmHasContent) {
     const groupId = groupOf(dm);
     const ts = dm.timestamp ?? env.timestamp;
     return {
@@ -188,15 +219,20 @@ function toInbound(userId: string, evt: unknown): InboundMessage | null {
       kind: groupId ? "group" : "direct",
       direction: "in",
       sender: source,
-      body: dm.message,
+      body: dm.message ?? "",
       externalId: String(ts ?? now),
       sentAt: iso(ts, now),
       status: "sent",
+      signalAttachments: dm.attachments,
     };
   }
 
   const sent = env.syncMessage?.sentMessage;
-  if (sent && typeof sent.message === "string" && sent.message.length > 0) {
+  const sentHasContent =
+    !!sent &&
+    ((typeof sent.message === "string" && sent.message.length > 0) ||
+      (sent.attachments?.length ?? 0) > 0);
+  if (sent && sentHasContent) {
     const groupId = groupOf(sent);
     const dest = sent.destinationNumber ?? sent.destination ?? sent.destinationUuid;
     const signalId = groupId ?? dest;
@@ -207,10 +243,11 @@ function toInbound(userId: string, evt: unknown): InboundMessage | null {
       kind: groupId ? "group" : "direct",
       direction: "out",
       sender: null,
-      body: sent.message,
+      body: sent.message ?? "",
       externalId: String(sent.timestamp ?? env.timestamp ?? now),
       sentAt: iso(sent.timestamp ?? env.timestamp, now),
       status: "sent",
+      signalAttachments: sent.attachments,
     };
   }
 
@@ -239,6 +276,14 @@ async function writeInbound(m: InboundMessage): Promise<void> {
     .maybeSingle();
   if (existing) return;
 
+  // Outbound sends arrive with attachments already uploaded; inbound receives
+  // carry signal-cli refs we read off disk + upload now.
+  const attachments =
+    m.attachments ??
+    (m.signalAttachments?.length
+      ? await uploadSignalAttachments(m.userId, threadId, m.signalAttachments)
+      : []);
+
   await db.from("signal_messages").insert({
     thread_id: threadId,
     user_id: m.userId,
@@ -248,7 +293,49 @@ async function writeInbound(m: InboundMessage): Promise<void> {
     body: m.body,
     sent_at: m.sentAt,
     status: m.status,
+    attachments,
   });
+}
+
+/** Read each received attachment off signal-cli's disk + upload to storage. */
+async function uploadSignalAttachments(
+  userId: string,
+  threadId: string,
+  atts: RawAttachment[],
+): Promise<StoredAttachment[]> {
+  const out: StoredAttachment[] = [];
+  for (const a of atts) {
+    if (!a.id) continue;
+    try {
+      const buf = await readFile(join(SIGNAL_DATA_HOME, "attachments", a.id));
+      const key = `${userId}/${threadId}/${a.id}`;
+      const { error } = await db.storage.from(MEDIA_BUCKET).upload(key, buf, {
+        contentType: a.contentType ?? "application/octet-stream",
+        upsert: true,
+      });
+      if (error) {
+        console.log(`[media] upload failed ${a.id}: ${error.message}`);
+        continue;
+      }
+      out.push({
+        storage_key: key,
+        content_type: a.contentType ?? null,
+        filename: a.filename ?? null,
+        size: a.size ?? buf.length,
+      });
+    } catch (e) {
+      console.log(`[media] read failed ${a.id}: ${String(e)}`);
+    }
+  }
+  return out;
+}
+
+/** A path-safe basename: strip any directory parts and exotic characters so a
+ *  user-supplied filename can't escape the temp dir or inject path separators. */
+function safeBasename(name: string | null | undefined, fallback: string): string {
+  const base = (name ?? "").split(/[/\\]/).pop() ?? "";
+  const cleaned = base.replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+/, "");
+  return cleaned || fallback;
 }
 
 /**
@@ -588,14 +675,47 @@ app.post("/accounts/:userId/send", async (c) => {
     signalId: string;
     kind: "direct" | "group";
     text: string;
+    attachments: StoredAttachment[];
   }>;
-  if (!body.signalNumber || !body.signalId || !body.text) {
-    return c.json({ error: "signalNumber, signalId and text are required" }, 400);
+  const text = body.text ?? "";
+  const atts = body.attachments ?? [];
+  if (!body.signalNumber || !body.signalId || (!text && atts.length === 0)) {
+    return c.json(
+      { error: "signalNumber, signalId and text or attachments are required" },
+      400,
+    );
   }
   const isGroup = body.kind === "group";
-  const params = isGroup
-    ? { account: body.signalNumber, groupId: body.signalId, message: body.text }
-    : { account: body.signalNumber, recipient: [body.signalId], message: body.text };
+
+  // signal-cli's send takes attachment FILE PATHS, so download each from
+  // storage to a temp file. (The web pre-uploaded them under the user's key.)
+  // Stage them inside a private per-send dir created with mkdtemp — it lands at
+  // an unpredictable path with 0700 perms, so other local users can't read the
+  // files and there's no predictable-name/symlink race in the shared temp dir.
+  const tempPaths: string[] = [];
+  let tempDir: string | null = null;
+  if (atts.length > 0) {
+    tempDir = await mkdtemp(join(tmpdir(), "rokki-signal-"));
+    for (const [i, a] of atts.entries()) {
+      try {
+        const { data, error } = await db.storage.from(MEDIA_BUCKET).download(a.storage_key);
+        if (error || !data) continue;
+        const buf = Buffer.from(await data.arrayBuffer());
+        const name = safeBasename(a.filename, `attachment-${i}`);
+        const p = join(tempDir, name);
+        await writeFile(p, buf);
+        tempPaths.push(p);
+      } catch (e) {
+        console.log(`[media] send download failed ${a.storage_key}: ${String(e)}`);
+      }
+    }
+  }
+
+  const base = isGroup
+    ? { account: body.signalNumber, groupId: body.signalId, message: text }
+    : { account: body.signalNumber, recipient: [body.signalId], message: text };
+  const params = tempPaths.length ? { ...base, attachments: tempPaths } : base;
+
   try {
     // The send result carries signal-cli's message timestamp — the id that
     // delivery/read receipts reference. Storing the REAL timestamp (not a
@@ -612,10 +732,11 @@ app.post("/accounts/:userId/send", async (c) => {
       kind: isGroup ? "group" : "direct",
       direction: "out",
       sender: null,
-      body: body.text,
+      body: text,
       externalId,
       sentAt: new Date().toISOString(),
       status: anyFail ? "failed" : "sent",
+      attachments: atts,
     });
     return c.json({ ok: true });
   } catch (e) {
@@ -623,6 +744,8 @@ app.post("/accounts/:userId/send", async (c) => {
     // "starting up" is transient (daemon booting) → 503 so the UI can retry.
     const status = msg.includes("starting up") ? 503 : 500;
     return c.json({ error: msg }, status);
+  } finally {
+    if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
 });
 

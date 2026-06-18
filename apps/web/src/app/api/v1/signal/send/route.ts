@@ -28,9 +28,18 @@ async function handlePost(request: NextRequest) {
     signalId?: string;
     kind?: "direct" | "group";
     text?: string;
+    attachments?: {
+      storage_key: string;
+      content_type: string | null;
+      filename: string | null;
+      size: number | null;
+    }[];
   };
   const text = typeof body.text === "string" ? body.text.trim() : "";
-  if (!body.signalId || !text) return bad("signalId and text are required");
+  const attachments = Array.isArray(body.attachments) ? body.attachments : [];
+  if (!body.signalId || (!text && attachments.length === 0)) {
+    return bad("signalId and text or attachments are required");
+  }
   const kind = body.kind === "group" ? "group" : "direct";
 
   const { data: account } = await supabase
@@ -52,6 +61,7 @@ async function handlePost(request: NextRequest) {
       signalId: body.signalId,
       kind,
       text,
+      attachments,
     });
     return NextResponse.json({ data: { ok: true } });
   } catch (e) {
