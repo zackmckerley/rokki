@@ -229,6 +229,82 @@ async function writeInbound(m: InboundMessage): Promise<void> {
   });
 }
 
+// ── contact / group directory sync ────────────────────────────────────────────
+
+interface RawContact {
+  number?: string;
+  uuid?: string;
+  name?: string;
+  profileName?: string;
+  profile?: { givenName?: string; familyName?: string };
+}
+interface RawGroupInfo {
+  id?: string;
+  name?: string;
+}
+
+function contactName(c: RawContact): string | null {
+  const profile = [c.profile?.givenName, c.profile?.familyName]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return c.name?.trim() || c.profileName?.trim() || profile || null;
+}
+
+/**
+ * Pull the account's Signal contacts + groups into signal_contacts (so Rokki
+ * can show names + offer a "new message" picker) and back-fill thread titles
+ * with the resolved names. Signal is the source of truth; this is a refresh.
+ */
+async function syncContacts(userId: string, number: string): Promise<void> {
+  try {
+    const [contacts, groups] = await Promise.all([
+      rpcCall<RawContact[]>("listContacts", { account: number }).catch(() => []),
+      rpcCall<RawGroupInfo[]>("listGroups", { account: number }).catch(() => []),
+    ]);
+    const now = new Date().toISOString();
+    const rows: {
+      user_id: string;
+      signal_id: string;
+      kind: "direct" | "group";
+      name: string | null;
+      updated_at: string;
+    }[] = [];
+    for (const c of contacts ?? []) {
+      const id = c.number ?? c.uuid;
+      if (!id) continue;
+      rows.push({ user_id: userId, signal_id: id, kind: "direct", name: contactName(c), updated_at: now });
+    }
+    for (const g of groups ?? []) {
+      if (!g.id) continue;
+      rows.push({ user_id: userId, signal_id: g.id, kind: "group", name: g.name?.trim() || null, updated_at: now });
+    }
+    if (rows.length === 0) return;
+    await db.from("signal_contacts").upsert(rows, { onConflict: "user_id,signal_id" });
+
+    // Back-fill titles on existing threads that now have a name.
+    const nameById = new Map(rows.map((r) => [r.signal_id, r.name]));
+    const { data: threads } = await db
+      .from("signal_threads")
+      .select("id, signal_id, title")
+      .eq("user_id", userId);
+    for (const t of (threads ?? []) as { id: string; signal_id: string; title: string | null }[]) {
+      const name = nameById.get(t.signal_id);
+      if (name && name !== t.title) {
+        await db.from("signal_threads").update({ title: name }).eq("id", t.id);
+      }
+    }
+    console.log(`[contacts] synced ${rows.length} for ${userId}`);
+  } catch (e) {
+    console.log(`[contacts] sync failed for ${userId}: ${String(e)}`);
+  }
+}
+
+/** Sync contacts for every active account (called once the RPC is ready). */
+async function syncAllContacts(): Promise<void> {
+  for (const [number, userId] of accountToUser) void syncContacts(userId, number);
+}
+
 // ── signal-cli daemon + JSON-RPC client ───────────────────────────────────────
 
 let daemon: ChildProcess | null = null;
@@ -280,6 +356,8 @@ function connectRpc(): void {
     rpcReady = true;
     rpcBuffer = "";
     console.log("[rpc] connected to daemon");
+    // The daemon is up — refresh each account's contact directory.
+    setTimeout(() => void syncAllContacts(), 1_000);
   });
   sock.on("data", (chunk: Buffer) => {
     rpcBuffer += chunk.toString();
@@ -479,6 +557,19 @@ app.post("/accounts/:userId/send", async (c) => {
     const status = msg.includes("starting up") ? 503 : 500;
     return c.json({ error: msg }, status);
   }
+});
+
+app.post("/accounts/:userId/sync", async (c) => {
+  const userId = c.req.param("userId");
+  const { data } = await db
+    .from("signal_accounts")
+    .select("signal_number")
+    .eq("user_id", userId)
+    .maybeSingle();
+  const number = (data as { signal_number?: string | null } | null)?.signal_number;
+  if (!number) return c.json({ error: "Signal isn't connected" }, 400);
+  await syncContacts(userId, number);
+  return c.json({ ok: true });
 });
 
 void (async () => {

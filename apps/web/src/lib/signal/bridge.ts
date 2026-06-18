@@ -109,3 +109,11 @@ export function bridgeSend(
     { method: "POST", body: payload, timeoutMs: 45_000 },
   );
 }
+
+/** Refresh the user's Signal contact + group directory into signal_contacts. */
+export function bridgeSyncContacts(userId: string): Promise<{ ok: true }> {
+  return bridgeFetch<{ ok: true }>(
+    `/accounts/${encodeURIComponent(userId)}/sync`,
+    { method: "POST", timeoutMs: 30_000 },
+  );
+}
