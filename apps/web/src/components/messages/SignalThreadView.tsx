@@ -40,7 +40,6 @@ export function SignalThreadView({
 }) {
   const [messages, setMessages] = useState<SignalMessage[]>([]);
   const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
   const [deletingConvo, setDeletingConvo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -76,9 +75,26 @@ export function SignalThreadView({
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
     const text = draft.trim();
-    if (!text || sending) return;
-    setSending(true);
+    if (!text) return;
+    // Optimistic: drop the bubble in and clear the box immediately so sending
+    // feels instant. The bridge persists it and the realtime insert reconciles
+    // this temp row to the stored one on the next load().
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: tempId,
+        direction: "out",
+        sender: null,
+        body: text,
+        sent_at: new Date().toISOString(),
+      },
+    ]);
+    setDraft("");
     setError(null);
+    requestAnimationFrame(() => {
+      scrollerRef.current?.scrollTo(0, scrollerRef.current.scrollHeight);
+    });
     try {
       const r = await fetch("/api/v1/signal/send", {
         method: "POST",
@@ -86,17 +102,17 @@ export function SignalThreadView({
         credentials: "include",
         body: JSON.stringify({ signalId, kind: signalKind, text }),
       });
-      if (r.ok) {
-        setDraft("");
-        await load();
-      } else {
+      if (!r.ok) {
+        // Roll back the optimistic bubble and surface the error.
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
         const b = (await r.json().catch(() => ({}))) as {
           errors?: { message: string }[];
         };
         setError(b.errors?.[0]?.message ?? "Couldn’t send.");
       }
-    } finally {
-      setSending(false);
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setError("Couldn’t send.");
     }
   }
 
@@ -223,18 +239,13 @@ export function SignalThreadView({
             onChange={(e) => setDraft(e.target.value)}
             placeholder={`Message ${label} on Signal`}
             className="flex-1 rounded-sm border border-border bg-bg-0 px-2 py-1.5 text-xs text-text-0 outline-none focus:border-border-focus"
-            disabled={sending}
           />
           <button
             type="submit"
-            disabled={!draft.trim() || sending}
+            disabled={!draft.trim()}
             className="flex items-center gap-1 rounded-sm bg-accent px-2 py-1 text-xs text-bg-0 disabled:opacity-40"
           >
-            {sending ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Send className="h-3 w-3" />
-            )}
+            <Send className="h-3 w-3" />
             Send
           </button>
         </div>
