@@ -2,10 +2,9 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { spawn, type ChildProcess } from "node:child_process";
 import { connect, type Socket } from "node:net";
-import { readFile, writeFile, unlink } from "node:fs/promises";
+import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 
 /**
@@ -329,6 +328,14 @@ async function uploadSignalAttachments(
     }
   }
   return out;
+}
+
+/** A path-safe basename: strip any directory parts and exotic characters so a
+ *  user-supplied filename can't escape the temp dir or inject path separators. */
+function safeBasename(name: string | null | undefined, fallback: string): string {
+  const base = (name ?? "").split(/[/\\]/).pop() ?? "";
+  const cleaned = base.replace(/[^A-Za-z0-9._-]/g, "_").replace(/^\.+/, "");
+  return cleaned || fallback;
 }
 
 /**
@@ -682,17 +689,25 @@ app.post("/accounts/:userId/send", async (c) => {
 
   // signal-cli's send takes attachment FILE PATHS, so download each from
   // storage to a temp file. (The web pre-uploaded them under the user's key.)
+  // Stage them inside a private per-send dir created with mkdtemp — it lands at
+  // an unpredictable path with 0700 perms, so other local users can't read the
+  // files and there's no predictable-name/symlink race in the shared temp dir.
   const tempPaths: string[] = [];
-  for (const a of atts) {
-    try {
-      const { data, error } = await db.storage.from(MEDIA_BUCKET).download(a.storage_key);
-      if (error || !data) continue;
-      const buf = Buffer.from(await data.arrayBuffer());
-      const tmp = join(tmpdir(), `rokki-signal-${randomUUID()}`);
-      await writeFile(tmp, buf);
-      tempPaths.push(tmp);
-    } catch (e) {
-      console.log(`[media] send download failed ${a.storage_key}: ${String(e)}`);
+  let tempDir: string | null = null;
+  if (atts.length > 0) {
+    tempDir = await mkdtemp(join(tmpdir(), "rokki-signal-"));
+    for (const [i, a] of atts.entries()) {
+      try {
+        const { data, error } = await db.storage.from(MEDIA_BUCKET).download(a.storage_key);
+        if (error || !data) continue;
+        const buf = Buffer.from(await data.arrayBuffer());
+        const name = safeBasename(a.filename, `attachment-${i}`);
+        const p = join(tempDir, name);
+        await writeFile(p, buf);
+        tempPaths.push(p);
+      } catch (e) {
+        console.log(`[media] send download failed ${a.storage_key}: ${String(e)}`);
+      }
     }
   }
 
@@ -730,7 +745,7 @@ app.post("/accounts/:userId/send", async (c) => {
     const status = msg.includes("starting up") ? 503 : 500;
     return c.json({ error: msg }, status);
   } finally {
-    for (const p of tempPaths) await unlink(p).catch(() => {});
+    if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(() => {});
   }
 });
 
