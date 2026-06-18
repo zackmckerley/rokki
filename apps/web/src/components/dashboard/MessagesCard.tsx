@@ -38,7 +38,6 @@ export function MessagesCard() {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<ThreadSummary | null>(null);
-  const [meId, setMeId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -55,20 +54,6 @@ export function MessagesCard() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  // One-shot: who am I, so native messages render mine-vs-theirs correctly.
-  useEffect(() => {
-    let alive = true;
-    void fetch("/api/v1/me", { credentials: "include" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((b: { data?: { user_id?: string } } | null) => {
-        if (alive && b?.data?.user_id) setMeId(b.data.user_id);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   useRealtimeTable<{ id: string }>(
     { table: "messages", channelKey: "dash:messages" },
@@ -102,7 +87,6 @@ export function MessagesCard() {
       {open ? (
         <ThreadQuickView
           thread={open}
-          meId={meId}
           onBack={() => {
             setOpen(null);
             void load();
@@ -153,11 +137,9 @@ interface QuickMessage {
 
 function ThreadQuickView({
   thread,
-  meId,
   onBack,
 }: {
   thread: ThreadSummary;
-  meId: string | null;
   onBack: () => void;
 }) {
   const isSignal = thread.source === "signal";
@@ -211,16 +193,16 @@ function ThreadQuickView({
       const b = (await r.json()) as {
         data?: {
           id: string;
-          author_id: string;
           body: string;
           created_at: string;
           author_name?: string;
+          is_mine?: boolean;
         }[];
       };
       setMessages(
         (b.data ?? []).map((m) => ({
           id: m.id,
-          mine: meId != null && m.author_id === meId,
+          mine: Boolean(m.is_mine),
           who: m.author_name ?? "someone",
           body: m.body,
           at: m.created_at,
@@ -228,7 +210,7 @@ function ThreadQuickView({
       );
     }
     scrollToEnd();
-  }, [isSignal, thread.id, meId, scrollToEnd]);
+  }, [isSignal, thread.id, scrollToEnd]);
 
   useEffect(() => {
     void load();

@@ -86,6 +86,7 @@ async function handleGet(_req: NextRequest, { params }: Props) {
   const decorated = rows.map((r) => ({
     ...r,
     author_name: nameById.get(r.author_id) ?? "someone",
+    is_mine: r.author_id === user.id,
     pinging_task: r.pinging_task_id ? taskById.get(r.pinging_task_id) ?? null : null,
   }));
 

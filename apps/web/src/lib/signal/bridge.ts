@@ -112,9 +112,14 @@ export function bridgeSend(
 ): Promise<{ ok: true }> {
   return bridgeFetch<{ ok: true }>(
     `/accounts/${encodeURIComponent(userId)}/send`,
-    // signal-cli cold-starts a JVM per send (~5–15s on the shared Fly VM), so
-    // allow well past the 15s default before giving up.
-    { method: "POST", body: payload, timeoutMs: 45_000 },
+    // The daemon makes sends fast, but with attachments the bridge also has to
+    // download each file from storage and stage it before signal-cli sends, so
+    // give extra headroom when any are attached.
+    {
+      method: "POST",
+      body: payload,
+      timeoutMs: payload.attachments?.length ? 90_000 : 45_000,
+    },
   );
 }
 

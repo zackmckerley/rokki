@@ -59,23 +59,22 @@ function installFetch() {
 
     if (url === "/api/v1/messages/threads" && method === "GET")
       return jsonRes({ data: THREADS });
-    if (url === "/api/v1/me") return jsonRes({ data: { user_id: "me" } });
     if (url === "/api/v1/messages/threads/t-rokki" && method === "GET")
       return jsonRes({
         data: [
           {
             id: "m1",
-            author_id: "carlos",
             body: "hey there",
             created_at: "2026-06-17T12:00:00Z",
             author_name: "Carlos",
+            is_mine: false,
           },
           {
             id: "m2",
-            author_id: "me",
             body: "yo",
             created_at: "2026-06-17T12:01:00Z",
             author_name: "Me",
+            is_mine: true,
           },
         ],
       });

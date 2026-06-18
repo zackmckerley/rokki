@@ -83,17 +83,28 @@ export function SignalThreadView({
   const [error, setError] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Temp ids of optimistic bubbles whose send is still in flight — a realtime
+  // reload must not wipe these before the stored row exists.
+  const inFlightRef = useRef<Set<string>>(new Set());
+  // Mirror of `pending` so the unmount cleanup can revoke any staged object URLs.
+  const pendingRef = useRef<PendingAttachment[]>([]);
+  pendingRef.current = pending;
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/v1/signal/threads/${threadId}`, {
       credentials: "include",
     });
-    if (!r.ok) {
-      setMessages([]);
-      return;
-    }
+    if (!r.ok) return; // transient — keep what we have rather than blanking
     const body = (await r.json()) as { data?: { messages?: SignalMessage[] } };
-    setMessages(body.data?.messages ?? []);
+    const server = body.data?.messages ?? [];
+    setMessages((prev) => {
+      // Preserve optimistic bubbles whose send hasn't resolved yet, so a
+      // realtime-triggered reload mid-send doesn't make the message vanish.
+      const keptTemps = prev.filter(
+        (m) => m.id.startsWith("temp-") && inFlightRef.current.has(m.id),
+      );
+      return [...server, ...keptTemps];
+    });
     requestAnimationFrame(() => {
       scrollerRef.current?.scrollTo(0, scrollerRef.current.scrollHeight);
     });
@@ -102,6 +113,17 @@ export function SignalThreadView({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // On unmount (pane closed / thread switched), revoke any object URLs still
+  // staged in the composer so we don't leak them.
+  useEffect(
+    () => () => {
+      for (const p of pendingRef.current) {
+        if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+      }
+    },
+    [],
+  );
 
   // Opening a direct conversation marks its inbound messages read (sends read
   // receipts so the other person sees ✓✓). Groups are skipped.
@@ -194,12 +216,23 @@ export function SignalThreadView({
         })),
       },
     ]);
+    inFlightRef.current.add(tempId);
     setDraft("");
     setPending([]);
     setError(null);
     requestAnimationFrame(() => {
       scrollerRef.current?.scrollTo(0, scrollerRef.current.scrollHeight);
     });
+    // Roll back the optimistic bubble and put the text + staged attachments back
+    // in the composer so the user can retry without re-typing or re-attaching.
+    // Keep the preview object URLs alive (the restored chips still need them);
+    // they're revoked on success, or on unmount if the draft is abandoned.
+    const rollback = () => {
+      inFlightRef.current.delete(tempId);
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setDraft((cur) => (cur ? cur : text));
+      setPending((cur) => [...atts, ...cur]);
+    };
     try {
       const r = await fetch("/api/v1/signal/send", {
         method: "POST",
@@ -218,18 +251,20 @@ export function SignalThreadView({
         }),
       });
       if (!r.ok) {
-        // Roll back the optimistic bubble and surface the error.
-        setMessages((prev) => prev.filter((m) => m.id !== tempId));
         const b = (await r.json().catch(() => ({}))) as {
           errors?: { message: string }[];
         };
+        rollback();
         setError(b.errors?.[0]?.message ?? "Couldn’t send.");
       } else {
-        // Drop the composer previews now that the message owns them.
+        // Sent: drop the now-owned previews and let the stored row replace the
+        // optimistic bubble on the next load (no longer in flight).
+        inFlightRef.current.delete(tempId);
         atts.forEach((a) => a.previewUrl && URL.revokeObjectURL(a.previewUrl));
+        void load();
       }
     } catch {
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      rollback();
       setError("Couldn’t send.");
     }
   }
