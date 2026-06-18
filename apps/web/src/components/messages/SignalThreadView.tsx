@@ -79,10 +79,14 @@ export function SignalThreadView({
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [deletingConvo, setDeletingConvo] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // dragenter/dragleave fire for every child element; count depth so the drop
+  // overlay only clears when the cursor truly leaves the pane.
+  const dragDepth = useRef(0);
   // Temp ids of optimistic bubbles whose send is still in flight — a realtime
   // reload must not wipe these before the stored row exists.
   const inFlightRef = useRef<Set<string>>(new Set());
@@ -147,10 +151,10 @@ export function SignalThreadView({
     { onInsert: () => void load(), onUpdate: () => void load() },
   );
 
-  async function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    // Let the same file be picked again later.
-    e.target.value = "";
+  // Stage files (from the paperclip picker OR a drag-and-drop) as pending
+  // attachments: upload each to /signal/media, then drop it in the composer
+  // ready to send. Used by both the file input and the drop handler.
+  async function uploadFiles(files: File[]) {
     if (files.length === 0) return;
     setError(null);
     setUploading(true);
@@ -180,6 +184,38 @@ export function SignalThreadView({
     } finally {
       setUploading(false);
     }
+  }
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = ""; // let the same file be picked again later
+    void uploadFiles(files);
+  }
+
+  // Drag-and-drop: drop a file anywhere on the conversation to auto-upload it.
+  function hasFiles(e: React.DragEvent) {
+    return Array.from(e.dataTransfer.types).includes("Files");
+  }
+  function onDragEnter(e: React.DragEvent) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  }
+  function onDragOver(e: React.DragEvent) {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); // required to allow the drop
+  }
+  function onDragLeave() {
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  }
+  function onDrop(e: React.DragEvent) {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    void uploadFiles(Array.from(e.dataTransfer.files));
   }
 
   function removePending(key: string) {
@@ -304,7 +340,13 @@ export function SignalThreadView({
   }
 
   return (
-    <>
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
       <header className="flex h-9 flex-shrink-0 items-center gap-2 border-b border-border bg-bg-0 px-3">
         <MessageSquare className="h-3 w-3 text-success" />
         <span className="text-xs text-text-1">{label}</span>
@@ -464,7 +506,15 @@ export function SignalThreadView({
           </button>
         </div>
       </form>
-    </>
+      {dragging ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-accent/60 bg-bg-0/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2 text-accent">
+            <Paperclip className="h-6 w-6" />
+            <span className="text-sm font-medium">Drop to attach</span>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
