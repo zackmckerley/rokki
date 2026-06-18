@@ -11,6 +11,7 @@ import {
   RefreshCw,
   MessageSquare,
   PenSquare,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
@@ -19,6 +20,12 @@ import { SignalThreadView } from "./SignalThreadView";
 import { SignalContactPicker } from "./SignalContactPicker";
 import { PresenceProvider } from "../presence/PresenceProvider";
 import { PresenceDot, PresenceLabel } from "../presence/PresenceDot";
+import {
+  useInboxView,
+  filterThreads,
+  InboxFilterBar,
+  UnreadBadge,
+} from "./inbox-prefs";
 
 interface ThreadSummary {
   id: string;
@@ -28,6 +35,7 @@ interface ThreadSummary {
   last_message_at: string;
   href_ticker?: string | null;
   other_user_id?: string | null;
+  unread?: number;
   signal_id?: string;
   signal_kind?: "direct" | "group";
 }
@@ -79,8 +87,10 @@ export function MessagesInbox() {
   const [statusSending, setStatusSending] = useState<string | null>(null);
   const [refreshingReminders, setRefreshingReminders] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const { filter, setFilter, hidden, hide, clearHidden } = useInboxView();
 
   const active = threads.find((t) => t.id === activeId) ?? null;
+  const { visible, hiddenInFilter } = filterThreads(threads, filter, hidden);
   // Signal threads load + send through a different pipeline (the bridge), so
   // the native message-load and realtime below skip them.
   const activeIsSignal = active?.source === "signal";
@@ -248,6 +258,12 @@ export function MessagesInbox() {
             <PenSquare className="h-3 w-3" />
           </button>
         </header>
+        <InboxFilterBar
+          filter={filter}
+          setFilter={setFilter}
+          hiddenCount={hiddenInFilter}
+          onShowHidden={clearHidden}
+        />
         {/* Reminders CTA — shows once until the user enables it; the
             refresh endpoint creates the thread + posts pings for the
             user's overdue / due-today tasks. After first run the
@@ -269,15 +285,20 @@ export function MessagesInbox() {
           </button>
         ) : null}
         <ul className="overflow-y-auto">
-          {threads.length === 0 ? (
+          {visible.length === 0 ? (
             <li className="px-3 py-6 text-center text-xs text-text-3">
-              No conversations yet.
+              {threads.length === 0 ? "No conversations yet." : "Nothing here."}
             </li>
           ) : (
-            threads.map((t) => (
-              <li key={t.id}>
+            visible.map((t) => (
+              <li key={t.id} className="group relative">
                 <button
-                  onClick={() => setActiveId(t.id)}
+                  onClick={() => {
+                    setThreads((prev) =>
+                      prev.map((x) => (x.id === t.id ? { ...x, unread: 0 } : x)),
+                    );
+                    setActiveId(t.id);
+                  }}
                   className={cn(
                     "flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-bg-2",
                     activeId === t.id && "bg-bg-2 text-text-0",
@@ -300,10 +321,30 @@ export function MessagesInbox() {
                   ) : (
                     <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
                   )}
-                  <span className="flex-1 truncate">{t.label}</span>
-                  <span className="font-mono text-[10px] text-text-3">
+                  <span
+                    className={cn(
+                      "flex-1 truncate",
+                      t.unread ? "font-semibold text-text-0" : undefined,
+                    )}
+                  >
+                    {t.label}
+                  </span>
+                  <UnreadBadge count={t.unread} />
+                  <span className="font-mono text-[10px] text-text-3 group-hover:opacity-0">
                     {formatRelative(t.last_message_at)}
                   </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    hide(t.id);
+                  }}
+                  aria-label={`Hide ${t.label}`}
+                  title="Hide from this list"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                >
+                  <X className="h-3 w-3" />
                 </button>
               </li>
             ))
