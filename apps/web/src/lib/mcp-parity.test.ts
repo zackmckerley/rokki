@@ -26,6 +26,9 @@ const SHIPPED_MARKETS_TOOLS = [
   "rokki_markets_portfolio_performance",
   "rokki_markets_alerts",
   "rokki_markets_alert_create",
+  "rokki_markets_news",
+  "rokki_markets_candles",
+  "rokki_markets_overview",
 ] as const;
 
 const HTTP_METHODS = new Set(["GET", "POST", "PATCH", "PUT", "DELETE"]);
@@ -111,7 +114,7 @@ describe("MCP ↔ REST parity matrix", () => {
     }
   });
 
-  it("all 9 shipped markets MCP tools are marked present in the matrix", () => {
+  it("all shipped markets MCP tools are marked present in the matrix", () => {
     const presentTools = new Set(
       marketsRows.filter((r) => r.status === "present").map((r) => r.mcpTool),
     );

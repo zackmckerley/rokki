@@ -29,14 +29,14 @@ Last reconciled: 2026-06-17 against:
 
 | Status | Count |
 |---|---|
-| Present | 44 |
+| Present | 47 |
 | Partial | 6 |
-| Missing | 52 |
+| Missing | 49 |
 | UI-only | 17 |
 | **Total** | 119 |
 
-> The 2026-06-17 reconcile added the **Markets** module: 27 rows (9 present,
-> 17 missing, 1 internal cron). A regression test —
+> The 2026-06-17 reconcile added the **Markets** module: 27 rows (12 present,
+> 14 missing, 1 internal cron). A regression test —
 > `apps/web/src/lib/mcp-parity.test.ts` — now cross-checks the matrix against
 > the OpenAPI spec (every markets REST endpoint is documented and vice-versa)
 > and against the shipped `rokki_markets_*` tool set, so this section can't
@@ -130,14 +130,15 @@ These improve agent UX but don't unblock new workflows.
 
 ### 12.3.4 Markets module
 
-Shipped 2026-06-16 with 22 REST endpoints and 9 MCP tools. The tools cover
-the core loop (quote, search, watchlist add/remove, portfolio add-lot +
-performance, alert list/create); the read-heavy data surface is the gap.
+Shipped 2026-06-16 with 22 REST endpoints and 9 MCP tools; the 2026-06-17
+backfill added 3 more (`candles`, `news`, `overview`) → 12 tools. They cover
+the core loop plus the high-priority read surface; medium/low data endpoints
+remain the gap.
 
-- **High priority** — `rokki_markets_candles` (OHLC for trend analysis),
-  `rokki_markets_news` (recent headlines for a symbol), and
-  `rokki_markets_overview` (indices/sectors/commodities/FX snapshot). These
-  are the things an agent needs to actually reason about a position.
+- **High priority — DONE (2026-06-17):** `rokki_markets_candles` (OHLC for
+  trend analysis), `rokki_markets_news` (recent headlines), and
+  `rokki_markets_overview` (indices + sectors snapshot). These are what an
+  agent needs to actually reason about a position.
 - **Medium priority** — `rokki_markets_profile`, `rokki_markets_movers`,
   `rokki_markets_financials`, `rokki_markets_calendar`,
   `rokki_markets_screener`, list portfolios, and alert edit/delete

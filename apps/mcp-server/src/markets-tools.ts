@@ -100,6 +100,107 @@ async function finnhubSearch(
   return (data.result ?? []).slice(0, 15);
 }
 
+interface FinnhubNewsRaw {
+  id: number;
+  headline: string;
+  summary: string;
+  source: string;
+  url: string;
+  datetime: number; // unix seconds
+}
+
+async function finnhubNews(symbol: string, days: number): Promise<FinnhubNewsRaw[]> {
+  const token = process.env.FINNHUB_API_KEY;
+  if (!token) return [];
+  const to = new Date();
+  const from = new Date(to.getTime() - days * 86400_000);
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  const res = await fetch(
+    `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(symbol)}` +
+      `&from=${fmt(from)}&to=${fmt(to)}&token=${token}`,
+  );
+  if (!res.ok) return [];
+  const items = (await res.json()) as FinnhubNewsRaw[];
+  return Array.isArray(items) ? items : [];
+}
+
+type CandleRange = "1D" | "5D" | "1M" | "6M" | "YTD" | "1Y" | "5Y" | "MAX";
+const CANDLE_RANGES: CandleRange[] = ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "MAX"];
+
+/** Map a UI range to Twelve Data (interval, outputsize) — mirrors the web
+ *  app's twelvedata provider so MCP and UI return comparable series. */
+function rangeToParams(range: CandleRange): { interval: string; outputsize: string } {
+  switch (range) {
+    case "1D":
+      return { interval: "5min", outputsize: "78" };
+    case "5D":
+      return { interval: "30min", outputsize: "65" };
+    case "1M":
+      return { interval: "1day", outputsize: "22" };
+    case "6M":
+      return { interval: "1day", outputsize: "130" };
+    case "YTD":
+    case "1Y":
+      return { interval: "1day", outputsize: "260" };
+    case "5Y":
+      return { interval: "1week", outputsize: "260" };
+    case "MAX":
+      return { interval: "1month", outputsize: "360" };
+  }
+}
+
+interface TDCandleRaw {
+  datetime: string;
+  open: string;
+  high: string;
+  low: string;
+  close: string;
+  volume?: string;
+}
+
+/** Returns oldest-first candles, or null if TWELVEDATA_API_KEY is missing /
+ *  the provider errors (caller distinguishes null = unavailable). */
+async function twelveCandles(
+  symbol: string,
+  range: CandleRange,
+): Promise<{ time: number; close: number; high: number; low: number }[] | null> {
+  const token = process.env.TWELVEDATA_API_KEY;
+  if (!token) return null;
+  const { interval, outputsize } = rangeToParams(range);
+  const res = await fetch(
+    `https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(symbol)}` +
+      `&interval=${interval}&outputsize=${outputsize}&apikey=${token}`,
+  );
+  if (!res.ok) return null;
+  const data = (await res.json()) as { status?: string; values?: TDCandleRaw[] };
+  if (data.status === "error" || !data.values) return null;
+  // Twelve Data returns newest-first; we want oldest-first.
+  return data.values
+    .slice()
+    .reverse()
+    .map((v) => ({
+      time: Math.floor(new Date(v.datetime).getTime() / 1000),
+      close: Number(v.close),
+      high: Number(v.high),
+      low: Number(v.low),
+    }))
+    .filter((c) => !Number.isNaN(c.close));
+}
+
+/** Liquid ETF proxies for indices + sectors — quote cleanly on free tiers.
+ *  Mirrors a subset of lib/markets/overview.ts (kept local; that file is
+ *  server-only and lives in the web package). */
+const OVERVIEW_SYMBOLS: { symbol: string; label: string }[] = [
+  { symbol: "SPY", label: "S&P 500" },
+  { symbol: "QQQ", label: "Nasdaq 100" },
+  { symbol: "DIA", label: "Dow 30" },
+  { symbol: "IWM", label: "Russell 2000" },
+  { symbol: "XLK", label: "Technology" },
+  { symbol: "XLF", label: "Financials" },
+  { symbol: "XLE", label: "Energy" },
+  { symbol: "XLV", label: "Health Care" },
+];
+
 const sym = (v: unknown) => String(v ?? "").trim().toUpperCase();
 
 // ── tools ──────────────────────────────────────────────────────────────────
@@ -484,6 +585,116 @@ export const marketsTools: ToolDefinition[] = [
       });
       if (error) return textResult(`Could not create alert: ${error.message}`, true);
       return textResult(`Alert set: ${symbol} ${condition} ${threshold}.`);
+    },
+  },
+
+  {
+    name: "rokki_markets_news",
+    description:
+      "Get recent company news headlines for a stock symbol (last N days, default 7).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", description: "Stock symbol, e.g. AAPL." },
+        days: {
+          type: "number",
+          minimum: 1,
+          maximum: 60,
+          description: "Look-back window in days (default 7).",
+        },
+      },
+      required: ["symbol"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      const symbol = sym(args.symbol);
+      if (!symbol) return textResult("symbol is required.", true);
+      const days = Math.min(Math.max(Number(args.days ?? 7) || 7, 1), 60);
+      const items = await finnhubNews(symbol, days);
+      if (items.length === 0)
+        return textResult(
+          `No recent news for ${symbol} (or FINNHUB_API_KEY not configured).`,
+        );
+      const lines = items.slice(0, 10).map((n) => {
+        const d = new Date(n.datetime * 1000).toISOString().slice(0, 10);
+        return `• [${d}] ${n.headline} — ${n.source}`;
+      });
+      return textResult(`Recent news for ${symbol} (last ${days}d):\n${lines.join("\n")}`);
+    },
+  },
+
+  {
+    name: "rokki_markets_candles",
+    description:
+      "Get an OHLC price-history summary for a symbol over a range (1D, 5D, 1M, 6M, YTD, 1Y, 5Y, MAX) — for trend analysis.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        symbol: { type: "string", description: "Stock symbol, e.g. AAPL." },
+        range: {
+          type: "string",
+          enum: ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "MAX"],
+          description: "Time range (default 1Y).",
+        },
+      },
+      required: ["symbol"],
+      additionalProperties: false,
+    },
+    handler: async (args) => {
+      const symbol = sym(args.symbol);
+      if (!symbol) return textResult("symbol is required.", true);
+      const range: CandleRange = CANDLE_RANGES.includes(args.range as CandleRange)
+        ? (args.range as CandleRange)
+        : "1Y";
+      const candles = await twelveCandles(symbol, range);
+      if (candles === null)
+        return textResult(
+          "Candle history needs TWELVEDATA_API_KEY (not configured).",
+          true,
+        );
+      if (candles.length === 0)
+        return textResult(`No candle data for ${symbol}.`, true);
+      const first = candles[0]!;
+      const last = candles[candles.length - 1]!;
+      const hi = Math.max(...candles.map((c) => c.high));
+      const lo = Math.min(...candles.map((c) => c.low));
+      const chg = last.close - first.close;
+      const chgPct = first.close !== 0 ? (chg / first.close) * 100 : 0;
+      const sign = chg >= 0 ? "+" : "";
+      return textResult(
+        `${symbol} ${range}: ${candles.length} bars. ` +
+          `Close ${first.close.toFixed(2)} → ${last.close.toFixed(2)} ` +
+          `(${sign}${chg.toFixed(2)}, ${sign}${chgPct.toFixed(2)}%). ` +
+          `Range high ${hi.toFixed(2)} · low ${lo.toFixed(2)}.`,
+      );
+    },
+  },
+
+  {
+    name: "rokki_markets_overview",
+    description:
+      "Snapshot of major market indices and sectors (price + day change) for a quick read on market conditions.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    handler: async () => {
+      const rows = await Promise.all(
+        OVERVIEW_SYMBOLS.map(async ({ symbol, label }) => {
+          const q = await finnhubQuote(symbol);
+          if (!q) return { label, symbol, ok: false, line: `• ${label} (${symbol}): n/a` };
+          const s = (q.dp ?? 0) >= 0 ? "+" : "";
+          return {
+            label,
+            symbol,
+            ok: true,
+            line: `• ${label} (${symbol}): $${q.c.toFixed(2)} ${s}${(q.dp ?? 0).toFixed(2)}%`,
+          };
+        }),
+      );
+      if (!rows.some((r) => r.ok))
+        return textResult(
+          "Market overview unavailable (FINNHUB_API_KEY not configured).",
+          true,
+        );
+      return textResult(`Market overview:\n${rows.map((r) => r.line).join("\n")}`);
     },
   },
 ];
