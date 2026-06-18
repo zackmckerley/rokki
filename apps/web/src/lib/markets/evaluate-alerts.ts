@@ -84,7 +84,7 @@ export async function evaluatePriceAlerts(): Promise<AlertRunResult> {
       body: phrase(a, q),
       entity_type: "mkt_alert",
       entity_id: a.id,
-      url: `/app/markets/quote/${encodeURIComponent(a.symbol)}`,
+      url: `/modules/markets/quote/${encodeURIComponent(a.symbol)}`,
     } as never);
 
     await admin

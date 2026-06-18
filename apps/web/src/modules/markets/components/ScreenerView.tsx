@@ -50,7 +50,7 @@ export function ScreenerView() {
     <div className="space-y-4 p-2 sm:p-3">
       <div className="flex items-center gap-3">
         <h1 className="text-lg font-semibold text-text-0">Screener</h1>
-        <Link href="/app/markets" className="text-xs text-text-2 hover:text-text-0">
+        <Link href="/modules/markets" className="text-xs text-text-2 hover:text-text-0">
           ← Dashboard
         </Link>
       </div>
@@ -122,7 +122,7 @@ export function ScreenerView() {
                   <tr key={q.symbol} className="hover:bg-bg-2">
                     <td className="px-3 py-1">
                       <Link
-                        href={`/app/markets/quote/${encodeURIComponent(q.symbol)}`}
+                        href={`/modules/markets/quote/${encodeURIComponent(q.symbol)}`}
                         className="font-mono font-semibold text-accent hover:underline"
                       >
                         {q.symbol}

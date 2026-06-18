@@ -419,8 +419,8 @@ its acceptance passes.
 
 ### 11.13.2 Phase 1 — Wrap existing modules (Tasks / Schedule / Messenger / Files)
 
-- [ ] Tasks accessible at `/app/tasks` (user), `/s/[slug]/tasks` (space, new), `/p/[ticker]/tasks` (terminal, renamed from `/task/`)
-- [ ] Schedule accessible at `/app/schedule` (user, redirected from old `/calendar`), `/s/[slug]/schedule`, `/p/[ticker]/schedule`
+- [ ] Tasks accessible at `/modules/tasks` (user), `/s/[slug]/tasks` (space, new), `/p/[ticker]/tasks` (terminal, renamed from `/task/`)
+- [ ] Schedule accessible at `/modules/schedule` (user, redirected from old `/calendar`), `/s/[slug]/schedule`, `/p/[ticker]/schedule`
 - [ ] Messenger accessible at all three scopes; terminal view is one thread per terminal
 - [ ] Files module built from scratch with upload UI, folder tree, search, Azure Blob integration per `docs/05_FILES.md`
 - [ ] Each module's tab appears in `PaneTabStrip` when the user navigates to a scope with it installed
@@ -433,9 +433,9 @@ its acceptance passes.
 - [ ] DB migration translates `Claude/rokki-goals/lib/db.ts` schema into Postgres tables
 - [ ] Each Goals table has both `space_id` and `terminal_id` columns; exactly one is set (CHECK constraint)
 - [ ] RLS uses `space_members` / `terminal_members` membership
-- [ ] Routes mounted: `/app/goals` (user), `/s/[slug]/goals`, `/p/[ticker]/goals`
+- [ ] Routes mounted: `/modules/goals` (user), `/s/[slug]/goals`, `/p/[ticker]/goals`
 - [ ] One-off import script at `Claude/rokki-goals/scripts/import-to-supabase.ts` reads `data/rokki-goals.json` and inserts into a chosen space
-- [ ] Installing Goals on HELIOS keeps its data separate from Goals installed on a terminal; `/app/goals` rolls both up with badges
+- [ ] Installing Goals on HELIOS keeps its data separate from Goals installed on a terminal; `/modules/goals` rolls both up with badges
 
 **Done when:** Goals lives at both scopes, the user-aggregated view shows both rolled up, and the JSON-store version can be imported once.
 

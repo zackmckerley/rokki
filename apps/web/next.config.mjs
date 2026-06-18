@@ -24,6 +24,15 @@ const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   transpilePackages: ["@rokki/db"],
+  async redirects() {
+    return [
+      // Module landing routes moved from `/app/*` to `/modules/*` (2026-06-16)
+      // so the URL namespace matches the product term ("modules"). Keep the
+      // old paths working with a permanent (308) redirect for any cached
+      // links, bookmarks, or external references.
+      { source: "/app/:path*", destination: "/modules/:path*", permanent: true },
+    ];
+  },
   experimental: {
     serverActions: {
       allowedOrigins: ["localhost:3000", "app.rokki.ai", "staging.rokki.ai"],

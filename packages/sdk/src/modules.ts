@@ -17,7 +17,7 @@
  *   - No `tools` field. Tools are a separate effort.
  *   - "Overview" is NOT a manifest entry — it's a synthesized
  *     landing screen rendered by the shell when no module is active.
- *   - User-aggregated views live at `/app/<slug>`.
+ *   - User-aggregated views live at `/modules/<slug>`.
  */
 
 export type ModuleScope = "user" | "space" | "terminal";
