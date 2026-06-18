@@ -17,6 +17,8 @@ import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
 import { SignalThreadView } from "./SignalThreadView";
 import { SignalContactPicker } from "./SignalContactPicker";
+import { PresenceProvider } from "../presence/PresenceProvider";
+import { PresenceDot, PresenceLabel } from "../presence/PresenceDot";
 
 interface ThreadSummary {
   id: string;
@@ -229,6 +231,7 @@ export function MessagesInbox() {
   }
 
   return (
+    <PresenceProvider>
     <div className="flex h-full min-h-0 rounded border border-border bg-bg-1">
       <aside className="w-[260px] flex-shrink-0 border-r border-border">
         <header className="flex h-9 items-center gap-2 border-b border-border px-3">
@@ -286,6 +289,14 @@ export function MessagesInbox() {
                     <Bell className="h-3 w-3 flex-shrink-0 text-accent" />
                   ) : t.source === "signal" ? (
                     <MessageSquare className="h-3 w-3 flex-shrink-0 text-success" />
+                  ) : t.kind === "dm" && t.other_user_id ? (
+                    <span className="relative flex-shrink-0">
+                      <UserIcon className="h-3 w-3 text-text-3" />
+                      <PresenceDot
+                        userId={t.other_user_id}
+                        className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 ring-1 ring-bg-1"
+                      />
+                    </span>
                   ) : (
                     <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
                   )}
@@ -335,6 +346,12 @@ export function MessagesInbox() {
                 <UserIcon className="h-3 w-3 text-text-3" />
               )}
               <span className="text-xs text-text-1">{active.label}</span>
+              {active.kind === "dm" && active.other_user_id ? (
+                <span className="flex items-center gap-1">
+                  <PresenceDot userId={active.other_user_id} />
+                  <PresenceLabel userId={active.other_user_id} />
+                </span>
+              ) : null}
               {active.kind === "reminders" ? (
                 <button
                   type="button"
@@ -516,6 +533,7 @@ export function MessagesInbox() {
         )}
       </section>
     </div>
+    </PresenceProvider>
   );
 }
 
