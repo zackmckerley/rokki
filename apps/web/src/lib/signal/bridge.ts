@@ -117,3 +117,14 @@ export function bridgeSyncContacts(userId: string): Promise<{ ok: true }> {
     { method: "POST", timeoutMs: 30_000 },
   );
 }
+
+/** Send read receipts for the given inbound message timestamps (direct chats). */
+export function bridgeMarkRead(
+  userId: string,
+  payload: { signalNumber: string; recipient: string; timestamps: number[] },
+): Promise<{ ok: true }> {
+  return bridgeFetch<{ ok: true }>(
+    `/accounts/${encodeURIComponent(userId)}/read`,
+    { method: "POST", body: payload, timeoutMs: 20_000 },
+  );
+}
