@@ -88,7 +88,7 @@ async function bridgeFetch<T>(
 export function bridgeStartLink(userId: string): Promise<{ uri: string }> {
   return bridgeFetch<{ uri: string }>(
     `/accounts/${encodeURIComponent(userId)}/link`,
-    { method: "POST", timeoutMs: 25_000 },
+    { method: "POST", timeoutMs: 55_000 },
   );
 }
 
