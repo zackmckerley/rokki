@@ -44,3 +44,29 @@ export const GET = withObservability(
   handleGet,
   "GET /api/v1/signal/threads/:id",
 );
+
+/**
+ * DELETE /api/v1/signal/threads/:id — remove a conversation from Rokki. RLS
+ * scopes the delete to the owner; signal_messages cascade-delete via FK. This
+ * only clears Rokki's local copy — it does NOT delete on Signal or the other
+ * participant's device.
+ */
+async function handleDelete(_req: NextRequest, { params }: Props) {
+  const { id } = await params;
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return unauth();
+
+  const { error } = await supabase.from("signal_threads").delete().eq("id", id);
+  if (error) {
+    return NextResponse.json({ errors: [{ message: error.message }] }, { status: 500 });
+  }
+  return new NextResponse(null, { status: 204 });
+}
+
+export const DELETE = withObservability(
+  handleDelete,
+  "DELETE /api/v1/signal/threads/:id",
+);

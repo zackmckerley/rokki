@@ -4,6 +4,10 @@ import { withObservability } from "@/lib/observability";
 import { bridgeSend } from "@/lib/signal/bridge";
 import { unauth, bad, bridgeErrorResponse } from "@/lib/signal/responses";
 
+// signal-cli boots a JVM per send; give the serverless function headroom past
+// the default so it doesn't cut off before the bridge replies.
+export const maxDuration = 60;
+
 /**
  * POST /api/v1/signal/send  { signalId, kind?, text }
  *

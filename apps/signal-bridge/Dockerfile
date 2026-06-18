@@ -4,13 +4,23 @@
 
 FROM node:22-bookworm-slim
 
-# Java runtime for signal-cli + tools to fetch it.
+# Java 25 runtime for signal-cli + tools to fetch it. signal-cli 0.14.x is
+# compiled for Java 25, but Debian bookworm only ships Java 17 — so pull the
+# JRE from Eclipse Temurin (Adoptium) instead of default-jre-headless.
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends default-jre-headless ca-certificates wget \
+  && apt-get install -y --no-install-recommends wget gnupg ca-certificates \
+  && mkdir -p /etc/apt/keyrings \
+  && wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public \
+       | gpg --dearmor -o /etc/apt/keyrings/adoptium.gpg \
+  && echo "deb [signed-by=/etc/apt/keyrings/adoptium.gpg] https://packages.adoptium.net/artifactory/deb bookworm main" \
+       > /etc/apt/sources.list.d/adoptium.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends temurin-25-jre \
   && rm -rf /var/lib/apt/lists/*
 
-# Pin signal-cli. Bump as new releases land (it tracks the Signal protocol).
-ARG SIGNAL_CLI_VERSION=0.13.18
+# Pin signal-cli. Keep current — Signal breaks old clients server-side (an
+# outdated version fails provisioning with HTTP 499). Bump as releases land.
+ARG SIGNAL_CLI_VERSION=0.14.5
 RUN wget -q "https://github.com/AsamK/signal-cli/releases/download/v${SIGNAL_CLI_VERSION}/signal-cli-${SIGNAL_CLI_VERSION}.tar.gz" \
   && tar xf "signal-cli-${SIGNAL_CLI_VERSION}.tar.gz" -C /opt \
   && ln -sf "/opt/signal-cli-${SIGNAL_CLI_VERSION}/bin/signal-cli" /usr/local/bin/signal-cli \
