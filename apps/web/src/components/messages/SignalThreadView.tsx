@@ -14,6 +14,11 @@ import {
   Paperclip,
   FileText,
   Download,
+  Images,
+  ChevronLeft,
+  ChevronRight,
+  Film,
+  Music,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
@@ -82,6 +87,8 @@ export function SignalThreadView({
   const [dragging, setDragging] = useState(false);
   const [deletingConvo, setDeletingConvo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useState<"chat" | "media">("chat");
+  const [lightbox, setLightbox] = useState<number | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // dragenter/dragleave fire for every child element; count depth so the drop
@@ -339,6 +346,19 @@ export function SignalThreadView({
     if (!r.ok) void load(); // restore on failure
   }
 
+  // All attachments with a usable URL, flattened across messages — powers the
+  // media gallery + lightbox.
+  const mediaItems = messages
+    .flatMap((m) => (m.attachments ?? []).map((att) => ({ att, at: m.sent_at })))
+    .filter((x) => Boolean(x.att.url));
+  const imageItems = mediaItems.filter((x) =>
+    (x.att.content_type ?? "").startsWith("image/"),
+  );
+  const openLightbox = (url: string) => {
+    const idx = imageItems.findIndex((x) => x.att.url === url);
+    if (idx >= 0) setLightbox(idx);
+  };
+
   return (
     <div
       className="relative flex min-h-0 flex-1 flex-col"
@@ -355,11 +375,24 @@ export function SignalThreadView({
         </span>
         <button
           type="button"
+          onClick={() => setView((v) => (v === "media" ? "chat" : "media"))}
+          title={view === "media" ? "Back to chat" : "Shared media & files"}
+          aria-label={view === "media" ? "Back to chat" : "Shared media"}
+          className={cn(
+            "ml-auto flex items-center gap-1 rounded-sm px-1.5 py-1 text-[10px] hover:bg-bg-2 hover:text-text-0",
+            view === "media" ? "text-accent" : "text-text-3",
+          )}
+        >
+          <Images className="h-3 w-3" />
+          Media
+        </button>
+        <button
+          type="button"
           onClick={deleteConversation}
           disabled={deletingConvo}
           title="Delete this conversation from Rokki"
           aria-label="Delete conversation"
-          className="ml-auto flex items-center gap-1 rounded-sm px-1.5 py-1 text-[10px] text-text-3 hover:bg-bg-2 hover:text-danger disabled:opacity-40"
+          className="flex items-center gap-1 rounded-sm px-1.5 py-1 text-[10px] text-text-3 hover:bg-bg-2 hover:text-danger disabled:opacity-40"
         >
           {deletingConvo ? (
             <Loader2 className="h-3 w-3 animate-spin" />
@@ -369,7 +402,16 @@ export function SignalThreadView({
           Delete
         </button>
       </header>
+      {view === "media" ? (
+        <MediaGallery
+          items={mediaItems}
+          onOpenImage={openLightbox}
+          onBack={() => setView("chat")}
+        />
+      ) : (
+        <>
       <div ref={scrollerRef} className="flex-1 overflow-y-auto px-3 py-2 text-xs">
+        <HistoryNotice />
         {messages.length === 0 ? (
           <p className="py-10 text-center text-text-3">
             No messages yet in this Signal chat.
@@ -410,7 +452,12 @@ export function SignalThreadView({
                       {m.attachments && m.attachments.length > 0 ? (
                         <div className="flex flex-col gap-1">
                           {m.attachments.map((a, i) => (
-                            <AttachmentView key={i} att={a} mine={mine} />
+                            <AttachmentView
+                              key={i}
+                              att={a}
+                              mine={mine}
+                              onOpenImage={openLightbox}
+                            />
                           ))}
                         </div>
                       ) : null}
@@ -506,6 +553,8 @@ export function SignalThreadView({
           </button>
         </div>
       </form>
+        </>
+      )}
       {dragging ? (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-sm border-2 border-dashed border-accent/60 bg-bg-0/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-2 text-accent">
@@ -513,6 +562,14 @@ export function SignalThreadView({
             <span className="text-sm font-medium">Drop to attach</span>
           </div>
         </div>
+      ) : null}
+      {lightbox !== null && imageItems[lightbox] ? (
+        <Lightbox
+          items={imageItems.map((x) => x.att)}
+          index={lightbox}
+          onClose={() => setLightbox(null)}
+          onNav={setLightbox}
+        />
       ) : null}
     </div>
   );
@@ -538,27 +595,43 @@ function StatusIndicator({ status }: { status: SignalStatus }) {
 function AttachmentView({
   att,
   mine,
+  onOpenImage,
 }: {
   att: MessageAttachment;
   mine: boolean;
+  onOpenImage?: (url: string) => void;
 }) {
-  const isImage = (att.content_type ?? "").startsWith("image/");
+  const type = att.content_type ?? "";
   const name = att.filename ?? "file";
 
-  if (isImage && att.url) {
+  if (type.startsWith("image/") && att.url) {
+    const url = att.url;
     return (
-      <a href={att.url} target="_blank" rel="noopener noreferrer">
+      <button type="button" onClick={() => onOpenImage?.(url)} className="block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={att.url}
+          src={url}
           alt={name}
-          className="max-h-48 max-w-full rounded object-cover"
+          className="max-h-56 max-w-full cursor-zoom-in rounded object-cover"
         />
-      </a>
+      </button>
     );
   }
+  if (type.startsWith("video/") && att.url) {
+    return (
+      <video
+        src={att.url}
+        controls
+        className="max-h-56 max-w-full rounded"
+        preload="metadata"
+      />
+    );
+  }
+  if (type.startsWith("audio/") && att.url) {
+    return <audio src={att.url} controls className="w-full" preload="metadata" />;
+  }
 
-  // Non-image (or an image still missing its signed URL) → compact file card.
+  // Non-media (or a file still missing its signed URL) → compact file card.
   const card = (
     <span
       className={cn(
@@ -583,6 +656,209 @@ function AttachmentView({
     </a>
   ) : (
     card
+  );
+}
+
+type MediaEntry = { att: MessageAttachment; at: string };
+
+/** WhatsApp-style "shared media & files" view for a conversation. */
+function MediaGallery({
+  items,
+  onOpenImage,
+  onBack,
+}: {
+  items: MediaEntry[];
+  onOpenImage: (url: string) => void;
+  onBack: () => void;
+}) {
+  const images = items.filter((x) =>
+    (x.att.content_type ?? "").startsWith("image/"),
+  );
+  const files = items.filter(
+    (x) => !(x.att.content_type ?? "").startsWith("image/"),
+  );
+  return (
+    <div className="flex-1 overflow-y-auto px-3 py-2 text-xs">
+      <button
+        type="button"
+        onClick={onBack}
+        className="mb-2 flex items-center gap-1 text-[10px] text-text-3 hover:text-text-1"
+      >
+        <ChevronLeft className="h-3 w-3" /> Back to chat
+      </button>
+      {items.length === 0 ? (
+        <p className="py-10 text-center text-text-3">
+          No media or files shared in this chat yet.
+        </p>
+      ) : (
+        <>
+          {images.length > 0 ? (
+            <section className="mb-4">
+              <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+                Media · {images.length}
+              </h3>
+              <div className="grid grid-cols-3 gap-1 sm:grid-cols-4">
+                {images.map((x, i) =>
+                  x.att.url ? (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => onOpenImage(x.att.url as string)}
+                      className="aspect-square overflow-hidden rounded-sm bg-bg-2"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={x.att.url}
+                        alt={x.att.filename ?? "image"}
+                        className="h-full w-full cursor-zoom-in object-cover transition-transform hover:scale-105"
+                      />
+                    </button>
+                  ) : null,
+                )}
+              </div>
+            </section>
+          ) : null}
+          {files.length > 0 ? (
+            <section>
+              <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+                Files · {files.length}
+              </h3>
+              <ul className="flex flex-col gap-1">
+                {files.map((x, i) => {
+                  const type = x.att.content_type ?? "";
+                  return (
+                    <li key={i}>
+                      <a
+                        href={x.att.url ?? "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={x.att.filename ?? "file"}
+                        className="flex items-center gap-2 rounded-sm border border-border bg-bg-0 px-2 py-1.5 hover:bg-bg-2"
+                      >
+                        {type.startsWith("video/") ? (
+                          <Film className="h-4 w-4 flex-shrink-0 text-text-3" />
+                        ) : type.startsWith("audio/") ? (
+                          <Music className="h-4 w-4 flex-shrink-0 text-text-3" />
+                        ) : (
+                          <FileText className="h-4 w-4 flex-shrink-0 text-text-3" />
+                        )}
+                        <span className="flex-1 truncate text-text-1">
+                          {x.att.filename ?? "file"}
+                        </span>
+                        {x.att.size ? (
+                          <span className="text-[10px] text-text-3">
+                            {formatBytes(x.att.size)}
+                          </span>
+                        ) : null}
+                        <Download className="h-3 w-3 flex-shrink-0 text-text-3" />
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Full-screen image viewer with prev/next + keyboard nav. */
+function Lightbox({
+  items,
+  index,
+  onClose,
+  onNav,
+}: {
+  items: MessageAttachment[];
+  index: number;
+  onClose: () => void;
+  onNav: (i: number) => void;
+}) {
+  const current = items[index];
+  const go = useCallback(
+    (delta: number) => onNav((index + delta + items.length) % items.length),
+    [index, items.length, onNav],
+  );
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft") go(-1);
+      else if (e.key === "ArrowRight") go(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [go, onClose]);
+  if (!current?.url) return null;
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-8"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      {items.length > 1 ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            stop(e);
+            go(-1);
+          }}
+          aria-label="Previous"
+          className="absolute left-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+      ) : null}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={current.url}
+        alt={current.filename ?? "image"}
+        onClick={stop}
+        className="max-h-full max-w-full rounded object-contain"
+      />
+      {items.length > 1 ? (
+        <button
+          type="button"
+          onClick={(e) => {
+            stop(e);
+            go(1);
+          }}
+          aria-label="Next"
+          className="absolute right-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
+      ) : null}
+      <a
+        href={current.url}
+        download={current.filename ?? "image"}
+        onClick={stop}
+        className="absolute bottom-4 flex items-center gap-1.5 rounded-sm bg-white/10 px-3 py-1.5 text-xs text-white hover:bg-white/20"
+      >
+        <Download className="h-3.5 w-3.5" /> Download
+      </a>
+    </div>
+  );
+}
+
+/** Explains Signal's hard no-backfill limit at the top of a thread. */
+function HistoryNotice() {
+  return (
+    <div className="mx-auto mb-2 max-w-[90%] rounded-sm border border-border/60 bg-bg-2/40 px-2.5 py-1.5 text-center text-[10px] leading-snug text-text-3">
+      Beginning of this conversation in Rokki. Earlier messages stay on your
+      phone — Signal doesn’t sync history to linked devices.
+    </div>
   );
 }
 
