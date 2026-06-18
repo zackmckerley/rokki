@@ -27,7 +27,7 @@ test.describe("public pages — visual", () => {
       page.getByRole("textbox", { name: /email or username/i }),
     ).toBeVisible();
     // Wait for the wordmark + form to settle before screenshotting.
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await expect(page).toHaveScreenshot("login-idle.png", { fullPage: true });
   });
 
@@ -38,7 +38,7 @@ test.describe("public pages — visual", () => {
     await expect(
       page.getByText(/expired|invalid|sign-in/i),
     ).toBeVisible();
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await expect(page).toHaveScreenshot("login-error.png", { fullPage: true });
   });
 
@@ -52,7 +52,7 @@ test.describe("public pages — visual", () => {
     if (await toggle.count()) {
       await toggle.first().click();
     }
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await expect(page).toHaveScreenshot("login-show-password.png", {
       fullPage: true,
     });
@@ -63,9 +63,9 @@ test.describe("public pages — visual", () => {
     // renders not-found.tsx for unmatched paths.
     await page.goto("/this-route-does-not-exist-xyz123");
     await expect(
-      page.getByRole("heading", { name: /not found/i }),
+      page.getByRole("heading", { name: /exist or was moved/i }),
     ).toBeVisible();
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await expect(page).toHaveScreenshot("404.png", { fullPage: true });
   });
 
@@ -89,7 +89,7 @@ test.describe("public pages — visual", () => {
     // Without a session we land on /login — that's still a deterministic
     // forbidden landing, snapshot it.
     await page.goto("/?error=admin_only");
-    await page.waitForLoadState("networkidle");
+    await page.waitForLoadState("load");
     await expect(page).toHaveScreenshot("forbidden.png", { fullPage: true });
   });
 });

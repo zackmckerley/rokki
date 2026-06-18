@@ -9,6 +9,11 @@ import { test, expect } from "@playwright/test";
  * accounts). The form is now password-only.
  */
 
+// The password-login rate-limit test below needs a DB-backed limiter
+// (Postgres RPC) + service-role key; without a seeded Supabase it fails open
+// and the 11th request never 429s. Gate just that test on E2E_SEEDED.
+const SEEDED = process.env.E2E_SEEDED === "true";
+
 test.describe("public pages", () => {
   test("login renders", async ({ page }) => {
     await page.goto("/login");
@@ -55,6 +60,10 @@ test.describe("public pages", () => {
   test("password-login rate-limits after 11 rapid requests", async ({
     request,
   }) => {
+    test.skip(
+      !SEEDED,
+      "Rate limiter is Postgres-backed; needs a seeded Supabase + SUPABASE_SERVICE_ROLE_KEY",
+    );
     // Same shape as the old send-link rate-limit test, just pointed at
     // the password-login endpoint that's now the only auth path.
     // 10/10min per (IP, email) — the 11th must 429.
