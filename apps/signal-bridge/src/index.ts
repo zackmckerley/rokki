@@ -128,7 +128,25 @@ interface RawEnvelope {
   timestamp?: number;
   dataMessage?: RawDataMessage;
   syncMessage?: { sentMessage?: RawSentMessage };
+  receiptMessage?: {
+    when?: number;
+    isDelivery?: boolean;
+    isRead?: boolean;
+    isViewed?: boolean;
+    timestamps?: number[];
+  };
 }
+
+type MsgStatus = "sending" | "sent" | "delivered" | "read" | "failed";
+/** Only ever advance a message's status forward — a late delivery receipt must
+ *  not downgrade a row already marked read. `failed` is terminal/separate. */
+const STATUS_RANK: Record<MsgStatus, number> = {
+  sending: 0,
+  sent: 1,
+  delivered: 2,
+  read: 3,
+  failed: 0,
+};
 
 interface InboundMessage {
   userId: string;
@@ -139,6 +157,7 @@ interface InboundMessage {
   body: string;
   externalId: string;
   sentAt: string;
+  status: MsgStatus;
 }
 
 const groupOf = (m: { groupInfo?: RawGroup; groupV2?: { id?: string } }): string | undefined =>
@@ -172,6 +191,7 @@ function toInbound(userId: string, evt: unknown): InboundMessage | null {
       body: dm.message,
       externalId: String(ts ?? now),
       sentAt: iso(ts, now),
+      status: "sent",
     };
   }
 
@@ -190,6 +210,7 @@ function toInbound(userId: string, evt: unknown): InboundMessage | null {
       body: sent.message,
       externalId: String(sent.timestamp ?? env.timestamp ?? now),
       sentAt: iso(sent.timestamp ?? env.timestamp, now),
+      status: "sent",
     };
   }
 
@@ -226,7 +247,36 @@ async function writeInbound(m: InboundMessage): Promise<void> {
     sender: m.sender,
     body: m.body,
     sent_at: m.sentAt,
+    status: m.status,
   });
+}
+
+/**
+ * A delivery/read receipt arrived for one or more outbound messages (keyed by
+ * the original send timestamp). Advance their status forward only.
+ */
+async function applyReceipt(
+  userId: string,
+  r: { isDelivery?: boolean; isRead?: boolean; isViewed?: boolean; timestamps?: number[] },
+): Promise<void> {
+  const target: MsgStatus | null =
+    r.isRead || r.isViewed ? "read" : r.isDelivery ? "delivered" : null;
+  if (!target || !r.timestamps?.length) return;
+  const ids = r.timestamps.map(String);
+  const { data } = await db
+    .from("signal_messages")
+    .select("id, status")
+    .eq("user_id", userId)
+    .eq("direction", "out")
+    .in("external_id", ids);
+  for (const m of (data ?? []) as { id: string; status: MsgStatus }[]) {
+    if (STATUS_RANK[target] > (STATUS_RANK[m.status] ?? 0)) {
+      await db
+        .from("signal_messages")
+        .update({ status: target, status_at: new Date().toISOString() })
+        .eq("id", m.id);
+    }
+  }
 }
 
 // ── contact / group directory sync ────────────────────────────────────────────
@@ -341,9 +391,14 @@ function handleRpcLine(line: string): void {
   }
   // Push notification: an incoming (or sent-elsewhere) message.
   if (msg.method === "receive" && msg.params && typeof msg.params === "object") {
-    const params = msg.params as { account?: string };
+    const params = msg.params as { account?: string; envelope?: RawEnvelope };
     const userId = params.account ? accountToUser.get(params.account) : undefined;
     if (!userId) return;
+    // Delivery/read receipts ride the same "receive" push — handle first.
+    if (params.envelope?.receiptMessage) {
+      void applyReceipt(userId, params.envelope.receiptMessage);
+      return;
+    }
     const inbound = toInbound(userId, msg.params);
     if (inbound) void writeInbound(inbound);
   }
@@ -388,8 +443,11 @@ function startDaemon(): void {
     "daemon",
     "--tcp",
     `${RPC_HOST}:${RPC_PORT}`,
+    // on-connection (vs on-start): the daemon ties receive to our persistent
+    // RPC connection. Leading hypothesis for "Rokki sends don't appear on the
+    // phone" — needs live verification.
     "--receive-mode",
-    "on-start",
+    "on-connection",
   ]);
   daemon.stdout?.on("data", (d: Buffer) =>
     console.log(`[daemon] ${d.toString().trim().slice(0, 200)}`),
@@ -539,7 +597,15 @@ app.post("/accounts/:userId/send", async (c) => {
     ? { account: body.signalNumber, groupId: body.signalId, message: body.text }
     : { account: body.signalNumber, recipient: [body.signalId], message: body.text };
   try {
-    await rpcCall("send", params); // fast: persistent daemon, no JVM start
+    // The send result carries signal-cli's message timestamp — the id that
+    // delivery/read receipts reference. Storing the REAL timestamp (not a
+    // fabricated Date.now()) is what lets receipts correlate back to this row.
+    const res = await rpcCall<{ timestamp?: number; results?: Array<{ type?: string }> }>(
+      "send",
+      params,
+    );
+    const externalId = String(res?.timestamp ?? Date.now());
+    const anyFail = (res?.results ?? []).some((r) => r.type && r.type !== "SUCCESS");
     await writeInbound({
       userId,
       signalId: body.signalId,
@@ -547,8 +613,9 @@ app.post("/accounts/:userId/send", async (c) => {
       direction: "out",
       sender: null,
       body: body.text,
-      externalId: String(Date.now()),
+      externalId,
       sentAt: new Date().toISOString(),
+      status: anyFail ? "failed" : "sent",
     });
     return c.json({ ok: true });
   } catch (e) {
@@ -556,6 +623,28 @@ app.post("/accounts/:userId/send", async (c) => {
     // "starting up" is transient (daemon booting) → 503 so the UI can retry.
     const status = msg.includes("starting up") ? 503 : 500;
     return c.json({ error: msg }, status);
+  }
+});
+
+app.post("/accounts/:userId/read", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as Partial<{
+    signalNumber: string;
+    recipient: string;
+    timestamps: number[];
+  }>;
+  if (!body.signalNumber || !body.recipient || !body.timestamps?.length) {
+    return c.json({ error: "signalNumber, recipient and timestamps are required" }, 400);
+  }
+  try {
+    await rpcCall("sendReceipt", {
+      account: body.signalNumber,
+      recipient: body.recipient,
+      targetTimestamps: body.timestamps,
+      type: "read",
+    });
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });
 

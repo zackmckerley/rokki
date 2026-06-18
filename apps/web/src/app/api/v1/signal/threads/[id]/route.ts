@@ -29,7 +29,7 @@ async function handleGet(_req: NextRequest, { params }: Props) {
   const { data: messages } = await supabase
     .from("signal_messages")
     .select(
-      "id, direction, sender, body, attachments, sent_at, edited_at, deleted_at",
+      "id, direction, sender, body, attachments, status, sent_at, edited_at, deleted_at",
     )
     .eq("thread_id", id)
     .is("deleted_at", null)

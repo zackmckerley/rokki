@@ -1,9 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Send, MessageSquare, Loader2, Trash2, X } from "lucide-react";
+import {
+  Send,
+  MessageSquare,
+  Loader2,
+  Trash2,
+  X,
+  Check,
+  CheckCheck,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+
+type SignalStatus = "sending" | "sent" | "delivered" | "read" | "failed";
 
 interface SignalMessage {
   id: string;
@@ -11,6 +23,7 @@ interface SignalMessage {
   sender: string | null;
   body: string | null;
   sent_at: string;
+  status?: SignalStatus;
 }
 
 /**
@@ -63,6 +76,19 @@ export function SignalThreadView({
     void load();
   }, [load]);
 
+  // Opening a direct conversation marks its inbound messages read (sends read
+  // receipts so the other person sees ✓✓). Groups are skipped.
+  useEffect(() => {
+    if (signalKind !== "direct") return;
+    const t = setTimeout(() => {
+      void fetch(`/api/v1/signal/threads/${threadId}/read`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
+    }, 500);
+    return () => clearTimeout(t);
+  }, [threadId, signalKind]);
+
   useRealtimeTable<{ id: string; thread_id: string }>(
     {
       table: "signal_messages",
@@ -88,6 +114,7 @@ export function SignalThreadView({
         sender: null,
         body: text,
         sent_at: new Date().toISOString(),
+        status: "sending",
       },
     ]);
     setDraft("");
@@ -219,6 +246,7 @@ export function SignalThreadView({
                     <span>{mine ? "you" : (m.sender ?? "them")}</span>
                     <span>·</span>
                     <span>{formatRelative(m.sent_at)}</span>
+                    {mine && m.status ? <StatusIndicator status={m.status} /> : null}
                   </div>
                 </li>
               );
@@ -252,6 +280,23 @@ export function SignalThreadView({
       </form>
     </>
   );
+}
+
+function StatusIndicator({ status }: { status: SignalStatus }) {
+  switch (status) {
+    case "sending":
+      return <Clock className="h-2.5 w-2.5" aria-label="sending" />;
+    case "sent":
+      return <Check className="h-2.5 w-2.5" aria-label="sent" />;
+    case "delivered":
+      return <CheckCheck className="h-2.5 w-2.5" aria-label="delivered" />;
+    case "read":
+      return <CheckCheck className="h-2.5 w-2.5 text-accent" aria-label="read" />;
+    case "failed":
+      return <AlertCircle className="h-2.5 w-2.5 text-danger" aria-label="failed to send" />;
+    default:
+      return null;
+  }
 }
 
 function formatRelative(iso: string): string {
