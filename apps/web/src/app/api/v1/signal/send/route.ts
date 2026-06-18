@@ -2,11 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { withObservability } from "@/lib/observability";
 import { bridgeSend } from "@/lib/signal/bridge";
+import { ownsStorageKey } from "@/lib/signal/attachments";
 import { unauth, bad, bridgeErrorResponse } from "@/lib/signal/responses";
 
-// signal-cli boots a JVM per send; give the serverless function headroom past
-// the default so it doesn't cut off before the bridge replies.
-export const maxDuration = 60;
+// The bridge may spend up to ~90s downloading + staging attachments before it
+// replies; give the serverless function headroom past that so it doesn't cut
+// off before the bridge does.
+export const maxDuration = 120;
 
 /**
  * POST /api/v1/signal/send  { signalId, kind?, text }
@@ -39,6 +41,16 @@ async function handlePost(request: NextRequest) {
   const attachments = Array.isArray(body.attachments) ? body.attachments : [];
   if (!body.signalId || (!text && attachments.length === 0)) {
     return bad("signalId and text or attachments are required");
+  }
+  if (attachments.length > 20) return bad("too many attachments (max 20)");
+  // Authorization: the bridge downloads each attachment with the Supabase
+  // SERVICE ROLE (bypassing storage RLS), so the ONLY thing stopping a user
+  // from sending — and thereby exfiltrating — another user's private media is
+  // this ownership check. See ownsStorageKey for the tenant-boundary rationale.
+  for (const a of attachments) {
+    if (!ownsStorageKey(user.id, a?.storage_key)) {
+      return bad("invalid attachment");
+    }
   }
   const kind = body.kind === "group" ? "group" : "direct";
 

@@ -306,6 +306,13 @@ async function uploadSignalAttachments(
   const out: StoredAttachment[] = [];
   for (const a of atts) {
     if (!a.id) continue;
+    // The id becomes both a filesystem path segment and a storage key, so it
+    // must be a bare safe token — reject anything with "/", "..", etc. rather
+    // than transform it (we need the exact name signal-cli wrote on disk).
+    if (!/^[A-Za-z0-9._-]+$/.test(a.id)) {
+      console.log(`[media] skipping attachment with unsafe id: ${a.id}`);
+      continue;
+    }
     try {
       const buf = await readFile(join(SIGNAL_DATA_HOME, "attachments", a.id));
       const key = `${userId}/${threadId}/${a.id}`;
@@ -350,20 +357,21 @@ async function applyReceipt(
     r.isRead || r.isViewed ? "read" : r.isDelivery ? "delivered" : null;
   if (!target || !r.timestamps?.length) return;
   const ids = r.timestamps.map(String);
-  const { data } = await db
+  // Only rows STRICTLY behind the target may advance — and never `failed`,
+  // which is terminal. Expressing the forward-only rule as a filtered UPDATE
+  // (gated on the current status) makes it atomic, so two receipts arriving
+  // at once can't clobber each other via read-modify-write.
+  const advanceable = (Object.keys(STATUS_RANK) as MsgStatus[]).filter(
+    (s) => s !== "failed" && STATUS_RANK[s] < STATUS_RANK[target],
+  );
+  if (advanceable.length === 0) return;
+  await db
     .from("signal_messages")
-    .select("id, status")
+    .update({ status: target, status_at: new Date().toISOString() })
     .eq("user_id", userId)
     .eq("direction", "out")
-    .in("external_id", ids);
-  for (const m of (data ?? []) as { id: string; status: MsgStatus }[]) {
-    if (STATUS_RANK[target] > (STATUS_RANK[m.status] ?? 0)) {
-      await db
-        .from("signal_messages")
-        .update({ status: target, status_at: new Date().toISOString() })
-        .eq("id", m.id);
-    }
-  }
+    .in("external_id", ids)
+    .in("status", advanceable);
 }
 
 // ── contact / group directory sync ────────────────────────────────────────────
@@ -517,6 +525,12 @@ function connectRpc(): void {
     if (rpcReady) console.log("[rpc] disconnected");
     rpcReady = false;
     rpcSocket = null;
+    // Fail every in-flight RPC immediately (each reject clears its own timer)
+    // so a daemon bounce surfaces as a fast 5xx the UI can retry, instead of
+    // hanging the caller until the 30s per-request timeout.
+    const inflight = Array.from(pending.values());
+    pending.clear();
+    for (const p of inflight) p.reject(new Error("Signal RPC connection lost"));
     // The daemon may still be booting (JVM start) or restarting — keep retrying.
     setTimeout(connectRpc, 1500);
   });
@@ -685,6 +699,18 @@ app.post("/accounts/:userId/send", async (c) => {
       400,
     );
   }
+  // Defense-in-depth: the web layer already enforces this, but the bridge holds
+  // the service-role key (which bypasses storage RLS), so re-verify every key is
+  // owned by THIS account before downloading. Without it, a forged storage_key
+  // could fetch another user's private media.
+  for (const a of atts) {
+    if (
+      typeof a.storage_key !== "string" ||
+      (a.storage_key !== userId && !a.storage_key.startsWith(`${userId}/`))
+    ) {
+      return c.json({ error: "attachment does not belong to this account" }, 403);
+    }
+  }
   const isGroup = body.kind === "group";
 
   // signal-cli's send takes attachment FILE PATHS, so download each from
@@ -709,6 +735,14 @@ app.post("/accounts/:userId/send", async (c) => {
         console.log(`[media] send download failed ${a.storage_key}: ${String(e)}`);
       }
     }
+  }
+
+  // Don't silently send a partial (or empty) message: if any attachment failed
+  // to stage, fail the whole send so the UI surfaces an error and can retry,
+  // rather than recording it as 'sent' with media the recipient never got.
+  if (atts.length > 0 && tempPaths.length < atts.length) {
+    if (tempDir) await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    return c.json({ error: "failed to stage one or more attachments" }, 502);
   }
 
   const base = isGroup
