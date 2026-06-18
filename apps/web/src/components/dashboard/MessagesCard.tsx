@@ -15,6 +15,7 @@ import {
 import { DashboardCard } from "./DashboardCard";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import { PresenceDot, PresenceLabel } from "../presence/PresenceDot";
 
 interface ThreadSummary {
   id: string;
@@ -22,6 +23,8 @@ interface ThreadSummary {
   source?: "rokki" | "signal";
   label: string;
   last_message_at: string;
+  /** Native DM/group — the other participant (drives the presence dot). */
+  other_user_id?: string | null;
   /** Signal-only — the send target + conversation kind. */
   signal_id?: string;
   signal_kind?: "direct" | "group";
@@ -109,6 +112,14 @@ export function MessagesCard() {
                   <Hash className="h-3 w-3 flex-shrink-0 text-text-3" />
                 ) : t.source === "signal" ? (
                   <MessageSquare className="h-3 w-3 flex-shrink-0 text-success" />
+                ) : t.kind === "dm" && t.other_user_id ? (
+                  <span className="relative flex-shrink-0">
+                    <UserIcon className="h-3 w-3 text-text-3" />
+                    <PresenceDot
+                      userId={t.other_user_id}
+                      className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 ring-1 ring-bg-1"
+                    />
+                  </span>
                 ) : (
                   <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
                 )}
@@ -293,6 +304,12 @@ function ThreadQuickView({
           <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
         )}
         <span className="flex-1 truncate text-xs text-text-1">{thread.label}</span>
+        {!isSignal && thread.kind === "dm" && thread.other_user_id ? (
+          <span className="flex flex-shrink-0 items-center gap-1">
+            <PresenceDot userId={thread.other_user_id} />
+            <PresenceLabel userId={thread.other_user_id} />
+          </span>
+        ) : null}
         <Link
           href="/messages"
           aria-label="Open in full inbox"
