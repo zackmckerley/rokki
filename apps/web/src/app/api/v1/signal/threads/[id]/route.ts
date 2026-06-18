@@ -35,8 +35,39 @@ async function handleGet(_req: NextRequest, { params }: Props) {
     .is("deleted_at", null)
     .order("sent_at", { ascending: true });
 
+  // Mint short-lived signed URLs so the client can render image previews /
+  // download files without the bucket being public. Stored attachments carry a
+  // `storage_key`; rows without attachments pass through untouched.
+  type StoredAttachment = {
+    storage_key?: string;
+    content_type?: string | null;
+    filename?: string | null;
+    size?: number | null;
+  };
+  type Row = {
+    attachments?: StoredAttachment[] | null;
+    [k: string]: unknown;
+  };
+  const rows = (messages ?? []) as Row[];
+  const enriched = await Promise.all(
+    rows.map(async (m) => {
+      const atts = Array.isArray(m.attachments) ? m.attachments : [];
+      if (atts.length === 0) return m;
+      const withUrls = await Promise.all(
+        atts.map(async (a) => {
+          if (!a.storage_key) return { ...a, url: null };
+          const { data: signed } = await supabase.storage
+            .from("signal-media")
+            .createSignedUrl(a.storage_key, 60 * 60);
+          return { ...a, url: signed?.signedUrl ?? null };
+        }),
+      );
+      return { ...m, attachments: withUrls };
+    }),
+  );
+
   return NextResponse.json({
-    data: { thread: thread ?? null, messages: messages ?? [] },
+    data: { thread: thread ?? null, messages: enriched },
   });
 }
 
