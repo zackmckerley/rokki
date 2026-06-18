@@ -1,6 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { apiAs, uniqueTicker, SEED } from "./helpers";
 
+// Database-backed (API-call driven via apiAs); gated on E2E_SEEDED=true.
+// Without a seeded Supabase, `session-as` returns 401 and every test here
+// fails. Skip rather than fail — matches the other DB-backed specs.
+const SEEDED = process.env.E2E_SEEDED === "true";
+test.skip(!SEEDED, "Set E2E_SEEDED=true with a seeded Supabase to run");
+
 /**
  * E2E coverage for features shipped in the recent feature batch
  * (PR #110 through PR #143).
