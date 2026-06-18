@@ -10,11 +10,13 @@ import {
   Bell,
   RefreshCw,
   MessageSquare,
+  PenSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { createClient } from "@/lib/supabase/client";
 import { SignalThreadView } from "./SignalThreadView";
+import { SignalContactPicker } from "./SignalContactPicker";
 
 interface ThreadSummary {
   id: string;
@@ -60,6 +62,7 @@ interface Message {
 export function MessagesInbox() {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -228,10 +231,19 @@ export function MessagesInbox() {
   return (
     <div className="flex h-full min-h-0 rounded border border-border bg-bg-1">
       <aside className="w-[260px] flex-shrink-0 border-r border-border">
-        <header className="flex h-9 items-center border-b border-border px-3">
+        <header className="flex h-9 items-center gap-2 border-b border-border px-3">
           <span className="text-xs font-semibold uppercase tracking-wide text-text-3">
             Conversations
           </span>
+          <button
+            type="button"
+            onClick={() => setPicking(true)}
+            title="New Signal message"
+            aria-label="New Signal message"
+            className="ml-auto rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+          >
+            <PenSquare className="h-3 w-3" />
+          </button>
         </header>
         {/* Reminders CTA — shows once until the user enables it; the
             refresh endpoint creates the thread + posts pings for the
@@ -289,7 +301,16 @@ export function MessagesInbox() {
       </aside>
 
       <section className="flex min-h-0 flex-1 flex-col">
-        {activeIsSignal && active ? (
+        {picking ? (
+          <SignalContactPicker
+            onClose={() => setPicking(false)}
+            onPick={(id) => {
+              setActiveId(id);
+              setPicking(false);
+              void loadThreads();
+            }}
+          />
+        ) : activeIsSignal && active ? (
           <SignalThreadView
             key={active.id}
             threadId={active.id}
