@@ -15,12 +15,18 @@ export type DashLayout = { center: string[]; right: string[] };
 
 /** The panels the dashboard knows how to place. Order here is the
  *  canonical fallback order (also the mobile stacking order). */
-export const DASH_PANEL_IDS = ["week", "tasks", "messages"] as const;
+export const DASH_PANEL_IDS = [
+  "week",
+  "tasks",
+  "messages",
+  "markets",
+  "goals",
+] as const;
 export type DashPanelId = (typeof DASH_PANEL_IDS)[number];
 
 export const DEFAULT_DASH_LAYOUT: DashLayout = {
   center: ["week", "tasks"],
-  right: ["messages"],
+  right: ["messages", "markets", "goals"],
 };
 
 export const DASH_LAYOUT_STORAGE_KEY = "rokki:dash-panels";

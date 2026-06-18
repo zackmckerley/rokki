@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Settings, User, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Settings, X } from "lucide-react";
 import type { DashSpace, DashTerminal } from "@/lib/dashboard-queries";
 import { cn } from "@/lib/utils";
 import { AccountBlock } from "@/components/AccountBlock";
 import { RailModules } from "./RailModules";
+import { useModulePrefs } from "./module-visibility";
 import { COLLAPSED_SPACES_KEY } from "@/lib/recent-terminals";
 import {
   applyOrder,
@@ -261,6 +262,22 @@ export function ExplorerRail({
   const toggleSection = (k: "spaces" | "modules") =>
     setSectionsOpen((s) => ({ ...s, [k]: !s[k] }));
 
+  // The MODULES section collapse is driven by module prefs when the
+  // dashboard provider is present, so the chevron stays in sync with the
+  // gear's "Collapse on load" setting (#6). Falls back to the local
+  // per-rail state on pages without modules (terminal / space).
+  const modulePrefs = useModulePrefs();
+  const modulesOpen = modulePrefs
+    ? !modulePrefs.prefs.sectionCollapsed
+    : sectionsOpen.modules;
+  const toggleModules = () => {
+    if (modulePrefs) {
+      modulePrefs.setSectionCollapsed(!modulePrefs.prefs.sectionCollapsed);
+    } else {
+      toggleSection("modules");
+    }
+  };
+
   const filterRef = useRef<HTMLInputElement>(null);
 
   // `/` global shortcut → focus the filter. Skip when the user is
@@ -454,24 +471,11 @@ export function ExplorerRail({
                           <ChevronDown className="h-3 w-3" />
                         )}
                       </button>
-                      {/* The personal space gets a person glyph so it
-                          reads as "yours / private" at a glance, set apart
-                          from the shared spaces below it. */}
-                      {s.is_personal ? (
-                        <User
-                          className="h-3 w-3 flex-shrink-0 text-text-3"
-                          aria-hidden="true"
-                        />
-                      ) : null}
                       <Link
                         href={`/s/${s.slug}`}
                         draggable={false}
                         className="flex-1 truncate text-text-1 hover:text-text-0"
-                        title={
-                          s.is_personal
-                            ? "Your private space"
-                            : `Open ${s.name}`
-                        }
+                        title={`Open ${s.name}`}
                       >
                         {s.name}
                       </Link>
@@ -585,19 +589,33 @@ export function ExplorerRail({
           )}
 
           {/* ---- MODULES section (collapsible) ---- */}
-          <button
-            type="button"
-            onClick={() => toggleSection("modules")}
-            className="mt-3 flex w-full items-center gap-1 px-1 py-1 text-xs font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
-          >
-            {sectionsOpen.modules ? (
-              <ChevronDown className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-            ) : (
-              <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
-            )}
-            Modules
-          </button>
-          {sectionsOpen.modules ? <RailModules /> : null}
+          <div className="mt-3 flex items-center gap-1 px-1 py-1">
+            <button
+              type="button"
+              onClick={toggleModules}
+              className="flex flex-1 items-center gap-1 text-xs font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
+            >
+              {modulesOpen ? (
+                <ChevronDown className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+              ) : (
+                <ChevronRight className="h-3 w-3 flex-shrink-0" aria-hidden="true" />
+              )}
+              Modules
+            </button>
+            {/* The gear → the full Module settings page. Shown only on the
+                dashboard (where the module provider is mounted). */}
+            {modulePrefs ? (
+              <Link
+                href="/settings/modules"
+                aria-label="Module settings"
+                title="Module settings"
+                className="rounded-sm p-0.5 text-text-3 hover:bg-bg-3 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
+              >
+                <Settings className="h-3 w-3" aria-hidden="true" />
+              </Link>
+            ) : null}
+          </div>
+          {modulesOpen ? <RailModules /> : null}
         </div>
       </div>
 

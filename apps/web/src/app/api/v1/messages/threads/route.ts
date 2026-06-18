@@ -1,6 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { withObservability } from "@/lib/observability";
+import {
+  signalThreadToInbox,
+  mergeInboxThreads,
+  type InboxThread,
+  type SignalThreadRow,
+} from "@/lib/signal/inbox";
 
 /**
  * GET  /api/v1/messages/threads    — threads I can see, newest first
@@ -196,7 +202,25 @@ async function handleGet() {
     };
   });
 
-  return NextResponse.json({ data: decorated });
+  // Native Rokki threads, plus the user's linked Signal conversations merged
+  // in (one unified inbox). Signal rows are RLS-scoped to the owner.
+  const nativeThreads: InboxThread[] = decorated.map((d) => ({
+    ...d,
+    source: "rokki" as const,
+  }));
+
+  const { data: signalRows } = await supabase
+    .from("signal_threads")
+    .select("id, signal_id, kind, title, last_message_at, created_at")
+    .eq("user_id", user.id)
+    .eq("sync_enabled", true);
+  const signalThreads = ((signalRows ?? []) as SignalThreadRow[]).map(
+    signalThreadToInbox,
+  );
+
+  return NextResponse.json({
+    data: mergeInboxThreads(nativeThreads, signalThreads),
+  });
 }
 
 async function handlePost(request: NextRequest) {

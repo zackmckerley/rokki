@@ -6,6 +6,7 @@ import {
   normalizePath,
 } from "./folder-path.js";
 import { isValidTicker, suggestTicker, uniqueTicker } from "./ticker.js";
+import { marketsTools } from "./markets-tools.js";
 
 /**
  * Tool registry. Covers the full read + write surface of Rokki so an LLM
@@ -3633,6 +3634,8 @@ const TOOLS: ToolDefinition[] = [
       return textResult(`Archived ${slug} from ${terminal.name}.`);
     },
   },
+  // Markets module — quotes, watchlists, portfolios, alerts (API + MCP parity).
+  ...marketsTools,
 ];
 
 /* -------------------------------------------------------------------------- */

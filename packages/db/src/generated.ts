@@ -1918,6 +1918,142 @@ export type Database = {
           },
         ]
       }
+      signal_accounts: {
+        Row: {
+          created_at: string
+          device_id: number | null
+          linked_at: string | null
+          signal_number: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          device_id?: number | null
+          linked_at?: string | null
+          signal_number?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          device_id?: number | null
+          linked_at?: string | null
+          signal_number?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      signal_messages: {
+        Row: {
+          attachments: Json
+          body: string | null
+          created_at: string
+          deleted_at: string | null
+          direction: string
+          edited_at: string | null
+          external_id: string | null
+          id: string
+          quote_external_id: string | null
+          reactions: Json
+          sender: string | null
+          sent_at: string
+          thread_id: string
+          user_id: string
+        }
+        Insert: {
+          attachments?: Json
+          body?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          direction: string
+          edited_at?: string | null
+          external_id?: string | null
+          id?: string
+          quote_external_id?: string | null
+          reactions?: Json
+          sender?: string | null
+          sent_at?: string
+          thread_id: string
+          user_id: string
+        }
+        Update: {
+          attachments?: Json
+          body?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          direction?: string
+          edited_at?: string | null
+          external_id?: string | null
+          id?: string
+          quote_external_id?: string | null
+          reactions?: Json
+          sender?: string | null
+          sent_at?: string
+          thread_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_messages_thread_id_fkey"
+            columns: ["thread_id"]
+            isOneToOne: false
+            referencedRelation: "signal_threads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      signal_threads: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          last_message_at: string | null
+          muted: boolean
+          signal_id: string
+          sync_enabled: boolean
+          terminal_id: string | null
+          title: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          last_message_at?: string | null
+          muted?: boolean
+          signal_id: string
+          sync_enabled?: boolean
+          terminal_id?: string | null
+          title?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          last_message_at?: string | null
+          muted?: boolean
+          signal_id?: string
+          sync_enabled?: boolean
+          terminal_id?: string | null
+          title?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_threads_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       space_members: {
         Row: {
           joined_at: string

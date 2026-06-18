@@ -17,6 +17,7 @@ import { filesManifest } from "./files/manifest";
 import { messengerManifest } from "./messenger/manifest";
 import { scheduleManifest } from "./schedule/manifest";
 import { goalsManifest } from "./goals/manifest";
+import { marketsManifest } from "./markets/manifest";
 
 let registered = false;
 
@@ -32,6 +33,7 @@ export function registerAllModules(): void {
   registerModule(messengerManifest);
   registerModule(scheduleManifest);
   registerModule(goalsManifest);
+  registerModule(marketsManifest);
   registered = true;
 }
 

@@ -2,13 +2,20 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Hash, User as UserIcon, MessageSquarePlus } from "lucide-react";
+import {
+  Hash,
+  User as UserIcon,
+  MessageSquare,
+  MessageSquarePlus,
+  Settings2,
+} from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 
 interface ThreadSummary {
   id: string;
-  kind: "dm" | "terminal" | "space";
+  kind: "dm" | "terminal" | "space" | "group" | "reminders" | "signal";
+  source?: "rokki" | "signal";
   label: string;
   last_message_at: string;
 }
@@ -51,6 +58,16 @@ export function MessagesCard() {
       title="Messages"
       count={threads.length}
       expandHref="/messages"
+      headerRight={
+        <Link
+          href="/settings/modules/messages"
+          aria-label="Messages settings"
+          title="Connect Signal & settings"
+          className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+        >
+          <Settings2 className="h-3 w-3" />
+        </Link>
+      }
     >
       {loading && threads.length === 0 ? (
         <p className="px-3 py-4 text-center text-xs text-text-3">Loading…</p>
@@ -66,6 +83,8 @@ export function MessagesCard() {
               >
                 {t.kind === "terminal" ? (
                   <Hash className="h-3 w-3 flex-shrink-0 text-text-3" />
+                ) : t.source === "signal" ? (
+                  <MessageSquare className="h-3 w-3 flex-shrink-0 text-success" />
                 ) : (
                   <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
                 )}

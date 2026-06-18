@@ -1,38 +1,40 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useModuleVisibility, DASH_MODULES } from "./module-visibility";
+import { useModulePrefs } from "./module-visibility";
 
 /**
  * The explorer rail's "Modules" list. Minimal by design: each module is
  * just its name, conforming to the spaces rows (same indent/padding), and
  * the ONLY adornment is a far-right accent bar marking an *open* module.
- * No icon, no count, no bold — the bar is the single signal. Clicking a
- * row toggles the module open/minimized in the dashboard viewing area.
+ * Clicking a row toggles the module open/minimized in the dashboard.
  *
- * Renders nothing when there's no dashboard host (no ModuleVisibility
- * provider) — e.g. the rail shown inside a terminal.
+ * The list, its order, and which modules appear are all driven by the
+ * user's module prefs (the gear in the MODULES header) — `visibleModules`
+ * is already ordered (#2) and excludes hidden ones (#1/#8).
+ *
+ * Renders nothing when there's no ModulePrefs provider (e.g. the rail
+ * shown inside a terminal).
  */
 export function RailModules() {
-  const vis = useModuleVisibility();
-  if (!vis) return null;
+  const ctx = useModulePrefs();
+  if (!ctx) return null;
+  const { visibleModules, isMinimized, toggle } = ctx;
   return (
     <ul className="space-y-0.5 pl-[var(--rk-rail-indent)] text-xs">
-      {DASH_MODULES.map((m) => {
-        const open = !vis.isMinimized(m.id);
+      {visibleModules.map((m) => {
+        const open = !isMinimized(m.id);
         return (
           <li key={m.id}>
             <button
               type="button"
-              onClick={() => vis.toggle(m.id)}
+              onClick={() => toggle(m.id)}
               aria-pressed={open}
               title={open ? `Minimize ${m.label}` : `Open ${m.label}`}
               className="group flex w-full items-center gap-1 rounded-sm px-1 py-0.5 text-left text-text-1 hover:bg-bg-2 hover:text-text-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus"
             >
               {/* Empty chevron column so module names line up with the
-                  space NAMES (not the arrows). h-3.5/w-3.5 = 14px to match
-                  the space chevron button, now that width/height carry the
-                  3.5 step (tailwind.config `extend`). */}
+                  space NAMES (not the arrows). */}
               <span className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
               <span className="flex-1 truncate text-xs">{m.label}</span>
               {/* far-right open indicator — the only color in the list */}
@@ -47,6 +49,11 @@ export function RailModules() {
           </li>
         );
       })}
+      {visibleModules.length === 0 ? (
+        <li className="px-1 py-1 text-2xs text-text-3">
+          All modules hidden — add them back in module settings.
+        </li>
+      ) : null}
     </ul>
   );
 }

@@ -9,6 +9,8 @@ import { Focus, X } from "lucide-react";
 import { DashboardShell } from "./dashboard/DashboardShell";
 import { ExplorerRail } from "./dashboard/ExplorerRail";
 import { MessagesCard } from "./dashboard/MessagesCard";
+import { MarketsCard } from "./dashboard/MarketsCard";
+import { GoalsCard } from "./dashboard/GoalsCard";
 import { DashboardPanels } from "./dashboard/DashboardPanels";
 import { ModuleVisibilityProvider } from "./dashboard/module-visibility";
 import { TerminalScopeFilter } from "./dashboard/TerminalScopeFilter";
@@ -259,6 +261,8 @@ export function DashboardClient({
             week={weekSlot}
             tasks={tasksSlot}
             messages={<MessagesCard />}
+            markets={<MarketsCard />}
+            goals={<GoalsCard />}
           />
         }
       />

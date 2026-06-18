@@ -60,14 +60,24 @@ export async function resolveTerminalBySegment(
 
   // Slug lookup — the common case for any link generated since the
   // 20260526010000_terminal_slug migration shipped.
+  //
+  // Slugs are unique only PER SPACE (the unique index is on
+  // (space_id, slug)), so a caller who belongs to two spaces can have two
+  // terminals with the same slug — common now that everyone has a Personal
+  // space alongside shared ones. We must NOT use `.maybeSingle()` here: it
+  // throws on >1 row, which surfaced as a 404 ("page doesn't exist") right
+  // after creating a same-named terminal. Take the most recently created
+  // match instead, so a just-created terminal resolves to itself.
   {
     const { data } = await supabase
       .from("terminals")
       .select("id, space_id, slug, ticker, name")
       .eq("slug", segment)
       .is("archived_at", null)
-      .maybeSingle();
-    if (data) return data as ResolvedTerminal;
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const row = ((data ?? []) as ResolvedTerminal[])[0];
+    if (row) return row;
   }
 
   // Fallback for shared URLs minted before the slug column existed.
@@ -77,8 +87,10 @@ export async function resolveTerminalBySegment(
       .select("id, space_id, slug, ticker, name")
       .eq("ticker", segment.toUpperCase())
       .is("archived_at", null)
-      .maybeSingle();
-    if (data) return data as ResolvedTerminal;
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const row = ((data ?? []) as ResolvedTerminal[])[0];
+    if (row) return row;
   }
 
   return null;

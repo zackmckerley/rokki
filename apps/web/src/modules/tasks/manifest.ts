@@ -2,9 +2,9 @@
  * Tasks module manifest.
  *
  * Phase 0 stub — declares the module's slug, scopes, and target
- * routes. The actual routes (`/app/tasks`, `/s/[slug]/tasks`,
+ * routes. The actual routes (`/modules/tasks`, `/s/[slug]/tasks`,
  * `/p/[ticker]/tasks`) are wired in Phase 1 by wrapping the existing
- * pages at `apps/web/src/app/tasks/` and `apps/web/src/app/p/[ticker]/task/`.
+ * pages at `apps/web/src/modules/tasks/` and `apps/web/src/modules/p/[ticker]/task/`.
  *
  * Until then the pane shell can advertise this module in its tab
  * strip; clicking the tab is a no-op (the route doesn't resolve yet).
@@ -18,7 +18,7 @@ export const tasksManifest: ModuleManifest = {
   icon: "check-square",
   scopes: ["user", "space", "terminal"],
   routes: {
-    user: "/app/tasks",
+    user: "/modules/tasks",
     space: "/s/[slug]/tasks",
     terminal: "/p/[ticker]/tasks",
   },

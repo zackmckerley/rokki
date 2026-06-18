@@ -3,7 +3,7 @@
  * `PaneScope` shape the pane shell needs, plus look up which modules
  * are installed on that scope.
  *
- * Used by the new `/app/<slug>`, `/s/[slug]/<module>`, and
+ * Used by the new `/modules/<slug>`, `/s/[slug]/<module>`, and
  * `/p/[ticker]/<module>` route files. Lives in `lib/` rather than
  * inside `components/pane/` because it's pure server logic — the
  * shell components are client-side rendering only.
@@ -73,7 +73,7 @@ export async function resolveTerminalScope(
  * Load modules installed on the given scope, decorated with their
  * catalog name/icon. Archived rows are excluded.
  *
- * For the user-aggregated `/app/<slug>` views, callers pass
+ * For the user-aggregated `/modules/<slug>` views, callers pass
  * `scopeKind: "user"`. There's no `user_modules` table — the user
  * scope just renders every module that supports `user` in its
  * manifest, so this helper returns an empty array and the caller
