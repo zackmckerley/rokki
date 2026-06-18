@@ -218,8 +218,26 @@ async function handleGet() {
     signalThreadToInbox,
   );
 
+  const merged = mergeInboxThreads(nativeThreads, signalThreads);
+
+  // Per-thread unread counts via two RLS-scoped RPCs (native + Signal), so the
+  // inbox can badge unread without a query per thread.
+  type UnreadRow = { thread_id: string; unread: number };
+  const rpcUnread = async (fn: string): Promise<UnreadRow[]> => {
+    const { data } = await supabase.rpc(fn);
+    return (data ?? []) as UnreadRow[];
+  };
+  const [nativeUnread, signalUnread] = await Promise.all([
+    rpcUnread("rokki_unread_counts"),
+    rpcUnread("rokki_signal_unread_counts"),
+  ]);
+  const unreadMap = new Map<string, number>();
+  for (const r of [...nativeUnread, ...signalUnread]) {
+    unreadMap.set(r.thread_id, Number(r.unread) || 0);
+  }
+
   return NextResponse.json({
-    data: mergeInboxThreads(nativeThreads, signalThreads),
+    data: merged.map((t) => ({ ...t, unread: unreadMap.get(t.id) ?? 0 })),
   });
 }
 

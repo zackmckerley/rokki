@@ -66,6 +66,13 @@ async function handleGet(_req: NextRequest, { params }: Props) {
     }),
   );
 
+  // Best-effort: mark this Signal thread read so its unread badge clears.
+  await supabase
+    .from("signal_threads")
+    // @ts-expect-error generic update collapses to never
+    .update({ last_read_at: new Date().toISOString() })
+    .eq("id", id);
+
   return NextResponse.json({
     data: { thread: thread ?? null, messages: enriched },
   });

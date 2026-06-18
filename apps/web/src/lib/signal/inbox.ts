@@ -20,6 +20,8 @@ export interface InboxThread {
   signal_kind?: "direct" | "group";
   href_ticker?: string | null;
   other_user_id?: string | null;
+  /** Count of unread messages (not from me, since I last opened the thread). */
+  unread?: number;
 }
 
 /** Shape selected from the `signal_threads` table. */

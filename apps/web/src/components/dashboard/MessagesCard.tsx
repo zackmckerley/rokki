@@ -21,6 +21,12 @@ import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { PresenceDot, PresenceLabel } from "../presence/PresenceDot";
 import { uploadSignalMedia } from "@/lib/signal/upload";
+import {
+  useInboxView,
+  filterThreads,
+  InboxFilterBar,
+  UnreadBadge,
+} from "../messages/inbox-prefs";
 
 interface ThreadSummary {
   id: string;
@@ -30,6 +36,8 @@ interface ThreadSummary {
   last_message_at: string;
   /** Native DM/group — the other participant (drives the presence dot). */
   other_user_id?: string | null;
+  /** Count of unread messages since I last opened the thread. */
+  unread?: number;
   /** Signal-only — the send target + conversation kind. */
   signal_id?: string;
   signal_kind?: "direct" | "group";
@@ -47,6 +55,7 @@ export function MessagesCard() {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<ThreadSummary | null>(null);
+  const { filter, setFilter, hidden, hide, clearHidden } = useInboxView();
 
   const load = useCallback(async () => {
     try {
@@ -77,10 +86,12 @@ export function MessagesCard() {
     { onInsert: () => void load(), onUpdate: () => void load() },
   );
 
+  const { visible, hiddenInFilter } = filterThreads(threads, filter, hidden);
+
   return (
     <DashboardCard
       title="Messages"
-      count={threads.length}
+      count={visible.length}
       expandHref="/messages"
       bodyClassName="flex min-h-0 flex-col overflow-hidden"
       headerRight={
@@ -108,22 +119,62 @@ export function MessagesCard() {
         <Empty />
       ) : (
         <div className="flex min-h-0 flex-1 flex-col">
+          <InboxFilterBar
+            filter={filter}
+            setFilter={setFilter}
+            hiddenCount={hiddenInFilter}
+            onShowHidden={clearHidden}
+          />
           <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
-            {threads.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => setOpen(t)}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-bg-2"
-                >
-                  <ThreadIcon thread={t} />
-                  <span className="flex-1 truncate text-text-0">{t.label}</span>
-                  <span className="flex-shrink-0 font-mono text-2xs text-text-3">
-                    {formatRelative(t.last_message_at)}
-                  </span>
-                </button>
+            {visible.length === 0 ? (
+              <li className="px-3 py-6 text-center text-xs text-text-3">
+                Nothing here.
               </li>
-            ))}
+            ) : (
+              visible.map((t) => (
+                <li key={t.id} className="group relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Optimistically clear the badge; the server marks it read.
+                      setThreads((prev) =>
+                        prev.map((x) =>
+                          x.id === t.id ? { ...x, unread: 0 } : x,
+                        ),
+                      );
+                      setOpen(t);
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-bg-2"
+                  >
+                    <ThreadIcon thread={t} />
+                    <span
+                      className={cn(
+                        "flex-1 truncate",
+                        t.unread ? "font-semibold text-text-0" : "text-text-0",
+                      )}
+                    >
+                      {t.label}
+                    </span>
+                    <UnreadBadge count={t.unread} />
+                    <span className="flex-shrink-0 font-mono text-2xs text-text-3 group-hover:opacity-0">
+                      {formatRelative(t.last_message_at)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      hide(t.id);
+                    }}
+                    aria-label={`Hide ${t.label}`}
+                    title="Hide from this list"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </li>
+              ))
+            )}
           </ul>
           <Link
             href="/messages"
