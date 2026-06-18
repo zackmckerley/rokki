@@ -291,10 +291,15 @@ export function MessagesInbox() {
       <section className="flex min-h-0 flex-1 flex-col">
         {activeIsSignal && active ? (
           <SignalThreadView
+            key={active.id}
             threadId={active.id}
             signalId={active.signal_id ?? ""}
             signalKind={active.signal_kind ?? "direct"}
             label={active.label}
+            onDeleted={() => {
+              setActiveId(null);
+              void loadThreads();
+            }}
           />
         ) : (
           <>

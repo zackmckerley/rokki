@@ -104,6 +104,8 @@ export function bridgeSend(
 ): Promise<{ ok: true }> {
   return bridgeFetch<{ ok: true }>(
     `/accounts/${encodeURIComponent(userId)}/send`,
-    { method: "POST", body: payload },
+    // signal-cli cold-starts a JVM per send (~5–15s on the shared Fly VM), so
+    // allow well past the 15s default before giving up.
+    { method: "POST", body: payload, timeoutMs: 45_000 },
   );
 }
