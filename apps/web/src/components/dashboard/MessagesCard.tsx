@@ -11,11 +11,16 @@ import {
   ChevronLeft,
   Send,
   Paperclip,
+  Maximize2,
+  X,
+  FileText,
+  Loader2,
 } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
 import { PresenceDot, PresenceLabel } from "../presence/PresenceDot";
+import { uploadSignalMedia } from "@/lib/signal/upload";
 
 interface ThreadSummary {
   id: string;
@@ -31,11 +36,12 @@ interface ThreadSummary {
 }
 
 /**
- * Right-rail Messages card. Lists your most recent conversations; clicking one
- * opens an inline quick-reply view (recent messages + a one-line composer) so
- * you can answer without leaving the dashboard. Native threads post via
- * /api/v1/messages; Signal threads send through the bridge via
- * /api/v1/signal/send. The maximize button still opens the full /messages inbox.
+ * Right-rail Messages card. Lists your conversations; clicking one opens an
+ * inline thread view (recent messages + composer) so you can reply without
+ * leaving the dashboard. The composer supports drag-and-drop, paste, and a
+ * paperclip for Signal attachments (with upload progress). Native threads post
+ * via /api/v1/messages; Signal threads send through the bridge. The whole pane
+ * is height-responsive so it fills the panel at any size.
  */
 export function MessagesCard() {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
@@ -76,6 +82,7 @@ export function MessagesCard() {
       title="Messages"
       count={threads.length}
       expandHref="/messages"
+      bodyClassName="flex min-h-0 flex-col overflow-hidden"
       headerRight={
         <Link
           href="/settings/modules/messages"
@@ -100,50 +107,83 @@ export function MessagesCard() {
       ) : threads.length === 0 ? (
         <Empty />
       ) : (
-        <ul className="divide-y divide-border/40 text-sm">
-          {threads.slice(0, 10).map((t) => (
-            <li key={t.id}>
-              <button
-                type="button"
-                onClick={() => setOpen(t)}
-                className="flex w-full items-center gap-2 px-3 py-[var(--rk-row-py)] text-left hover:bg-bg-2"
-              >
-                {t.kind === "terminal" ? (
-                  <Hash className="h-3 w-3 flex-shrink-0 text-text-3" />
-                ) : t.source === "signal" ? (
-                  <MessageSquare className="h-3 w-3 flex-shrink-0 text-success" />
-                ) : t.kind === "dm" && t.other_user_id ? (
-                  <span className="relative flex-shrink-0">
-                    <UserIcon className="h-3 w-3 text-text-3" />
-                    <PresenceDot
-                      userId={t.other_user_id}
-                      className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 ring-1 ring-bg-1"
-                    />
+        <div className="flex min-h-0 flex-1 flex-col">
+          <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
+            {threads.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpen(t)}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-bg-2"
+                >
+                  <ThreadIcon thread={t} />
+                  <span className="flex-1 truncate text-text-0">{t.label}</span>
+                  <span className="flex-shrink-0 font-mono text-2xs text-text-3">
+                    {formatRelative(t.last_message_at)}
                   </span>
-                ) : (
-                  <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
-                )}
-                <span className="flex-1 truncate text-text-0">{t.label}</span>
-                <span className="font-mono text-2xs text-text-3">
-                  {formatRelative(t.last_message_at)}
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/messages"
+            className="flex flex-shrink-0 items-center justify-center gap-1.5 border-t border-border/60 py-1.5 text-2xs uppercase tracking-wide text-text-3 hover:bg-bg-2 hover:text-text-1"
+          >
+            <Maximize2 className="h-3 w-3" />
+            Open full messenger
+          </Link>
+        </div>
       )}
     </DashboardCard>
   );
 }
 
-/** Normalized message for the compact quick-reply list. */
+/** Leading icon for a conversation row (with presence dot on native DMs). */
+function ThreadIcon({ thread: t }: { thread: ThreadSummary }) {
+  if (t.kind === "terminal")
+    return <Hash className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />;
+  if (t.source === "signal")
+    return <MessageSquare className="h-3.5 w-3.5 flex-shrink-0 text-success" />;
+  if (t.kind === "dm" && t.other_user_id)
+    return (
+      <span className="relative flex-shrink-0">
+        <UserIcon className="h-3.5 w-3.5 text-text-3" />
+        <PresenceDot
+          userId={t.other_user_id}
+          className="absolute -bottom-0.5 -right-0.5 h-1.5 w-1.5 ring-1 ring-bg-1"
+        />
+      </span>
+    );
+  return <UserIcon className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />;
+}
+
+interface MsgAttachment {
+  url?: string | null;
+  content_type: string | null;
+  filename: string | null;
+  size: number | null;
+}
+
+/** Normalized message for the thread view. */
 interface QuickMessage {
   id: string;
   mine: boolean;
   who: string;
   body: string;
   at: string;
-  hasAttachment?: boolean;
+  attachments: MsgAttachment[];
+}
+
+/** A file being / already uploaded, staged in the composer. */
+interface PendingItem {
+  id: string;
+  storage_key?: string;
+  content_type: string | null;
+  filename: string | null;
+  size: number | null;
+  previewUrl?: string;
+  progress: number;
+  error?: boolean;
 }
 
 function ThreadQuickView({
@@ -156,14 +196,19 @@ function ThreadQuickView({
   const isSignal = thread.source === "signal";
   const [messages, setMessages] = useState<QuickMessage[]>([]);
   const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState<PendingItem[]>([]);
   const [sending, setSending] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
+  const pendingRef = useRef<PendingItem[]>([]);
+  pendingRef.current = pending;
 
   const scrollToEnd = useCallback(() => {
     requestAnimationFrame(() => {
       const el = scrollerRef.current;
-      // `scrollTo` is absent in jsdom and older engines — guard it.
       el?.scrollTo?.(0, el.scrollHeight);
     });
   }, []);
@@ -182,7 +227,7 @@ function ThreadQuickView({
             sender: string | null;
             body: string | null;
             sent_at: string;
-            attachments?: unknown[];
+            attachments?: MsgAttachment[];
           }[];
         };
       };
@@ -193,7 +238,7 @@ function ThreadQuickView({
           who: m.direction === "out" ? "you" : m.sender ?? "them",
           body: m.body ?? "",
           at: m.sent_at,
-          hasAttachment: Array.isArray(m.attachments) && m.attachments.length > 0,
+          attachments: Array.isArray(m.attachments) ? m.attachments : [],
         })),
       );
     } else {
@@ -217,6 +262,7 @@ function ThreadQuickView({
           who: m.author_name ?? "someone",
           body: m.body,
           at: m.created_at,
+          attachments: [],
         })),
       );
     }
@@ -227,6 +273,16 @@ function ThreadQuickView({
     void load();
   }, [load]);
 
+  // Revoke any staged previews on unmount / thread switch.
+  useEffect(
+    () => () => {
+      for (const p of pendingRef.current) {
+        if (p.previewUrl) URL.revokeObjectURL(p.previewUrl);
+      }
+    },
+    [],
+  );
+
   useRealtimeTable<{ id: string }>(
     {
       table: isSignal ? "signal_messages" : "messages",
@@ -236,17 +292,122 @@ function ThreadQuickView({
     { onInsert: () => void load(), onUpdate: () => void load() },
   );
 
+  // ── attachments (Signal only) ──────────────────────────────────────────────
+  async function uploadFiles(files: File[]) {
+    if (!isSignal || files.length === 0) return;
+    setError(null);
+    for (const file of files) {
+      const localId = `up-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const previewUrl = file.type.startsWith("image/")
+        ? URL.createObjectURL(file)
+        : undefined;
+      setPending((prev) => [
+        ...prev,
+        {
+          id: localId,
+          content_type: file.type || null,
+          filename: file.name || null,
+          size: file.size,
+          previewUrl,
+          progress: 0,
+        },
+      ]);
+      try {
+        const stored = await uploadSignalMedia(file, (p) =>
+          setPending((prev) =>
+            prev.map((it) =>
+              it.id === localId ? { ...it, progress: p.pct } : it,
+            ),
+          ),
+        );
+        setPending((prev) =>
+          prev.map((it) =>
+            it.id === localId
+              ? { ...it, storage_key: stored.storage_key, progress: 100 }
+              : it,
+          ),
+        );
+      } catch (e) {
+        setPending((prev) =>
+          prev.map((it) => (it.id === localId ? { ...it, error: true } : it)),
+        );
+        setError(e instanceof Error ? e.message : `Couldn’t attach ${file.name}.`);
+      }
+    }
+  }
+
+  function removePending(id: string) {
+    setPending((prev) => {
+      const hit = prev.find((p) => p.id === id);
+      if (hit?.previewUrl) URL.revokeObjectURL(hit.previewUrl);
+      return prev.filter((p) => p.id !== id);
+    });
+  }
+
+  function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    void uploadFiles(files);
+  }
+  function onPaste(e: React.ClipboardEvent) {
+    if (!isSignal) return;
+    const files = Array.from(e.clipboardData.files);
+    if (files.length > 0) {
+      e.preventDefault();
+      void uploadFiles(files);
+    }
+  }
+  function hasFiles(e: React.DragEvent) {
+    return Array.from(e.dataTransfer.types).includes("Files");
+  }
+  function onDragEnter(e: React.DragEvent) {
+    if (!isSignal || !hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current += 1;
+    setDragging(true);
+  }
+  function onDragOver(e: React.DragEvent) {
+    if (!isSignal || !hasFiles(e)) return;
+    e.preventDefault();
+  }
+  function onDragLeave() {
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragging(false);
+  }
+  function onDrop(e: React.DragEvent) {
+    if (!isSignal || !hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth.current = 0;
+    setDragging(false);
+    void uploadFiles(Array.from(e.dataTransfer.files));
+  }
+
+  const uploadingNow = pending.some((p) => !p.storage_key && !p.error);
+  const ready = pending.filter((p) => p.storage_key);
+
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
     const text = draft.trim();
-    if (!text || sending) return;
-    // Optimistic bubble so the reply feels instant; realtime reconciles it.
+    if ((!text && ready.length === 0) || sending || uploadingNow) return;
     const tempId = `temp-${Date.now()}`;
     setMessages((prev) => [
       ...prev,
-      { id: tempId, mine: true, who: "you", body: text, at: new Date().toISOString() },
+      {
+        id: tempId,
+        mine: true,
+        who: "you",
+        body: text,
+        at: new Date().toISOString(),
+        attachments: ready.map((p) => ({
+          url: p.previewUrl ?? null,
+          content_type: p.content_type,
+          filename: p.filename,
+          size: p.size,
+        })),
+      },
     ]);
     setDraft("");
+    setPending([]);
     setError(null);
     setSending(true);
     scrollToEnd();
@@ -260,6 +421,12 @@ function ThreadQuickView({
               signalId: thread.signal_id,
               kind: thread.signal_kind ?? "direct",
               text,
+              attachments: ready.map((p) => ({
+                storage_key: p.storage_key,
+                content_type: p.content_type,
+                filename: p.filename,
+                size: p.size,
+              })),
             }),
           })
         : await fetch(`/api/v1/messages/threads/${thread.id}`, {
@@ -270,15 +437,20 @@ function ThreadQuickView({
           });
       if (!r.ok) {
         setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setDraft((cur) => (cur ? cur : text));
+        setPending(ready);
         const b = (await r.json().catch(() => ({}))) as {
           errors?: { message: string }[];
         };
         setError(b.errors?.[0]?.message ?? "Couldn’t send.");
       } else {
+        ready.forEach((p) => p.previewUrl && URL.revokeObjectURL(p.previewUrl));
         void load();
       }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== tempId));
+      setDraft((cur) => (cur ? cur : text));
+      setPending(ready);
       setError("Couldn’t send.");
     } finally {
       setSending(false);
@@ -286,7 +458,14 @@ function ThreadQuickView({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      onDragEnter={onDragEnter}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      onPaste={onPaste}
+    >
       <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-border bg-bg-1 px-2 py-1.5">
         <button
           type="button"
@@ -312,36 +491,40 @@ function ThreadQuickView({
         ) : null}
         <Link
           href="/messages"
-          aria-label="Open in full inbox"
-          title="Open in full inbox"
+          aria-label="Open full messenger"
+          title="Open full messenger"
           className="rounded-sm p-0.5 text-text-3 hover:bg-bg-2 hover:text-text-0"
         >
-          <MessageSquare className="h-3 w-3" />
+          <Maximize2 className="h-3 w-3" />
         </Link>
       </div>
 
-      <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-1.5">
+      <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {messages.length === 0 ? (
           <p className="py-6 text-center text-xs text-text-3">No messages yet.</p>
         ) : (
-          <ul className="flex flex-col gap-1">
-            {messages.slice(-30).map((m) => (
+          <ul className="flex flex-col gap-1.5">
+            {messages.map((m) => (
               <li
                 key={m.id}
-                className={cn("flex flex-col", m.mine ? "items-end" : "items-start")}
+                className={cn(
+                  "flex flex-col",
+                  m.mine ? "items-end" : "items-start",
+                )}
               >
                 <div
                   className={cn(
-                    "max-w-[80%] rounded px-2 py-1 text-xs",
-                    m.mine ? "bg-accent text-bg-0" : "bg-bg-2 text-text-0",
+                    "flex max-w-[85%] flex-col gap-1 rounded-lg px-2.5 py-1.5 text-xs",
+                    m.mine
+                      ? "rounded-br-sm bg-accent text-bg-0"
+                      : "rounded-bl-sm bg-bg-2 text-text-0",
                   )}
                 >
+                  {m.attachments.map((a, i) => (
+                    <BubbleAttachment key={i} att={a} />
+                  ))}
                   {m.body ? (
                     <span className="whitespace-pre-wrap break-words">{m.body}</span>
-                  ) : m.hasAttachment ? (
-                    <span className="flex items-center gap-1 italic opacity-80">
-                      <Paperclip className="h-3 w-3" /> Attachment
-                    </span>
                   ) : null}
                 </div>
                 <span className="mt-0.5 px-1 text-2xs text-text-3">
@@ -360,7 +543,75 @@ function ThreadQuickView({
         {error ? (
           <span className="px-1 text-2xs text-danger">{error}</span>
         ) : null}
+        {pending.length > 0 ? (
+          <ul className="flex flex-wrap gap-1.5 px-0.5">
+            {pending.map((p) => (
+              <li
+                key={p.id}
+                className="relative flex items-center gap-1.5 rounded-sm border border-border bg-bg-0 py-1 pl-1 pr-1.5"
+              >
+                {p.previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={p.previewUrl}
+                    alt={p.filename ?? "attachment"}
+                    className="h-6 w-6 rounded-sm object-cover"
+                  />
+                ) : (
+                  <FileText className="h-4 w-4 text-text-3" />
+                )}
+                <span className="max-w-[8rem] truncate text-2xs text-text-1">
+                  {p.filename ?? "file"}
+                </span>
+                {p.error ? (
+                  <span className="text-2xs text-danger">failed</span>
+                ) : p.storage_key ? null : (
+                  <span className="text-2xs text-text-3">{p.progress}%</span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removePending(p.id)}
+                  aria-label={`Remove ${p.filename ?? "attachment"}`}
+                  className="rounded-sm p-0.5 text-text-3 hover:text-danger"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+                {!p.storage_key && !p.error ? (
+                  <span
+                    className="absolute bottom-0 left-0 h-0.5 rounded-full bg-accent transition-all"
+                    style={{ width: `${p.progress}%` }}
+                  />
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         <div className="flex gap-1.5">
+          {isSignal ? (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                onChange={onPickFiles}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingNow}
+                title="Attach files"
+                aria-label="Attach files"
+                className="flex items-center rounded-sm border border-border bg-bg-0 px-2 text-text-2 hover:text-text-0 disabled:opacity-40"
+              >
+                {uploadingNow ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Paperclip className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </>
+          ) : null}
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -369,7 +620,7 @@ function ThreadQuickView({
           />
           <button
             type="submit"
-            disabled={!draft.trim() || sending}
+            disabled={(!draft.trim() && ready.length === 0) || sending || uploadingNow}
             aria-label="Send reply"
             className="flex items-center rounded-sm bg-accent px-2 text-bg-0 disabled:opacity-40"
           >
@@ -377,7 +628,46 @@ function ThreadQuickView({
           </button>
         </div>
       </form>
+
+      {dragging ? (
+        <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center border-2 border-dashed border-accent/60 bg-bg-0/80 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-1.5 text-accent">
+            <Paperclip className="h-5 w-5" />
+            <span className="text-xs font-medium">Drop to attach</span>
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function BubbleAttachment({ att }: { att: MsgAttachment }) {
+  const isImage = (att.content_type ?? "").startsWith("image/");
+  const name = att.filename ?? "file";
+  if (isImage && att.url) {
+    return (
+      <a href={att.url} target="_blank" rel="noopener noreferrer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={att.url}
+          alt={name}
+          className="max-h-40 max-w-full rounded object-cover"
+        />
+      </a>
+    );
+  }
+  const card = (
+    <span className="flex items-center gap-1.5 rounded border border-current/20 px-1.5 py-1">
+      <FileText className="h-3.5 w-3.5 flex-shrink-0 opacity-80" />
+      <span className="truncate text-2xs">{name}</span>
+    </span>
+  );
+  return att.url ? (
+    <a href={att.url} target="_blank" rel="noopener noreferrer" download={name}>
+      {card}
+    </a>
+  ) : (
+    card
   );
 }
 
