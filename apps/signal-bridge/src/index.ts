@@ -254,9 +254,14 @@ function toInbound(userId: string, evt: unknown): InboundMessage | null {
   return null;
 }
 
-/** Upsert the thread and insert the message (idempotent on thread+external_id). */
-async function writeInbound(m: InboundMessage): Promise<void> {
-  const { data: thread } = await db
+/**
+ * Upsert the thread and insert the message (idempotent on thread+external_id).
+ * Returns the DB error (if any) instead of swallowing it, so the send path can
+ * surface "couldn't save" rather than silently reporting success — e.g. when a
+ * migration hasn't reached this database and a column is missing.
+ */
+async function writeInbound(m: InboundMessage): Promise<{ error: string | null }> {
+  const { data: thread, error: threadErr } = await db
     .from("signal_threads")
     .upsert(
       { user_id: m.userId, signal_id: m.signalId, kind: m.kind, last_message_at: m.sentAt },
@@ -265,7 +270,11 @@ async function writeInbound(m: InboundMessage): Promise<void> {
     .select("id")
     .single();
   const threadId = (thread as { id: string } | null)?.id;
-  if (!threadId) return;
+  if (threadErr || !threadId) {
+    const msg = threadErr?.message ?? "could not resolve thread";
+    console.log(`[writeInbound] thread upsert failed: ${msg}`);
+    return { error: msg };
+  }
 
   const { data: existing } = await db
     .from("signal_messages")
@@ -274,7 +283,7 @@ async function writeInbound(m: InboundMessage): Promise<void> {
     .eq("external_id", m.externalId)
     .eq("direction", m.direction)
     .maybeSingle();
-  if (existing) return;
+  if (existing) return { error: null };
 
   // Outbound sends arrive with attachments already uploaded; inbound receives
   // carry signal-cli refs we read off disk + upload now.
@@ -284,7 +293,7 @@ async function writeInbound(m: InboundMessage): Promise<void> {
       ? await uploadSignalAttachments(m.userId, threadId, m.signalAttachments)
       : []);
 
-  await db.from("signal_messages").insert({
+  const { error: insErr } = await db.from("signal_messages").insert({
     thread_id: threadId,
     user_id: m.userId,
     external_id: m.externalId,
@@ -295,6 +304,11 @@ async function writeInbound(m: InboundMessage): Promise<void> {
     status: m.status,
     attachments,
   });
+  if (insErr) {
+    console.log(`[writeInbound] message insert failed: ${insErr.message}`);
+    return { error: insErr.message };
+  }
+  return { error: null };
 }
 
 /** Read each received attachment off signal-cli's disk + upload to storage. */
@@ -495,7 +509,11 @@ function handleRpcLine(line: string): void {
       return;
     }
     const inbound = toInbound(userId, msg.params);
-    if (inbound) void writeInbound(inbound);
+    if (inbound) {
+      void writeInbound(inbound).catch((e) =>
+        console.log(`[writeInbound] receive persist threw: ${String(e)}`),
+      );
+    }
   }
 }
 
@@ -760,7 +778,7 @@ app.post("/accounts/:userId/send", async (c) => {
     );
     const externalId = String(res?.timestamp ?? Date.now());
     const anyFail = (res?.results ?? []).some((r) => r.type && r.type !== "SUCCESS");
-    await writeInbound({
+    const saved = await writeInbound({
       userId,
       signalId: body.signalId,
       kind: isGroup ? "group" : "direct",
@@ -772,6 +790,15 @@ app.post("/accounts/:userId/send", async (c) => {
       status: anyFail ? "failed" : "sent",
       attachments: atts,
     });
+    if (saved.error) {
+      // signal-cli delivered it, but we couldn't persist the row (e.g. a missing
+      // migration). Surface it instead of reporting success, so the message
+      // doesn't silently vanish from the thread on reload.
+      return c.json(
+        { error: `Sent on Signal, but couldn't save it in Rokki: ${saved.error}` },
+        500,
+      );
+    }
     return c.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
