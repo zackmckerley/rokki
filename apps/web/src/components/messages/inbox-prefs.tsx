@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Archive } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -151,14 +151,19 @@ export function InboxFilterBar({
   );
 }
 
-/** Compact search input for filtering the conversation list by name. */
+/** Compact search input for the conversation list, with an archive icon that
+ *  restores hidden conversations when there are any. */
 export function InboxSearch({
   value,
   onChange,
+  hiddenCount = 0,
+  onShowHidden,
   className,
 }: {
   value: string;
   onChange: (v: string) => void;
+  hiddenCount?: number;
+  onShowHidden?: () => void;
   className?: string;
 }) {
   return (
@@ -172,7 +177,7 @@ export function InboxSearch({
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search conversations"
+        placeholder="Search"
         className="w-full bg-transparent text-xs text-text-0 outline-none placeholder:text-text-3"
       />
       {value ? (
@@ -183,6 +188,18 @@ export function InboxSearch({
           className="flex-shrink-0 text-text-3 hover:text-text-1"
         >
           <X className="h-3 w-3" />
+        </button>
+      ) : null}
+      {hiddenCount > 0 && onShowHidden ? (
+        <button
+          type="button"
+          onClick={onShowHidden}
+          title={`Show ${hiddenCount} archived`}
+          aria-label={`Show ${hiddenCount} archived conversation${hiddenCount === 1 ? "" : "s"}`}
+          className="flex flex-shrink-0 items-center gap-0.5 rounded-sm px-0.5 text-text-3 hover:text-text-1"
+        >
+          <Archive className="h-3 w-3" />
+          <span className="text-[10px]">{hiddenCount}</span>
         </button>
       ) : null}
     </div>
