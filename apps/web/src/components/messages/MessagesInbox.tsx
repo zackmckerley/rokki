@@ -23,7 +23,6 @@ import { PresenceDot, PresenceLabel } from "../presence/PresenceDot";
 import {
   useInboxView,
   filterThreads,
-  InboxFilterBar,
   InboxSearch,
   UnreadBadge,
 } from "./inbox-prefs";
@@ -95,13 +94,15 @@ export function MessagesInbox() {
   const [refreshingReminders, setRefreshingReminders] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
-  const { filter, setFilter, hidden, hide, clearHidden } = useInboxView();
+  const { hidden, hide, clearHidden } = useInboxView();
   useAutosize(composerRef, draft);
 
   const active = threads.find((t) => t.id === activeId) ?? null;
+  // Signal-only: everything goes through Signal, so the inbox shows Signal
+  // conversations exclusively (no native/Rokki category).
   const { visible, hiddenInFilter } = filterThreads(
     threads,
-    filter,
+    "signal",
     hidden,
     query,
   );
@@ -272,13 +273,12 @@ export function MessagesInbox() {
             <PenSquare className="h-3 w-3" />
           </button>
         </header>
-        <InboxFilterBar
-          filter={filter}
-          setFilter={setFilter}
+        <InboxSearch
+          value={query}
+          onChange={setQuery}
           hiddenCount={hiddenInFilter}
           onShowHidden={clearHidden}
         />
-        <InboxSearch value={query} onChange={setQuery} />
         {/* Reminders CTA — shows once until the user enables it; the
             refresh endpoint creates the thread + posts pings for the
             user's overdue / due-today tasks. After first run the
@@ -355,8 +355,8 @@ export function MessagesInbox() {
                     e.stopPropagation();
                     hide(t.id);
                   }}
-                  aria-label={`Hide ${t.label}`}
-                  title="Hide from this list"
+                  aria-label={`Archive ${t.label}`}
+                  title="Archive"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
                 >
                   <X className="h-3 w-3" />

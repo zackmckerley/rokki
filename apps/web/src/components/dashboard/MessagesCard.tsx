@@ -30,10 +30,8 @@ import { uploadSignalMedia } from "@/lib/signal/upload";
 import {
   useInboxView,
   filterThreads,
-  InboxFilterBar,
   InboxSearch,
   UnreadBadge,
-  type InboxFilter,
 } from "../messages/inbox-prefs";
 import { useAutosize, usePersistedDraft, composerKeyDown } from "../messages/composer-utils";
 
@@ -65,7 +63,7 @@ export function MessagesCard() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<ThreadSummary | null>(null);
   const [query, setQuery] = useState("");
-  const { filter, setFilter, hidden, hide, clearHidden } = useInboxView();
+  const { hidden, hide, clearHidden } = useInboxView();
   // Measure the card so we can switch to a two-pane (iMessage-style) layout
   // when it's wide enough.
   const [containerRef, width] = useElementWidth<HTMLDivElement>();
@@ -99,9 +97,11 @@ export function MessagesCard() {
     { onInsert: () => void load(), onUpdate: () => void load() },
   );
 
+  // Signal-only: every conversation goes through Signal, so the inbox shows
+  // Signal threads exclusively (no native/Rokki category).
   const { visible, hiddenInFilter } = filterThreads(
     threads,
-    filter,
+    "signal",
     hidden,
     query,
   );
@@ -124,8 +124,6 @@ export function MessagesCard() {
   const list = (
     <ConversationList
       visible={visible}
-      filter={filter}
-      setFilter={setFilter}
       hiddenInFilter={hiddenInFilter}
       clearHidden={clearHidden}
       hide={hide}
@@ -211,8 +209,6 @@ function useElementWidth<T extends HTMLElement>() {
  *  footer link. Used standalone (narrow) and as the left pane (wide). */
 function ConversationList({
   visible,
-  filter,
-  setFilter,
   hiddenInFilter,
   clearHidden,
   hide,
@@ -222,8 +218,6 @@ function ConversationList({
   onSelect,
 }: {
   visible: ThreadSummary[];
-  filter: InboxFilter;
-  setFilter: (f: InboxFilter) => void;
   hiddenInFilter: number;
   clearHidden: () => void;
   hide: (id: string) => void;
@@ -234,13 +228,12 @@ function ConversationList({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <InboxFilterBar
-        filter={filter}
-        setFilter={setFilter}
+      <InboxSearch
+        value={query}
+        onChange={setQuery}
         hiddenCount={hiddenInFilter}
         onShowHidden={clearHidden}
       />
-      <InboxSearch value={query} onChange={setQuery} />
       <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
         {visible.length === 0 ? (
           <li className="px-3 py-6 text-center text-xs text-text-3">
@@ -277,8 +270,8 @@ function ConversationList({
                   e.stopPropagation();
                   hide(t.id);
                 }}
-                aria-label={`Hide ${t.label}`}
-                title="Hide from this list"
+                aria-label={`Archive ${t.label}`}
+                title="Archive"
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
               >
                 <X className="h-3 w-3" />
