@@ -7,10 +7,6 @@ import {
   Loader2,
   Trash2,
   X,
-  Check,
-  CheckCheck,
-  Clock,
-  AlertCircle,
   Paperclip,
   FileText,
   Download,
@@ -27,6 +23,7 @@ import {
   usePersistedDraft,
   composerKeyDown,
 } from "./composer-utils";
+import { ChatMessageList, formatBytes } from "./ChatThread";
 
 type SignalStatus = "sending" | "sent" | "delivered" | "read" | "failed";
 
@@ -353,6 +350,22 @@ export function SignalThreadView({
     if (!r.ok) void load(); // restore on failure
   }
 
+  // Delete for EVERYONE on Signal (remote delete) — only your own messages.
+  async function deleteForEveryone(id: string) {
+    setMessages((prev) => prev.filter((m) => m.id !== id));
+    const r = await fetch(`/api/v1/signal/messages/${id}/remote-delete`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!r.ok) {
+      void load();
+      const b = (await r.json().catch(() => ({}))) as {
+        errors?: { message: string }[];
+      };
+      setError(b.errors?.[0]?.message ?? "Couldn’t delete for everyone.");
+    }
+  }
+
   // All attachments with a usable URL, flattened across messages — powers the
   // media gallery + lightbox.
   const mediaItems = messages
@@ -418,70 +431,23 @@ export function SignalThreadView({
       ) : (
         <>
       <div ref={scrollerRef} className="flex-1 overflow-y-auto px-3 py-2 text-xs">
-        <HistoryNotice />
-        {messages.length === 0 ? (
-          <p className="py-10 text-center text-text-3">
-            No messages yet in this Signal chat.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {messages.map((m) => {
-              const mine = m.direction === "out";
-              return (
-                <li
-                  key={m.id}
-                  className={cn(
-                    "group flex flex-col rounded-sm px-2 py-1",
-                    mine ? "items-end" : "items-start",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "flex items-center gap-1",
-                      mine ? "flex-row" : "flex-row-reverse",
-                    )}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => void deleteMessage(m.id)}
-                      title="Delete this message from Rokki"
-                      aria-label="Delete message"
-                      className="rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                    <div
-                      className={cn(
-                        "flex max-w-[75%] flex-col gap-1 rounded px-2 py-1 text-xs",
-                        mine ? "bg-accent text-bg-0" : "bg-bg-2 text-text-0",
-                      )}
-                    >
-                      {m.attachments && m.attachments.length > 0 ? (
-                        <div className="flex flex-col gap-1">
-                          {m.attachments.map((a, i) => (
-                            <AttachmentView
-                              key={i}
-                              att={a}
-                              mine={mine}
-                              onOpenImage={openLightbox}
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-                      {m.body ? <span>{m.body}</span> : null}
-                    </div>
-                  </div>
-                  <div className="mt-0.5 flex items-center gap-1 text-[10px] text-text-3">
-                    <span>{mine ? "you" : (m.sender ?? "them")}</span>
-                    <span>·</span>
-                    <span>{formatRelative(m.sent_at)}</span>
-                    {mine && m.status ? <StatusIndicator status={m.status} /> : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        <ChatMessageList
+          header={<HistoryNotice />}
+          emptyText="No messages yet in this Signal chat."
+          showSender={signalKind === "group"}
+          onDeleteForMe={deleteMessage}
+          onDeleteForEveryone={deleteForEveryone}
+          onOpenImage={openLightbox}
+          messages={messages.map((m) => ({
+            id: m.id,
+            mine: m.direction === "out",
+            sender: m.sender,
+            body: m.body ?? "",
+            at: m.sent_at,
+            status: m.status,
+            attachments: m.attachments ?? [],
+          }))}
+        />
       </div>
       <form
         onSubmit={submit}
@@ -582,90 +548,6 @@ export function SignalThreadView({
         />
       ) : null}
     </div>
-  );
-}
-
-function StatusIndicator({ status }: { status: SignalStatus }) {
-  switch (status) {
-    case "sending":
-      return <Clock className="h-2.5 w-2.5" aria-label="sending" />;
-    case "sent":
-      return <Check className="h-2.5 w-2.5" aria-label="sent" />;
-    case "delivered":
-      return <CheckCheck className="h-2.5 w-2.5" aria-label="delivered" />;
-    case "read":
-      return <CheckCheck className="h-2.5 w-2.5 text-accent" aria-label="read" />;
-    case "failed":
-      return <AlertCircle className="h-2.5 w-2.5 text-danger" aria-label="failed to send" />;
-    default:
-      return null;
-  }
-}
-
-function AttachmentView({
-  att,
-  mine,
-  onOpenImage,
-}: {
-  att: MessageAttachment;
-  mine: boolean;
-  onOpenImage?: (url: string) => void;
-}) {
-  const type = att.content_type ?? "";
-  const name = att.filename ?? "file";
-
-  if (type.startsWith("image/") && att.url) {
-    const url = att.url;
-    return (
-      <button type="button" onClick={() => onOpenImage?.(url)} className="block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={url}
-          alt={name}
-          className="max-h-56 max-w-full cursor-zoom-in rounded object-cover"
-        />
-      </button>
-    );
-  }
-  if (type.startsWith("video/") && att.url) {
-    return (
-      <video
-        src={att.url}
-        controls
-        className="max-h-56 max-w-full rounded"
-        preload="metadata"
-      />
-    );
-  }
-  if (type.startsWith("audio/") && att.url) {
-    return <audio src={att.url} controls className="w-full" preload="metadata" />;
-  }
-
-  // Non-media (or a file still missing its signed URL) → compact file card.
-  const card = (
-    <span
-      className={cn(
-        "flex items-center gap-2 rounded border px-2 py-1.5",
-        mine ? "border-bg-0/30" : "border-border bg-bg-0",
-      )}
-    >
-      <FileText className="h-4 w-4 flex-shrink-0 opacity-80" />
-      <span className="flex flex-col overflow-hidden">
-        <span className="truncate text-[11px]">{name}</span>
-        {att.size ? (
-          <span className="text-[10px] opacity-60">{formatBytes(att.size)}</span>
-        ) : null}
-      </span>
-      {att.url ? <Download className="ml-1 h-3 w-3 flex-shrink-0 opacity-70" /> : null}
-    </span>
-  );
-
-  return att.url ? (
-    <a href={att.url} target="_blank" rel="noopener noreferrer" download={name}>
-      {card}
-    </a>
-  ) : (
-    card
   );
 }
 
@@ -870,23 +752,4 @@ function HistoryNotice() {
       phone — Signal doesn’t sync history to linked devices.
     </div>
   );
-}
-
-function formatBytes(n: number): string {
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatRelative(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return "now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
-  return new Date(iso).toLocaleDateString();
 }
