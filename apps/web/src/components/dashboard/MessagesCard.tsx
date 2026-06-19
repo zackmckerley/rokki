@@ -40,6 +40,7 @@ import {
 } from "../messages/inbox-prefs";
 import { useAutosize, usePersistedDraft, composerKeyDown } from "../messages/composer-utils";
 import { EmojiButton } from "../messages/EmojiPicker";
+import { GifButton } from "../messages/GifPicker";
 
 interface ThreadSummary {
   id: string;
@@ -583,6 +584,23 @@ function ThreadQuickView({
     });
   }
 
+  // Picking a GIF: download it through our Tenor proxy and stage it as a
+  // pending image attachment, so it sends like any other media.
+  async function stageGif(g: { url: string; description: string }) {
+    setError(null);
+    try {
+      const r = await fetch(`/api/v1/gif/proxy?url=${encodeURIComponent(g.url)}`, {
+        credentials: "include",
+      });
+      if (!r.ok) throw new Error("fetch failed");
+      const blob = await r.blob();
+      const name = `${(g.description || "gif").replace(/[^a-z0-9]+/gi, "-").slice(0, 40) || "gif"}.gif`;
+      await uploadFiles([new File([blob], name, { type: blob.type || "image/gif" })]);
+    } catch {
+      setError("Couldn’t load that GIF.");
+    }
+  }
+
   function onPickFiles(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
@@ -840,6 +858,7 @@ function ThreadQuickView({
             </>
           ) : null}
           <EmojiButton onPick={(emoji) => setDraft((d) => d + emoji)} />
+          {isSignal ? <GifButton onPick={(g) => void stageGif(g)} /> : null}
           <textarea
             ref={composerRef}
             value={draft}
