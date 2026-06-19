@@ -14,6 +14,7 @@ import {
   MessageSquare,
   MessageSquarePlus,
   Settings2,
+  PenSquare,
   ChevronLeft,
   Send,
   Paperclip,
@@ -41,6 +42,7 @@ import {
 import { useAutosize, usePersistedDraft, composerKeyDown } from "../messages/composer-utils";
 import { EmojiButton } from "../messages/EmojiPicker";
 import { GifButton } from "../messages/GifPicker";
+import { SignalContactPicker } from "../messages/SignalContactPicker";
 
 interface ThreadSummary {
   id: string;
@@ -71,6 +73,7 @@ export function MessagesCard() {
   const [open, setOpen] = useState<ThreadSummary | null>(null);
   const [query, setQuery] = useState("");
   const [showArchive, setShowArchive] = useState(false);
+  const [composing, setComposing] = useState(false);
   const { hidden, hide, unhide } = useInboxView();
   // Measure the card so we can switch to a two-pane (iMessage-style) layout
   // when it's wide enough.
@@ -162,6 +165,16 @@ export function MessagesCard() {
     setOpen(null);
     void load();
   };
+  // After composing a new message, reload threads and open the new one.
+  const openById = async (id: string) => {
+    const r = await fetch("/api/v1/messages/threads", { credentials: "include" });
+    if (!r.ok) return;
+    const b = (await r.json()) as { data?: ThreadSummary[] };
+    const all = b.data ?? [];
+    setThreads(all);
+    const t = all.find((x) => x.id === id);
+    if (t) setOpen(t);
+  };
 
   const list = (
     <ConversationList
@@ -226,18 +239,40 @@ export function MessagesCard() {
       expandHref="/messages"
       bodyClassName="flex min-h-0 flex-col overflow-hidden"
       headerRight={
-        <Link
-          href="/settings/modules/messages"
-          aria-label="Messages settings"
-          title="Connect Signal & settings"
-          className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
-        >
-          <Settings2 className="h-3 w-3" />
-        </Link>
+        <>
+          <button
+            type="button"
+            onClick={() => setComposing(true)}
+            aria-label="New message"
+            title="New message"
+            className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+          >
+            <PenSquare className="h-3 w-3" />
+          </button>
+          <Link
+            href="/settings/modules/messages"
+            aria-label="Messages settings"
+            title="Connect Signal & settings"
+            className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+          >
+            <Settings2 className="h-3 w-3" />
+          </Link>
+        </>
       }
     >
-      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
+      <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col">
         {body}
+        {composing ? (
+          <div className="absolute inset-0 z-30 flex flex-col bg-bg-1">
+            <SignalContactPicker
+              onClose={() => setComposing(false)}
+              onPick={(id) => {
+                setComposing(false);
+                void openById(id);
+              }}
+            />
+          </div>
+        ) : null}
       </div>
     </DashboardCard>
   );
