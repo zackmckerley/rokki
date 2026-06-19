@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Hash,
   User as UserIcon,
@@ -26,6 +32,7 @@ import {
   filterThreads,
   InboxFilterBar,
   UnreadBadge,
+  type InboxFilter,
 } from "../messages/inbox-prefs";
 
 interface ThreadSummary {
@@ -56,6 +63,9 @@ export function MessagesCard() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<ThreadSummary | null>(null);
   const { filter, setFilter, hidden, hide, clearHidden } = useInboxView();
+  // Measure the card so we can switch to a two-pane (iMessage-style) layout
+  // when it's wide enough.
+  const [containerRef, width] = useElementWidth<HTMLDivElement>();
 
   const load = useCallback(async () => {
     try {
@@ -87,6 +97,65 @@ export function MessagesCard() {
   );
 
   const { visible, hiddenInFilter } = filterThreads(threads, filter, hidden);
+  // Two-pane (list + open chat side by side) once the card is wide enough,
+  // like Messages on a Mac; below that, the single-pane list↔thread flow.
+  const split = width >= 560;
+
+  const selectThread = (t: ThreadSummary) => {
+    // Optimistically clear the badge; the server marks it read on open.
+    setThreads((prev) =>
+      prev.map((x) => (x.id === t.id ? { ...x, unread: 0 } : x)),
+    );
+    setOpen(t);
+  };
+  const closeThread = () => {
+    setOpen(null);
+    void load();
+  };
+
+  const list = (
+    <ConversationList
+      visible={visible}
+      filter={filter}
+      setFilter={setFilter}
+      hiddenInFilter={hiddenInFilter}
+      clearHidden={clearHidden}
+      hide={hide}
+      activeId={split ? open?.id ?? null : null}
+      onSelect={selectThread}
+    />
+  );
+
+  let body: ReactNode;
+  if (loading && threads.length === 0) {
+    body = <p className="px-3 py-4 text-center text-xs text-text-3">Loading…</p>;
+  } else if (threads.length === 0) {
+    body = <Empty />;
+  } else if (split) {
+    body = (
+      <div className="flex min-h-0 flex-1">
+        <div className="flex w-[240px] flex-shrink-0 flex-col border-r border-border">
+          {list}
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col">
+          {open ? (
+            <ThreadQuickView
+              key={open.id}
+              thread={open}
+              showBack={false}
+              onBack={closeThread}
+            />
+          ) : (
+            <SelectPrompt />
+          )}
+        </div>
+      </div>
+    );
+  } else if (open) {
+    body = <ThreadQuickView key={open.id} thread={open} onBack={closeThread} />;
+  } else {
+    body = list;
+  }
 
   return (
     <DashboardCard
@@ -105,87 +174,122 @@ export function MessagesCard() {
         </Link>
       }
     >
-      {open ? (
-        <ThreadQuickView
-          thread={open}
-          onBack={() => {
-            setOpen(null);
-            void load();
-          }}
-        />
-      ) : loading && threads.length === 0 ? (
-        <p className="px-3 py-4 text-center text-xs text-text-3">Loading…</p>
-      ) : threads.length === 0 ? (
-        <Empty />
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <InboxFilterBar
-            filter={filter}
-            setFilter={setFilter}
-            hiddenCount={hiddenInFilter}
-            onShowHidden={clearHidden}
-          />
-          <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
-            {visible.length === 0 ? (
-              <li className="px-3 py-6 text-center text-xs text-text-3">
-                Nothing here.
-              </li>
-            ) : (
-              visible.map((t) => (
-                <li key={t.id} className="group relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Optimistically clear the badge; the server marks it read.
-                      setThreads((prev) =>
-                        prev.map((x) =>
-                          x.id === t.id ? { ...x, unread: 0 } : x,
-                        ),
-                      );
-                      setOpen(t);
-                    }}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-bg-2"
-                  >
-                    <ThreadIcon thread={t} />
-                    <span
-                      className={cn(
-                        "flex-1 truncate",
-                        t.unread ? "font-semibold text-text-0" : "text-text-0",
-                      )}
-                    >
-                      {t.label}
-                    </span>
-                    <UnreadBadge count={t.unread} />
-                    <span className="flex-shrink-0 font-mono text-2xs text-text-3 group-hover:opacity-0">
-                      {formatRelative(t.last_message_at)}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      hide(t.id);
-                    }}
-                    aria-label={`Hide ${t.label}`}
-                    title="Hide from this list"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </li>
-              ))
-            )}
-          </ul>
-          <Link
-            href="/messages"
-            className="flex flex-shrink-0 items-center justify-center gap-1.5 border-t border-border/60 py-1.5 text-2xs uppercase tracking-wide text-text-3 hover:bg-bg-2 hover:text-text-1"
-          >
-            <Maximize2 className="h-3 w-3" />
-            Open full messenger
-          </Link>
-        </div>
-      )}
+      <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
+        {body}
+      </div>
     </DashboardCard>
+  );
+}
+
+/** Measure an element's width via ResizeObserver (SSR-safe; 0 until mounted). */
+function useElementWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setWidth(e.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+/** The conversation list — filter bar, rows (unread badge + hover-hide), and a
+ *  footer link. Used standalone (narrow) and as the left pane (wide). */
+function ConversationList({
+  visible,
+  filter,
+  setFilter,
+  hiddenInFilter,
+  clearHidden,
+  hide,
+  activeId,
+  onSelect,
+}: {
+  visible: ThreadSummary[];
+  filter: InboxFilter;
+  setFilter: (f: InboxFilter) => void;
+  hiddenInFilter: number;
+  clearHidden: () => void;
+  hide: (id: string) => void;
+  activeId: string | null;
+  onSelect: (t: ThreadSummary) => void;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <InboxFilterBar
+        filter={filter}
+        setFilter={setFilter}
+        hiddenCount={hiddenInFilter}
+        onShowHidden={clearHidden}
+      />
+      <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
+        {visible.length === 0 ? (
+          <li className="px-3 py-6 text-center text-xs text-text-3">
+            Nothing here.
+          </li>
+        ) : (
+          visible.map((t) => (
+            <li key={t.id} className="group relative">
+              <button
+                type="button"
+                onClick={() => onSelect(t)}
+                className={cn(
+                  "flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-bg-2",
+                  activeId === t.id && "bg-bg-2",
+                )}
+              >
+                <ThreadIcon thread={t} />
+                <span
+                  className={cn(
+                    "flex-1 truncate",
+                    t.unread ? "font-semibold text-text-0" : "text-text-0",
+                  )}
+                >
+                  {t.label}
+                </span>
+                <UnreadBadge count={t.unread} />
+                <span className="flex-shrink-0 font-mono text-2xs text-text-3 group-hover:opacity-0">
+                  {formatRelative(t.last_message_at)}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  hide(t.id);
+                }}
+                aria-label={`Hide ${t.label}`}
+                title="Hide from this list"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </li>
+          ))
+        )}
+      </ul>
+      <Link
+        href="/messages"
+        className="flex flex-shrink-0 items-center justify-center gap-1.5 border-t border-border/60 py-1.5 text-2xs uppercase tracking-wide text-text-3 hover:bg-bg-2 hover:text-text-1"
+      >
+        <Maximize2 className="h-3 w-3" />
+        Open full messenger
+      </Link>
+    </div>
+  );
+}
+
+/** Empty right pane in split layout, before a conversation is picked. */
+function SelectPrompt() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-text-3">
+      <MessageSquare className="h-6 w-6" />
+      <p className="text-xs">Select a conversation</p>
+    </div>
   );
 }
 
@@ -240,9 +344,11 @@ interface PendingItem {
 function ThreadQuickView({
   thread,
   onBack,
+  showBack = true,
 }: {
   thread: ThreadSummary;
   onBack: () => void;
+  showBack?: boolean;
 }) {
   const isSignal = thread.source === "signal";
   const [messages, setMessages] = useState<QuickMessage[]>([]);
@@ -518,14 +624,16 @@ function ThreadQuickView({
       onPaste={onPaste}
     >
       <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-border bg-bg-1 px-2 py-1.5">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label="Back to conversations"
-          className="rounded-sm p-0.5 text-text-3 hover:bg-bg-2 hover:text-text-0"
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-        </button>
+        {showBack ? (
+          <button
+            type="button"
+            onClick={onBack}
+            aria-label="Back to conversations"
+            className="rounded-sm p-0.5 text-text-3 hover:bg-bg-2 hover:text-text-0"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
         {isSignal ? (
           <MessageSquare className="h-3 w-3 flex-shrink-0 text-success" />
         ) : thread.kind === "terminal" ? (
