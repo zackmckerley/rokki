@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import {
-  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -22,13 +21,8 @@ import {
   X,
   FileText,
   Loader2,
-  Check,
-  CheckCheck,
-  Clock,
-  AlertCircle,
   Archive,
   ArchiveRestore,
-  MoreHorizontal,
 } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { cn } from "@/lib/utils";
@@ -44,6 +38,12 @@ import {
 import { useAutosize, usePersistedDraft, composerKeyDown } from "../messages/composer-utils";
 import { EmojiButton } from "../messages/EmojiPicker";
 import { GifButton } from "../messages/GifPicker";
+import {
+  ChatMessageList,
+  formatRelative,
+  type ChatAttachment,
+  type SignalStatus,
+} from "../messages/ChatThread";
 import { SignalContactPicker } from "../messages/SignalContactPicker";
 
 interface ThreadSummary {
@@ -428,15 +428,6 @@ function ThreadIcon({ thread: t }: { thread: ThreadSummary }) {
   return <UserIcon className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />;
 }
 
-interface MsgAttachment {
-  url?: string | null;
-  content_type: string | null;
-  filename: string | null;
-  size: number | null;
-}
-
-type SignalStatus = "sending" | "sent" | "delivered" | "read" | "failed";
-
 /** Normalized message for the thread view. */
 interface QuickMessage {
   id: string;
@@ -444,7 +435,7 @@ interface QuickMessage {
   who: string;
   body: string;
   at: string;
-  attachments: MsgAttachment[];
+  attachments: ChatAttachment[];
   status?: SignalStatus;
 }
 
@@ -476,7 +467,6 @@ function ThreadQuickView({
   const [sending, setSending] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -507,7 +497,7 @@ function ThreadQuickView({
             body: string | null;
             sent_at: string;
             status?: SignalStatus;
-            attachments?: MsgAttachment[];
+            attachments?: ChatAttachment[];
           }[];
         };
       };
@@ -515,7 +505,9 @@ function ThreadQuickView({
         (b.data?.messages ?? []).map((m) => ({
           id: m.id,
           mine: m.direction === "out",
-          who: m.direction === "out" ? "you" : m.sender ?? "them",
+          // Empty (not "them") when the sender is unknown, so the shared
+          // renderer shows no group label — matching the full-page view.
+          who: m.direction === "out" ? "you" : m.sender ?? "",
           body: m.body ?? "",
           at: m.sent_at,
           attachments: Array.isArray(m.attachments) ? m.attachments : [],
@@ -572,17 +564,6 @@ function ThreadQuickView({
     },
     { onInsert: () => void load(), onUpdate: () => void load() },
   );
-
-  // Close an open per-message menu on any outside click.
-  useEffect(() => {
-    if (!menuFor) return;
-    const close = () => setMenuFor(null);
-    const t = setTimeout(() => window.addEventListener("mousedown", close), 0);
-    return () => {
-      clearTimeout(t);
-      window.removeEventListener("mousedown", close);
-    };
-  }, [menuFor]);
 
   // ── attachments (Signal only) ──────────────────────────────────────────────
   async function uploadFiles(files: File[]) {
@@ -656,7 +637,6 @@ function ThreadQuickView({
   // Per-message delete: "for me" (Rokki-local) and "for everyone" (Signal
   // remote delete — only your own messages).
   async function deleteForMe(id: string) {
-    setMenuFor(null);
     setMessages((prev) => prev.filter((mm) => mm.id !== id));
     const r = await fetch(`/api/v1/signal/messages/${id}`, {
       method: "DELETE",
@@ -665,7 +645,6 @@ function ThreadQuickView({
     if (!r.ok) void load();
   }
   async function deleteForEveryone(id: string) {
-    setMenuFor(null);
     setMessages((prev) => prev.filter((mm) => mm.id !== id));
     const r = await fetch(`/api/v1/signal/messages/${id}/remote-delete`, {
       method: "POST",
@@ -823,137 +802,20 @@ function ThreadQuickView({
       ) : null}
 
       <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
-        {messages.length === 0 ? (
-          <p className="py-6 text-center text-xs text-text-3">No messages yet.</p>
-        ) : (
-          <ul className="flex flex-col">
-            {messages.map((m, i) => {
-              // iMessage/WhatsApp-style grouping: consecutive messages from the
-              // same side within a short window are one "run" — tight spacing,
-              // a tail (the cut corner) only on the last bubble, and a single
-              // timestamp under the run.
-              const prev = messages[i - 1];
-              const next = messages[i + 1];
-              const firstInGroup =
-                !prev || prev.mine !== m.mine || !withinRun(prev.at, m.at);
-              const lastInGroup =
-                !next || next.mine !== m.mine || !withinRun(m.at, next.at);
-              const bigGap =
-                !prev ||
-                new Date(m.at).getTime() - new Date(prev.at).getTime() >
-                  60 * 60_000;
-              const imgs = m.attachments.filter((a) => isImageAtt(a));
-              const files = m.attachments.filter((a) => !isImageAtt(a));
-              const emojiOnly =
-                imgs.length === 0 && files.length === 0 && isEmojiOnly(m.body);
-              const deletable = !m.id.startsWith("temp-");
-              return (
-                <Fragment key={m.id}>
-                  {bigGap ? (
-                    <li className="my-2 flex justify-center">
-                      <span className="rounded-full bg-bg-2/70 px-2 py-0.5 text-[10px] font-medium text-text-3">
-                        {formatStamp(m.at)}
-                      </span>
-                    </li>
-                  ) : null}
-                  <li
-                    className={cn(
-                      "group/msg relative flex flex-col",
-                      m.mine ? "items-end" : "items-start",
-                      firstInGroup ? "mt-2" : "mt-0.5",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "flex max-w-[82%] items-center gap-1",
-                        m.mine ? "flex-row" : "flex-row-reverse",
-                      )}
-                    >
-                      {deletable ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setMenuFor((cur) => (cur === m.id ? null : m.id))
-                          }
-                          aria-label="Message options"
-                          className="flex-shrink-0 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover/msg:opacity-100"
-                        >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
-                        </button>
-                      ) : null}
-                      {emojiOnly ? (
-                        <div className={cn("px-1 py-0.5 leading-none", emojiSize(m.body))}>
-                          {m.body}
-                        </div>
-                      ) : (
-                        <div
-                          className={cn(
-                            "relative overflow-hidden rounded-[18px] shadow-sm",
-                            m.mine
-                              ? "bg-accent text-bg-0"
-                              : "bg-bg-2 text-text-0",
-                            lastInGroup &&
-                              (m.mine
-                                ? "rounded-br-[5px]"
-                                : "rounded-bl-[5px]"),
-                          )}
-                        >
-                          {imgs.length > 0 ? <ImageGroup imgs={imgs} /> : null}
-                          {files.length > 0 ? (
-                            <div className="flex flex-col gap-1 p-1.5">
-                              {files.map((a, k) => (
-                                <FileCard key={k} att={a} mine={m.mine} />
-                              ))}
-                            </div>
-                          ) : null}
-                          {m.body ? (
-                            <div className="whitespace-pre-wrap break-words px-3 py-2 text-xs leading-relaxed">
-                              {m.body}
-                            </div>
-                          ) : null}
-                        </div>
-                      )}
-                    </div>
-                    {menuFor === m.id ? (
-                      <div
-                        onMouseDown={(e) => e.stopPropagation()}
-                        className={cn(
-                          "absolute top-6 z-20 flex flex-col rounded-md border border-border bg-bg-1 py-1 text-2xs shadow-lg",
-                          m.mine ? "right-5" : "left-5",
-                        )}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => void deleteForMe(m.id)}
-                          className="whitespace-nowrap px-3 py-1 text-left text-text-1 hover:bg-bg-2"
-                        >
-                          Delete for me
-                        </button>
-                        {m.mine ? (
-                          <button
-                            type="button"
-                            onClick={() => void deleteForEveryone(m.id)}
-                            className="whitespace-nowrap px-3 py-1 text-left text-danger hover:bg-bg-2"
-                          >
-                            Delete for everyone
-                          </button>
-                        ) : null}
-                      </div>
-                    ) : null}
-                    {lastInGroup ? (
-                      <span className="mt-0.5 flex items-center gap-1 px-1 text-2xs text-text-3">
-                        {formatRelative(m.at)}
-                        {m.mine && m.status ? (
-                          <StatusTick status={m.status} />
-                        ) : null}
-                      </span>
-                    ) : null}
-                  </li>
-                </Fragment>
-              );
-            })}
-          </ul>
-        )}
+        <ChatMessageList
+          messages={messages.map((m) => ({
+            id: m.id,
+            mine: m.mine,
+            sender: m.who,
+            body: m.body,
+            at: m.at,
+            status: m.status,
+            attachments: m.attachments,
+          }))}
+          showSender={thread.signal_kind === "group"}
+          onDeleteForMe={isSignal ? deleteForMe : undefined}
+          onDeleteForEveryone={isSignal ? deleteForEveryone : undefined}
+        />
       </div>
 
       <form
@@ -1066,156 +928,6 @@ function ThreadQuickView({
   );
 }
 
-function isImageAtt(att: MsgAttachment): boolean {
-  return (att.content_type ?? "").startsWith("image/");
-}
-
-/** Render a message's image attachment(s) flush inside the bubble — a single
- *  image fills the bubble (image *is* the bubble, à la iMessage/WhatsApp);
- *  multiple images become a 2-up collage with a "+N" overlay. GIFs get a
- *  small badge and loop on their own (animated <img>). */
-function ImageGroup({ imgs }: { imgs: MsgAttachment[] }) {
-  if (imgs.length === 1) {
-    const a = imgs[0];
-    const gif = (a.content_type ?? "") === "image/gif";
-    const inner = (
-      <span className="relative block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={a.url ?? undefined}
-          alt={a.filename ?? "image"}
-          className="block max-h-60 max-w-[260px] object-cover"
-        />
-        {gif ? (
-          <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
-            GIF
-          </span>
-        ) : null}
-      </span>
-    );
-    return a.url ? (
-      <a href={a.url} target="_blank" rel="noopener noreferrer">
-        {inner}
-      </a>
-    ) : (
-      inner
-    );
-  }
-  const shown = imgs.slice(0, 4);
-  const extra = imgs.length - shown.length;
-  return (
-    <div className="grid w-[238px] grid-cols-2 gap-0.5">
-      {shown.map((a, i) => {
-        const last = i === shown.length - 1 && extra > 0;
-        const tile = (
-          <span className="relative block">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={a.url ?? undefined}
-              alt={a.filename ?? "image"}
-              className="aspect-square w-full object-cover"
-            />
-            {last ? (
-              <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-semibold text-white">
-                +{extra}
-              </span>
-            ) : null}
-          </span>
-        );
-        return a.url ? (
-          <a key={i} href={a.url} target="_blank" rel="noopener noreferrer">
-            {tile}
-          </a>
-        ) : (
-          <Fragment key={i}>{tile}</Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
-/** A non-image attachment: a tidy card with an icon, filename and size that
- *  inherits the bubble's text color so it reads on both sides. */
-function FileCard({ att, mine }: { att: MsgAttachment; mine: boolean }) {
-  const name = att.filename ?? "file";
-  const card = (
-    <span
-      className={cn(
-        "flex items-center gap-2 rounded-lg px-2 py-1.5",
-        mine ? "bg-black/10" : "bg-black/15",
-      )}
-    >
-      <FileText className="h-4 w-4 flex-shrink-0 opacity-80" />
-      <span className="min-w-0">
-        <span className="block max-w-[180px] truncate text-xs">{name}</span>
-        {att.size ? (
-          <span className="block text-[10px] opacity-70">
-            {formatSize(att.size)}
-          </span>
-        ) : null}
-      </span>
-    </span>
-  );
-  return att.url ? (
-    <a href={att.url} target="_blank" rel="noopener noreferrer" download={name}>
-      {card}
-    </a>
-  ) : (
-    card
-  );
-}
-
-/** Two messages are in the same "run" when from the same side within 5 min. */
-function withinRun(a: string, b: string): boolean {
-  return Math.abs(new Date(b).getTime() - new Date(a).getTime()) < 5 * 60_000;
-}
-
-/** Count emoji in a string (over-counts ZWJ sequences slightly — fine for
- *  sizing). */
-function emojiCount(s: string): number {
-  const m = s.match(/\p{Extended_Pictographic}/gu);
-  return m ? m.length : 0;
-}
-
-/** True when a message is nothing but emoji (+ whitespace) — iMessage/WhatsApp
- *  render those big and bubble-less. */
-function isEmojiOnly(s: string): boolean {
-  const t = (s ?? "").trim();
-  if (!t) return false;
-  const stripped = t.replace(
-    /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{1F1E6}-\u{1F1FF}‍️⃣\s]/gu,
-    "",
-  );
-  return stripped === "" && emojiCount(t) <= 6;
-}
-
-/** Jumbo size for an emoji-only message — biggest for a lone emoji. */
-function emojiSize(s: string): string {
-  const n = emojiCount(s);
-  if (n <= 1) return "text-5xl";
-  if (n === 2) return "text-4xl";
-  return "text-3xl";
-}
-
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-/** Date/time chip shown between messages with a big time gap (iMessage-style).*/
-function formatStamp(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  const time = d.toLocaleTimeString(undefined, {
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  if (sameDay) return time;
-  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
-}
-
 function Empty() {
   return (
     <div className="flex flex-col items-center justify-center gap-2 p-6 text-center">
@@ -1234,46 +946,10 @@ function Empty() {
   );
 }
 
-/** Sent / delivered / read ticks under an outgoing message. */
-function StatusTick({ status }: { status: SignalStatus }) {
-  switch (status) {
-    case "sending":
-      return <Clock className="h-2.5 w-2.5" aria-label="sending" />;
-    case "sent":
-      return <Check className="h-2.5 w-2.5" aria-label="sent" />;
-    case "delivered":
-      return <CheckCheck className="h-2.5 w-2.5" aria-label="delivered" />;
-    case "read":
-      return <CheckCheck className="h-2.5 w-2.5 text-accent" aria-label="read" />;
-    case "failed":
-      return (
-        <AlertCircle className="h-2.5 w-2.5 text-danger" aria-label="failed to send" />
-      );
-    default:
-      return null;
-  }
-}
-
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Don't surface a raw Signal UUID as a conversation name. */
 function displayLabel(label: string): string {
   return UUID_RE.test((label ?? "").trim()) ? "Unknown" : label;
-}
-
-function formatRelative(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  const s = Math.floor(ms / 1000);
-  if (s < 60) return "now";
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h`;
-  const d = Math.floor(h / 24);
-  if (d < 7) return `${d}d`;
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
 }
