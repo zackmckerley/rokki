@@ -123,6 +123,18 @@ export function bridgeSend(
   );
 }
 
+/** Create a new Signal group with the given name + member signal ids. Returns
+ *  the new group id + the Rokki thread id (when signal-cli reports them). */
+export function bridgeCreateGroup(
+  userId: string,
+  payload: { signalNumber: string; name: string; members: string[] },
+): Promise<{ ok: true; groupId: string | null; threadId: string | null }> {
+  return bridgeFetch<{ ok: true; groupId: string | null; threadId: string | null }>(
+    `/accounts/${encodeURIComponent(userId)}/group`,
+    { method: "POST", body: payload, timeoutMs: 45_000 },
+  );
+}
+
 /** Refresh the user's Signal contact + group directory into signal_contacts. */
 export function bridgeSyncContacts(userId: string): Promise<{ ok: true }> {
   return bridgeFetch<{ ok: true }>(

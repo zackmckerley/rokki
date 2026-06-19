@@ -912,6 +912,58 @@ app.post("/accounts/:userId/remote-delete", async (c) => {
   }
 });
 
+/**
+ * Create a new Signal group with the given name + members (recipient
+ * numbers/uuids). updateGroup with no group id creates a fresh group and (on
+ * create) returns its groupId; we upsert a signal_thread so it shows up right
+ * away. If signal-cli doesn't return the id, the group still exists and a
+ * contact sync will surface it.
+ */
+app.post("/accounts/:userId/group", async (c) => {
+  const userId = c.req.param("userId");
+  const body = (await c.req.json().catch(() => ({}))) as Partial<{
+    signalNumber: string;
+    name: string;
+    members: string[];
+  }>;
+  const name = body.name?.trim();
+  if (!body.signalNumber || !name || !body.members?.length) {
+    return c.json({ error: "signalNumber, name and members are required" }, 400);
+  }
+  try {
+    const res = await rpcCall<{ groupId?: string; timestamp?: number }>(
+      "updateGroup",
+      { account: body.signalNumber, name, members: body.members },
+    );
+    const groupId = res?.groupId;
+    if (!groupId) {
+      console.log(`[group] created "${name}" but no groupId returned`);
+      return c.json({ ok: true, groupId: null, threadId: null });
+    }
+    const { data: thread } = await db
+      .from("signal_threads")
+      .upsert(
+        {
+          user_id: userId,
+          signal_id: groupId,
+          kind: "group",
+          title: name,
+          last_message_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,signal_id" },
+      )
+      .select("id")
+      .single();
+    return c.json({
+      ok: true,
+      groupId,
+      threadId: (thread as { id: string } | null)?.id ?? null,
+    });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
+});
+
 app.post("/accounts/:userId/sync", async (c) => {
   const userId = c.req.param("userId");
   const { data } = await db
