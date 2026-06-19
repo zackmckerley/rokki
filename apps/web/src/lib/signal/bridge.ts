@@ -131,6 +131,23 @@ export function bridgeSyncContacts(userId: string): Promise<{ ok: true }> {
   );
 }
 
+/** Delete a message for EVERYONE on Signal (remote delete). Only valid for
+ *  messages the user sent; targetTimestamp is that message's external_id. */
+export function bridgeRemoteDelete(
+  userId: string,
+  payload: {
+    signalNumber: string;
+    signalId: string;
+    kind: "direct" | "group";
+    targetTimestamp: number;
+  },
+): Promise<{ ok: true }> {
+  return bridgeFetch<{ ok: true }>(
+    `/accounts/${encodeURIComponent(userId)}/remote-delete`,
+    { method: "POST", body: payload, timeoutMs: 30_000 },
+  );
+}
+
 /** Send read receipts for the given inbound message timestamps (direct chats). */
 export function bridgeMarkRead(
   userId: string,
