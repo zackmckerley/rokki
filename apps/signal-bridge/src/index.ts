@@ -120,12 +120,16 @@ interface RawAttachment {
   filename?: string;
   size?: number;
 }
+interface RawRemoteDelete {
+  timestamp?: number;
+}
 interface RawDataMessage {
   message?: string;
   timestamp?: number;
   groupInfo?: RawGroup;
   groupV2?: { id?: string };
   attachments?: RawAttachment[];
+  remoteDelete?: RawRemoteDelete;
 }
 interface RawSentMessage {
   message?: string;
@@ -136,6 +140,7 @@ interface RawSentMessage {
   groupInfo?: RawGroup;
   groupV2?: { id?: string };
   attachments?: RawAttachment[];
+  remoteDelete?: RawRemoteDelete;
 }
 interface RawEnvelope {
   source?: string;
@@ -388,6 +393,27 @@ async function applyReceipt(
     .in("status", advanceable);
 }
 
+/**
+ * A message was deleted "for everyone" (on Signal). Reflect it in Rokki by
+ * soft-deleting the matching row (external_id == the deleted message's send
+ * timestamp). Works for both an incoming delete and our own phone-side delete.
+ */
+async function applyRemoteDelete(
+  userId: string,
+  targetTimestamp: number,
+): Promise<void> {
+  const { error } = await db
+    .from("signal_messages")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("user_id", userId)
+    .eq("external_id", String(targetTimestamp));
+  if (error) {
+    console.log(`[remoteDelete] reflect failed: ${error.message}`);
+  } else {
+    console.log(`[remoteDelete] reflected delete of ${targetTimestamp}`);
+  }
+}
+
 // ── contact / group directory sync ────────────────────────────────────────────
 
 interface RawContact {
@@ -506,6 +532,16 @@ function handleRpcLine(line: string): void {
     // Delivery/read receipts ride the same "receive" push — handle first.
     if (params.envelope?.receiptMessage) {
       void applyReceipt(userId, params.envelope.receiptMessage);
+      return;
+    }
+    // Remote delete ("delete for everyone") — either the other party deleting
+    // their message (dataMessage.remoteDelete) or our own delete syncing from
+    // the phone (syncMessage.sentMessage.remoteDelete). Mark the row deleted.
+    const remoteDelete =
+      params.envelope?.dataMessage?.remoteDelete ??
+      params.envelope?.syncMessage?.sentMessage?.remoteDelete;
+    if (remoteDelete?.timestamp) {
+      void applyRemoteDelete(userId, remoteDelete.timestamp);
       return;
     }
     const inbound = toInbound(userId, msg.params);
@@ -826,6 +862,50 @@ app.post("/accounts/:userId/read", async (c) => {
       targetTimestamps: body.timestamps,
       type: "read",
     });
+    return c.json({ ok: true });
+  } catch (e) {
+    return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);
+  }
+});
+
+/**
+ * Delete a message for EVERYONE (Signal remote delete). Only valid for messages
+ * we sent. targetTimestamp is the original send timestamp (our external_id).
+ */
+app.post("/accounts/:userId/remote-delete", async (c) => {
+  const userId = c.req.param("userId");
+  const body = (await c.req.json().catch(() => ({}))) as Partial<{
+    signalNumber: string;
+    signalId: string;
+    kind: "direct" | "group";
+    targetTimestamp: number;
+  }>;
+  if (!body.signalNumber || !body.signalId || !body.targetTimestamp) {
+    return c.json(
+      { error: "signalNumber, signalId and targetTimestamp are required" },
+      400,
+    );
+  }
+  const params =
+    body.kind === "group"
+      ? {
+          account: body.signalNumber,
+          groupId: body.signalId,
+          targetTimestamp: body.targetTimestamp,
+        }
+      : {
+          account: body.signalNumber,
+          recipient: [body.signalId],
+          targetTimestamp: body.targetTimestamp,
+        };
+  try {
+    await rpcCall("remoteDelete", params);
+    // Reflect locally immediately (don't wait for the sync transcript).
+    await db
+      .from("signal_messages")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("external_id", String(body.targetTimestamp));
     return c.json({ ok: true });
   } catch (e) {
     return c.json({ error: e instanceof Error ? e.message : String(e) }, 500);

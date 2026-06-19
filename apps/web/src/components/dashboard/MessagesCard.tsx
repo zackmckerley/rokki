@@ -27,6 +27,7 @@ import {
   AlertCircle,
   Archive,
   ArchiveRestore,
+  MoreHorizontal,
 } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { cn } from "@/lib/utils";
@@ -471,6 +472,7 @@ function ThreadQuickView({
   const [sending, setSending] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -567,6 +569,17 @@ function ThreadQuickView({
     { onInsert: () => void load(), onUpdate: () => void load() },
   );
 
+  // Close an open per-message menu on any outside click.
+  useEffect(() => {
+    if (!menuFor) return;
+    const close = () => setMenuFor(null);
+    const t = setTimeout(() => window.addEventListener("mousedown", close), 0);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("mousedown", close);
+    };
+  }, [menuFor]);
+
   // ── attachments (Signal only) ──────────────────────────────────────────────
   async function uploadFiles(files: File[]) {
     if (!isSignal || files.length === 0) return;
@@ -633,6 +646,33 @@ function ThreadQuickView({
       await uploadFiles([new File([blob], name, { type: blob.type || "image/gif" })]);
     } catch {
       setError("Couldn’t load that GIF.");
+    }
+  }
+
+  // Per-message delete: "for me" (Rokki-local) and "for everyone" (Signal
+  // remote delete — only your own messages).
+  async function deleteForMe(id: string) {
+    setMenuFor(null);
+    setMessages((prev) => prev.filter((mm) => mm.id !== id));
+    const r = await fetch(`/api/v1/signal/messages/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!r.ok) void load();
+  }
+  async function deleteForEveryone(id: string) {
+    setMenuFor(null);
+    setMessages((prev) => prev.filter((mm) => mm.id !== id));
+    const r = await fetch(`/api/v1/signal/messages/${id}/remote-delete`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!r.ok) {
+      void load();
+      const b = (await r.json().catch(() => ({}))) as {
+        errors?: { message: string }[];
+      };
+      setError(b.errors?.[0]?.message ?? "Couldn’t delete for everyone.");
     }
   }
 
@@ -783,35 +823,85 @@ function ThreadQuickView({
           <p className="py-6 text-center text-xs text-text-3">No messages yet.</p>
         ) : (
           <ul className="flex flex-col gap-2.5">
-            {messages.map((m) => (
-              <li
-                key={m.id}
-                className={cn(
-                  "flex flex-col gap-0.5",
-                  m.mine ? "items-end" : "items-start",
-                )}
-              >
-                <div
+            {messages.map((m) => {
+              const deletable = !m.id.startsWith("temp-");
+              return (
+                <li
+                  key={m.id}
                   className={cn(
-                    "flex max-w-[78%] flex-col gap-1.5 rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm",
-                    m.mine
-                      ? "rounded-br-md bg-accent text-bg-0"
-                      : "rounded-bl-md bg-bg-2 text-text-0",
+                    "group/msg relative flex flex-col gap-0.5",
+                    m.mine ? "items-end" : "items-start",
                   )}
                 >
-                  {m.attachments.map((a, i) => (
-                    <BubbleAttachment key={i} att={a} />
-                  ))}
-                  {m.body ? (
-                    <span className="whitespace-pre-wrap break-words">{m.body}</span>
+                  <div
+                    className={cn(
+                      "flex items-center gap-1",
+                      m.mine ? "flex-row" : "flex-row-reverse",
+                    )}
+                  >
+                    {deletable ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setMenuFor((cur) => (cur === m.id ? null : m.id))
+                        }
+                        aria-label="Message options"
+                        className="rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover/msg:opacity-100"
+                      >
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                    ) : null}
+                    <div
+                      className={cn(
+                        "flex max-w-[78%] flex-col gap-1.5 rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm",
+                        m.mine
+                          ? "rounded-br-md bg-accent text-bg-0"
+                          : "rounded-bl-md bg-bg-2 text-text-0",
+                      )}
+                    >
+                      {m.attachments.map((a, i) => (
+                        <BubbleAttachment key={i} att={a} />
+                      ))}
+                      {m.body ? (
+                        <span className="whitespace-pre-wrap break-words">
+                          {m.body}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                  {menuFor === m.id ? (
+                    <div
+                      onMouseDown={(e) => e.stopPropagation()}
+                      className={cn(
+                        "absolute top-6 z-20 flex flex-col rounded-md border border-border bg-bg-1 py-1 text-2xs shadow-lg",
+                        m.mine ? "right-5" : "left-5",
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => void deleteForMe(m.id)}
+                        className="whitespace-nowrap px-3 py-1 text-left text-text-1 hover:bg-bg-2"
+                      >
+                        Delete for me
+                      </button>
+                      {m.mine ? (
+                        <button
+                          type="button"
+                          onClick={() => void deleteForEveryone(m.id)}
+                          className="whitespace-nowrap px-3 py-1 text-left text-danger hover:bg-bg-2"
+                        >
+                          Delete for everyone
+                        </button>
+                      ) : null}
+                    </div>
                   ) : null}
-                </div>
-                <span className="flex items-center gap-1 px-1 text-2xs text-text-3">
-                  {formatRelative(m.at)}
-                  {m.mine && m.status ? <StatusTick status={m.status} /> : null}
-                </span>
-              </li>
-            ))}
+                  <span className="flex items-center gap-1 px-1 text-2xs text-text-3">
+                    {formatRelative(m.at)}
+                    {m.mine && m.status ? <StatusTick status={m.status} /> : null}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
