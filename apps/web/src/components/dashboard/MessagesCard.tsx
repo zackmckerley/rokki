@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useRef,
@@ -206,12 +207,15 @@ export function MessagesCard() {
         >
           {list}
         </div>
+        {/* A crisp, always-visible hairline between the list and the chat
+            (like the Mac Messages sidebar rule), with a wider invisible grab
+            zone so it's still easy to drag. */}
         <div
           onMouseDown={startResize}
           role="separator"
           aria-label="Drag to resize the conversation list"
           title="Drag to resize"
-          className="w-1 flex-shrink-0 cursor-col-resize bg-border/60 transition-colors hover:bg-accent"
+          className="relative w-px flex-shrink-0 cursor-col-resize bg-border transition-colors before:absolute before:inset-y-0 before:-left-1.5 before:-right-1.5 before:content-[''] hover:bg-accent"
         />
         <div className="flex min-h-0 flex-1 flex-col">
           {open ? (
@@ -822,84 +826,130 @@ function ThreadQuickView({
         {messages.length === 0 ? (
           <p className="py-6 text-center text-xs text-text-3">No messages yet.</p>
         ) : (
-          <ul className="flex flex-col gap-2.5">
-            {messages.map((m) => {
+          <ul className="flex flex-col">
+            {messages.map((m, i) => {
+              // iMessage/WhatsApp-style grouping: consecutive messages from the
+              // same side within a short window are one "run" — tight spacing,
+              // a tail (the cut corner) only on the last bubble, and a single
+              // timestamp under the run.
+              const prev = messages[i - 1];
+              const next = messages[i + 1];
+              const firstInGroup =
+                !prev || prev.mine !== m.mine || !withinRun(prev.at, m.at);
+              const lastInGroup =
+                !next || next.mine !== m.mine || !withinRun(m.at, next.at);
+              const bigGap =
+                !prev ||
+                new Date(m.at).getTime() - new Date(prev.at).getTime() >
+                  60 * 60_000;
+              const imgs = m.attachments.filter((a) => isImageAtt(a));
+              const files = m.attachments.filter((a) => !isImageAtt(a));
+              const emojiOnly =
+                imgs.length === 0 && files.length === 0 && isEmojiOnly(m.body);
               const deletable = !m.id.startsWith("temp-");
               return (
-                <li
-                  key={m.id}
-                  className={cn(
-                    "group/msg relative flex flex-col gap-0.5",
-                    m.mine ? "items-end" : "items-start",
-                  )}
-                >
-                  <div
+                <Fragment key={m.id}>
+                  {bigGap ? (
+                    <li className="my-2 flex justify-center">
+                      <span className="rounded-full bg-bg-2/70 px-2 py-0.5 text-[10px] font-medium text-text-3">
+                        {formatStamp(m.at)}
+                      </span>
+                    </li>
+                  ) : null}
+                  <li
                     className={cn(
-                      "flex items-center gap-1",
-                      m.mine ? "flex-row" : "flex-row-reverse",
+                      "group/msg relative flex flex-col",
+                      m.mine ? "items-end" : "items-start",
+                      firstInGroup ? "mt-2" : "mt-0.5",
                     )}
                   >
-                    {deletable ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setMenuFor((cur) => (cur === m.id ? null : m.id))
-                        }
-                        aria-label="Message options"
-                        className="rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover/msg:opacity-100"
-                      >
-                        <MoreHorizontal className="h-3.5 w-3.5" />
-                      </button>
-                    ) : null}
                     <div
                       className={cn(
-                        "flex max-w-[78%] flex-col gap-1.5 rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm",
-                        m.mine
-                          ? "rounded-br-md bg-accent text-bg-0"
-                          : "rounded-bl-md bg-bg-2 text-text-0",
+                        "flex max-w-[82%] items-center gap-1",
+                        m.mine ? "flex-row" : "flex-row-reverse",
                       )}
                     >
-                      {m.attachments.map((a, i) => (
-                        <BubbleAttachment key={i} att={a} />
-                      ))}
-                      {m.body ? (
-                        <span className="whitespace-pre-wrap break-words">
-                          {m.body}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                  {menuFor === m.id ? (
-                    <div
-                      onMouseDown={(e) => e.stopPropagation()}
-                      className={cn(
-                        "absolute top-6 z-20 flex flex-col rounded-md border border-border bg-bg-1 py-1 text-2xs shadow-lg",
-                        m.mine ? "right-5" : "left-5",
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => void deleteForMe(m.id)}
-                        className="whitespace-nowrap px-3 py-1 text-left text-text-1 hover:bg-bg-2"
-                      >
-                        Delete for me
-                      </button>
-                      {m.mine ? (
+                      {deletable ? (
                         <button
                           type="button"
-                          onClick={() => void deleteForEveryone(m.id)}
-                          className="whitespace-nowrap px-3 py-1 text-left text-danger hover:bg-bg-2"
+                          onClick={() =>
+                            setMenuFor((cur) => (cur === m.id ? null : m.id))
+                          }
+                          aria-label="Message options"
+                          className="flex-shrink-0 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover/msg:opacity-100"
                         >
-                          Delete for everyone
+                          <MoreHorizontal className="h-3.5 w-3.5" />
                         </button>
                       ) : null}
+                      {emojiOnly ? (
+                        <div className={cn("px-1 py-0.5 leading-none", emojiSize(m.body))}>
+                          {m.body}
+                        </div>
+                      ) : (
+                        <div
+                          className={cn(
+                            "relative overflow-hidden rounded-[18px] shadow-sm",
+                            m.mine
+                              ? "bg-accent text-bg-0"
+                              : "bg-bg-2 text-text-0",
+                            lastInGroup &&
+                              (m.mine
+                                ? "rounded-br-[5px]"
+                                : "rounded-bl-[5px]"),
+                          )}
+                        >
+                          {imgs.length > 0 ? <ImageGroup imgs={imgs} /> : null}
+                          {files.length > 0 ? (
+                            <div className="flex flex-col gap-1 p-1.5">
+                              {files.map((a, k) => (
+                                <FileCard key={k} att={a} mine={m.mine} />
+                              ))}
+                            </div>
+                          ) : null}
+                          {m.body ? (
+                            <div className="whitespace-pre-wrap break-words px-3 py-2 text-xs leading-relaxed">
+                              {m.body}
+                            </div>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
-                  ) : null}
-                  <span className="flex items-center gap-1 px-1 text-2xs text-text-3">
-                    {formatRelative(m.at)}
-                    {m.mine && m.status ? <StatusTick status={m.status} /> : null}
-                  </span>
-                </li>
+                    {menuFor === m.id ? (
+                      <div
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className={cn(
+                          "absolute top-6 z-20 flex flex-col rounded-md border border-border bg-bg-1 py-1 text-2xs shadow-lg",
+                          m.mine ? "right-5" : "left-5",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => void deleteForMe(m.id)}
+                          className="whitespace-nowrap px-3 py-1 text-left text-text-1 hover:bg-bg-2"
+                        >
+                          Delete for me
+                        </button>
+                        {m.mine ? (
+                          <button
+                            type="button"
+                            onClick={() => void deleteForEveryone(m.id)}
+                            className="whitespace-nowrap px-3 py-1 text-left text-danger hover:bg-bg-2"
+                          >
+                            Delete for everyone
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                    {lastInGroup ? (
+                      <span className="mt-0.5 flex items-center gap-1 px-1 text-2xs text-text-3">
+                        {formatRelative(m.at)}
+                        {m.mine && m.status ? (
+                          <StatusTick status={m.status} />
+                        ) : null}
+                      </span>
+                    ) : null}
+                  </li>
+                </Fragment>
               );
             })}
           </ul>
@@ -1016,25 +1066,94 @@ function ThreadQuickView({
   );
 }
 
-function BubbleAttachment({ att }: { att: MsgAttachment }) {
-  const isImage = (att.content_type ?? "").startsWith("image/");
-  const name = att.filename ?? "file";
-  if (isImage && att.url) {
-    return (
-      <a href={att.url} target="_blank" rel="noopener noreferrer">
+function isImageAtt(att: MsgAttachment): boolean {
+  return (att.content_type ?? "").startsWith("image/");
+}
+
+/** Render a message's image attachment(s) flush inside the bubble — a single
+ *  image fills the bubble (image *is* the bubble, à la iMessage/WhatsApp);
+ *  multiple images become a 2-up collage with a "+N" overlay. GIFs get a
+ *  small badge and loop on their own (animated <img>). */
+function ImageGroup({ imgs }: { imgs: MsgAttachment[] }) {
+  if (imgs.length === 1) {
+    const a = imgs[0];
+    const gif = (a.content_type ?? "") === "image/gif";
+    const inner = (
+      <span className="relative block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={att.url}
-          alt={name}
-          className="max-h-40 max-w-full rounded object-cover"
+          src={a.url ?? undefined}
+          alt={a.filename ?? "image"}
+          className="block max-h-60 max-w-[260px] object-cover"
         />
+        {gif ? (
+          <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-white">
+            GIF
+          </span>
+        ) : null}
+      </span>
+    );
+    return a.url ? (
+      <a href={a.url} target="_blank" rel="noopener noreferrer">
+        {inner}
       </a>
+    ) : (
+      inner
     );
   }
+  const shown = imgs.slice(0, 4);
+  const extra = imgs.length - shown.length;
+  return (
+    <div className="grid w-[238px] grid-cols-2 gap-0.5">
+      {shown.map((a, i) => {
+        const last = i === shown.length - 1 && extra > 0;
+        const tile = (
+          <span className="relative block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={a.url ?? undefined}
+              alt={a.filename ?? "image"}
+              className="aspect-square w-full object-cover"
+            />
+            {last ? (
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50 text-sm font-semibold text-white">
+                +{extra}
+              </span>
+            ) : null}
+          </span>
+        );
+        return a.url ? (
+          <a key={i} href={a.url} target="_blank" rel="noopener noreferrer">
+            {tile}
+          </a>
+        ) : (
+          <Fragment key={i}>{tile}</Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+/** A non-image attachment: a tidy card with an icon, filename and size that
+ *  inherits the bubble's text color so it reads on both sides. */
+function FileCard({ att, mine }: { att: MsgAttachment; mine: boolean }) {
+  const name = att.filename ?? "file";
   const card = (
-    <span className="flex items-center gap-1.5 rounded border border-current/20 px-1.5 py-1">
-      <FileText className="h-3.5 w-3.5 flex-shrink-0 opacity-80" />
-      <span className="truncate text-2xs">{name}</span>
+    <span
+      className={cn(
+        "flex items-center gap-2 rounded-lg px-2 py-1.5",
+        mine ? "bg-black/10" : "bg-black/15",
+      )}
+    >
+      <FileText className="h-4 w-4 flex-shrink-0 opacity-80" />
+      <span className="min-w-0">
+        <span className="block max-w-[180px] truncate text-xs">{name}</span>
+        {att.size ? (
+          <span className="block text-[10px] opacity-70">
+            {formatSize(att.size)}
+          </span>
+        ) : null}
+      </span>
     </span>
   );
   return att.url ? (
@@ -1044,6 +1163,57 @@ function BubbleAttachment({ att }: { att: MsgAttachment }) {
   ) : (
     card
   );
+}
+
+/** Two messages are in the same "run" when from the same side within 5 min. */
+function withinRun(a: string, b: string): boolean {
+  return Math.abs(new Date(b).getTime() - new Date(a).getTime()) < 5 * 60_000;
+}
+
+/** Count emoji in a string (over-counts ZWJ sequences slightly — fine for
+ *  sizing). */
+function emojiCount(s: string): number {
+  const m = s.match(/\p{Extended_Pictographic}/gu);
+  return m ? m.length : 0;
+}
+
+/** True when a message is nothing but emoji (+ whitespace) — iMessage/WhatsApp
+ *  render those big and bubble-less. */
+function isEmojiOnly(s: string): boolean {
+  const t = (s ?? "").trim();
+  if (!t) return false;
+  const stripped = t.replace(
+    /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{1F1E6}-\u{1F1FF}‍️⃣\s]/gu,
+    "",
+  );
+  return stripped === "" && emojiCount(t) <= 6;
+}
+
+/** Jumbo size for an emoji-only message — biggest for a lone emoji. */
+function emojiSize(s: string): string {
+  const n = emojiCount(s);
+  if (n <= 1) return "text-5xl";
+  if (n === 2) return "text-4xl";
+  return "text-3xl";
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Date/time chip shown between messages with a big time gap (iMessage-style).*/
+function formatStamp(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  const time = d.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  if (sameDay) return time;
+  return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
 }
 
 function Empty() {
