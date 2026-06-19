@@ -14,6 +14,7 @@ import { GoalsCard } from "./dashboard/GoalsCard";
 import { DashboardPanels } from "./dashboard/DashboardPanels";
 import { ModuleVisibilityProvider } from "./dashboard/module-visibility";
 import { PresenceProvider } from "./presence/PresenceProvider";
+import { UnreadTitleBadge } from "./messages/UnreadTitleBadge";
 import { TerminalScopeFilter } from "./dashboard/TerminalScopeFilter";
 import { TopBar } from "./TopBar";
 import { DensityProvider, type Density } from "@/lib/density";
@@ -300,6 +301,7 @@ export function DashboardClient({
         />
       ) : null}
       <TimezoneProbe currentTimezone={savedTimezone} />
+      <UnreadTitleBadge />
       </PresenceProvider>
     </DensityProvider>
   );
