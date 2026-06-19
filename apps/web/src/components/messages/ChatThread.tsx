@@ -425,28 +425,40 @@ function withinRun(a: string, b: string): boolean {
   return Math.abs(new Date(b).getTime() - new Date(a).getTime()) < 5 * 60_000;
 }
 
-/** Count emoji in a string (over-counts ZWJ sequences slightly — fine for
- *  sizing). */
-function emojiCount(s: string): number {
-  const m = s.match(/\p{Extended_Pictographic}/gu);
-  return m ? m.length : 0;
+/** Split into user-perceived characters (grapheme clusters) so emoji ZWJ
+ *  sequences (👨‍👩‍👧), flags (🇺🇸) and keycaps (1️⃣) each count as one. */
+function graphemes(s: string): string[] {
+  if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
+    const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    return Array.from(seg.segment(s), (g) => g.segment);
+  }
+  return Array.from(s); // fallback: code points (imperfect for ZWJ runs)
 }
 
-/** True when a message is nothing but emoji (+ whitespace) — iMessage/WhatsApp
- *  render those big and bubble-less. */
-export function isEmojiOnly(s: string): boolean {
-  const t = (s ?? "").trim();
-  if (!t) return false;
-  const stripped = t.replace(
-    /[\p{Extended_Pictographic}\u{1F3FB}-\u{1F3FF}\u{1F1E6}-\u{1F1FF}‍️⃣\s]/gu,
-    "",
+/** True when a grapheme reads as an emoji — pictographic, flag, or keycap. */
+function isEmojiGrapheme(g: string): boolean {
+  return (
+    /[0-9#*]️?⃣/u.test(g) || // keycap: 1️⃣ #️⃣
+    /\p{Regional_Indicator}/u.test(g) || // flag: two regional indicators
+    /\p{Extended_Pictographic}/u.test(g) // most emoji, incl. ZWJ sequences
   );
-  return stripped === "" && emojiCount(t) <= 6;
+}
+
+/** Visible (non-space) grapheme clusters of a trimmed string. */
+function visibleGraphemes(s: string): string[] {
+  return graphemes((s ?? "").trim()).filter((g) => g.trim() !== "");
+}
+
+/** True when a message is nothing but emoji (≤6) — iMessage/WhatsApp render
+ *  those big and bubble-less. */
+export function isEmojiOnly(s: string): boolean {
+  const gs = visibleGraphemes(s);
+  return gs.length > 0 && gs.length <= 6 && gs.every(isEmojiGrapheme);
 }
 
 /** Jumbo size for an emoji-only message — biggest for a lone emoji. */
 function emojiSize(s: string): string {
-  const n = emojiCount(s);
+  const n = visibleGraphemes(s).length;
   if (n <= 1) return "text-5xl";
   if (n === 2) return "text-4xl";
   return "text-3xl";

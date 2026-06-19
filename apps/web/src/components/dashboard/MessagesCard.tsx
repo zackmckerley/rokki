@@ -505,7 +505,9 @@ function ThreadQuickView({
         (b.data?.messages ?? []).map((m) => ({
           id: m.id,
           mine: m.direction === "out",
-          who: m.direction === "out" ? "you" : m.sender ?? "them",
+          // Empty (not "them") when the sender is unknown, so the shared
+          // renderer shows no group label — matching the full-page view.
+          who: m.direction === "out" ? "you" : m.sender ?? "",
           body: m.body ?? "",
           at: m.sent_at,
           attachments: Array.isArray(m.attachments) ? m.attachments : [],

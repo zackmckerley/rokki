@@ -33,6 +33,13 @@ describe("isEmojiOnly", () => {
     expect(isEmojiOnly("")).toBe(false);
     expect(isEmojiOnly("😀😀😀😀😀😀😀")).toBe(false); // 7 > cap
   });
+  it("handles flags, ZWJ sequences and keycaps as single graphemes", () => {
+    expect(isEmojiOnly("🇺🇸")).toBe(true); // one flag
+    expect(isEmojiOnly("👨‍👩‍👧‍👦")).toBe(true); // family ZWJ → one grapheme
+    expect(isEmojiOnly("👨‍👩‍👧‍👦👨‍👩‍👧‍👦")).toBe(true); // two graphemes
+    expect(isEmojiOnly("1️⃣")).toBe(true); // keycap
+    expect(isEmojiOnly("🇺🇸🇺🇸🇺🇸🇺🇸🇺🇸🇺🇸🇺🇸")).toBe(false); // 7 flags > cap
+  });
 });
 
 describe("formatBytes", () => {
