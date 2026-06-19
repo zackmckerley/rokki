@@ -17,15 +17,20 @@ import {
   ChevronLeft,
   Send,
   Paperclip,
-  Maximize2,
   X,
   FileText,
   Loader2,
+  Check,
+  CheckCheck,
+  Clock,
+  AlertCircle,
+  Archive,
+  ArchiveRestore,
 } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
-import { PresenceDot, PresenceLabel } from "../presence/PresenceDot";
+import { PresenceDot } from "../presence/PresenceDot";
 import { uploadSignalMedia } from "@/lib/signal/upload";
 import {
   useInboxView,
@@ -63,7 +68,8 @@ export function MessagesCard() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<ThreadSummary | null>(null);
   const [query, setQuery] = useState("");
-  const { hidden, hide, clearHidden } = useInboxView();
+  const [showArchive, setShowArchive] = useState(false);
+  const { hidden, hide, unhide } = useInboxView();
   // Measure the card so we can switch to a two-pane (iMessage-style) layout
   // when it's wide enough.
   const [containerRef, width] = useElementWidth<HTMLDivElement>();
@@ -99,11 +105,10 @@ export function MessagesCard() {
 
   // Signal-only: every conversation goes through Signal, so the inbox shows
   // Signal threads exclusively (no native/Rokki category).
-  const { visible, hiddenInFilter } = filterThreads(
-    threads,
-    "signal",
-    hidden,
-    query,
+  const { visible } = filterThreads(threads, "signal", hidden, query);
+  // Archived = Signal conversations you've hidden; shown in the archive view.
+  const archived = threads.filter(
+    (t) => (t.source ?? "rokki") === "signal" && hidden.has(t.id),
   );
   // Two-pane (list + open chat side by side) once the card is wide enough,
   // like Messages on a Mac; below that, the single-pane list↔thread flow.
@@ -124,9 +129,11 @@ export function MessagesCard() {
   const list = (
     <ConversationList
       visible={visible}
-      hiddenInFilter={hiddenInFilter}
-      clearHidden={clearHidden}
+      archived={archived}
+      showArchive={showArchive}
+      setShowArchive={setShowArchive}
       hide={hide}
+      unhide={unhide}
       query={query}
       setQuery={setQuery}
       activeId={split ? open?.id ?? null : null}
@@ -209,38 +216,54 @@ function useElementWidth<T extends HTMLElement>() {
  *  footer link. Used standalone (narrow) and as the left pane (wide). */
 function ConversationList({
   visible,
-  hiddenInFilter,
-  clearHidden,
+  archived,
+  showArchive,
+  setShowArchive,
   hide,
+  unhide,
   query,
   setQuery,
   activeId,
   onSelect,
 }: {
   visible: ThreadSummary[];
-  hiddenInFilter: number;
-  clearHidden: () => void;
+  archived: ThreadSummary[];
+  showArchive: boolean;
+  setShowArchive: (v: boolean) => void;
   hide: (id: string) => void;
+  unhide: (id: string) => void;
   query: string;
   setQuery: (v: string) => void;
   activeId: string | null;
   onSelect: (t: ThreadSummary) => void;
 }) {
+  const rows = showArchive ? archived : visible;
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <InboxSearch
-        value={query}
-        onChange={setQuery}
-        hiddenCount={hiddenInFilter}
-        onShowHidden={clearHidden}
-      />
+      {showArchive ? (
+        <button
+          type="button"
+          onClick={() => setShowArchive(false)}
+          className="flex flex-shrink-0 items-center gap-1.5 border-b border-border/60 px-2 py-1.5 text-xs text-text-2 hover:bg-bg-2"
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+          Archived · {archived.length}
+        </button>
+      ) : (
+        <InboxSearch
+          value={query}
+          onChange={setQuery}
+          hiddenCount={archived.length}
+          onShowHidden={() => setShowArchive(true)}
+        />
+      )}
       <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
-        {visible.length === 0 ? (
+        {rows.length === 0 ? (
           <li className="px-3 py-6 text-center text-xs text-text-3">
-            Nothing here.
+            {showArchive ? "No archived conversations." : "Nothing here."}
           </li>
         ) : (
-          visible.map((t) => (
+          rows.map((t) => (
             <li key={t.id} className="group relative">
               <button
                 type="button"
@@ -257,7 +280,7 @@ function ConversationList({
                     t.unread ? "font-semibold text-text-0" : "text-text-0",
                   )}
                 >
-                  {t.label}
+                  {displayLabel(t.label)}
                 </span>
                 <UnreadBadge count={t.unread} />
                 <span className="flex-shrink-0 font-mono text-2xs text-text-3 group-hover:opacity-0">
@@ -268,25 +291,23 @@ function ConversationList({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  hide(t.id);
+                  if (showArchive) unhide(t.id);
+                  else hide(t.id);
                 }}
-                aria-label={`Archive ${t.label}`}
-                title="Archive"
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                aria-label={`${showArchive ? "Unarchive" : "Archive"} ${displayLabel(t.label)}`}
+                title={showArchive ? "Unarchive" : "Archive"}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover:opacity-100"
               >
-                <X className="h-3 w-3" />
+                {showArchive ? (
+                  <ArchiveRestore className="h-3 w-3" />
+                ) : (
+                  <Archive className="h-3 w-3" />
+                )}
               </button>
             </li>
           ))
         )}
       </ul>
-      <Link
-        href="/messages"
-        className="flex flex-shrink-0 items-center justify-center gap-1.5 border-t border-border/60 py-1.5 text-2xs uppercase tracking-wide text-text-3 hover:bg-bg-2 hover:text-text-1"
-      >
-        <Maximize2 className="h-3 w-3" />
-        Open full messenger
-      </Link>
     </div>
   );
 }
@@ -327,6 +348,8 @@ interface MsgAttachment {
   size: number | null;
 }
 
+type SignalStatus = "sending" | "sent" | "delivered" | "read" | "failed";
+
 /** Normalized message for the thread view. */
 interface QuickMessage {
   id: string;
@@ -335,6 +358,7 @@ interface QuickMessage {
   body: string;
   at: string;
   attachments: MsgAttachment[];
+  status?: SignalStatus;
 }
 
 /** A file being / already uploaded, staged in the composer. */
@@ -394,6 +418,7 @@ function ThreadQuickView({
             sender: string | null;
             body: string | null;
             sent_at: string;
+            status?: SignalStatus;
             attachments?: MsgAttachment[];
           }[];
         };
@@ -406,6 +431,7 @@ function ThreadQuickView({
           body: m.body ?? "",
           at: m.sent_at,
           attachments: Array.isArray(m.attachments) ? m.attachments : [],
+          status: m.status,
         })),
       );
     } else {
@@ -565,6 +591,7 @@ function ThreadQuickView({
         who: "you",
         body: text,
         at: new Date().toISOString(),
+        status: "sending",
         attachments: ready.map((p) => ({
           url: p.previewUrl ?? null,
           content_type: p.content_type,
@@ -633,8 +660,10 @@ function ThreadQuickView({
       onDrop={onDrop}
       onPaste={onPaste}
     >
-      <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-border bg-bg-1 px-2 py-1.5">
-        {showBack ? (
+      {/* Header (with the contact name) only in single-pane mode — in split
+          mode the highlighted sidebar row already shows who you're talking to. */}
+      {showBack ? (
+        <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-border bg-bg-1 px-2 py-1.5">
           <button
             type="button"
             onClick={onBack}
@@ -643,50 +672,32 @@ function ThreadQuickView({
           >
             <ChevronLeft className="h-3.5 w-3.5" />
           </button>
-        ) : null}
-        {isSignal ? (
           <MessageSquare className="h-3 w-3 flex-shrink-0 text-success" />
-        ) : thread.kind === "terminal" ? (
-          <Hash className="h-3 w-3 flex-shrink-0 text-text-3" />
-        ) : (
-          <UserIcon className="h-3 w-3 flex-shrink-0 text-text-3" />
-        )}
-        <span className="flex-1 truncate text-xs text-text-1">{thread.label}</span>
-        {!isSignal && thread.kind === "dm" && thread.other_user_id ? (
-          <span className="flex flex-shrink-0 items-center gap-1">
-            <PresenceDot userId={thread.other_user_id} />
-            <PresenceLabel userId={thread.other_user_id} />
+          <span className="flex-1 truncate text-xs text-text-1">
+            {displayLabel(thread.label)}
           </span>
-        ) : null}
-        <Link
-          href="/messages"
-          aria-label="Open full messenger"
-          title="Open full messenger"
-          className="rounded-sm p-0.5 text-text-3 hover:bg-bg-2 hover:text-text-0"
-        >
-          <Maximize2 className="h-3 w-3" />
-        </Link>
-      </div>
+        </div>
+      ) : null}
 
-      <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+      <div ref={scrollerRef} className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
         {messages.length === 0 ? (
           <p className="py-6 text-center text-xs text-text-3">No messages yet.</p>
         ) : (
-          <ul className="flex flex-col gap-1.5">
+          <ul className="flex flex-col gap-2.5">
             {messages.map((m) => (
               <li
                 key={m.id}
                 className={cn(
-                  "flex flex-col",
+                  "flex flex-col gap-0.5",
                   m.mine ? "items-end" : "items-start",
                 )}
               >
                 <div
                   className={cn(
-                    "flex max-w-[85%] flex-col gap-1 rounded-lg px-2.5 py-1.5 text-xs",
+                    "flex max-w-[78%] flex-col gap-1.5 rounded-2xl px-3 py-2 text-xs leading-relaxed shadow-sm",
                     m.mine
-                      ? "rounded-br-sm bg-accent text-bg-0"
-                      : "rounded-bl-sm bg-bg-2 text-text-0",
+                      ? "rounded-br-md bg-accent text-bg-0"
+                      : "rounded-bl-md bg-bg-2 text-text-0",
                   )}
                 >
                   {m.attachments.map((a, i) => (
@@ -696,8 +707,9 @@ function ThreadQuickView({
                     <span className="whitespace-pre-wrap break-words">{m.body}</span>
                   ) : null}
                 </div>
-                <span className="mt-0.5 px-1 text-2xs text-text-3">
-                  {m.mine ? "you" : m.who} · {formatRelative(m.at)}
+                <span className="flex items-center gap-1 px-1 text-2xs text-text-3">
+                  {formatRelative(m.at)}
+                  {m.mine && m.status ? <StatusTick status={m.status} /> : null}
                 </span>
               </li>
             ))}
@@ -859,6 +871,34 @@ function Empty() {
       </Link>
     </div>
   );
+}
+
+/** Sent / delivered / read ticks under an outgoing message. */
+function StatusTick({ status }: { status: SignalStatus }) {
+  switch (status) {
+    case "sending":
+      return <Clock className="h-2.5 w-2.5" aria-label="sending" />;
+    case "sent":
+      return <Check className="h-2.5 w-2.5" aria-label="sent" />;
+    case "delivered":
+      return <CheckCheck className="h-2.5 w-2.5" aria-label="delivered" />;
+    case "read":
+      return <CheckCheck className="h-2.5 w-2.5 text-accent" aria-label="read" />;
+    case "failed":
+      return (
+        <AlertCircle className="h-2.5 w-2.5 text-danger" aria-label="failed to send" />
+      );
+    default:
+      return null;
+  }
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Don't surface a raw Signal UUID as a conversation name. */
+function displayLabel(label: string): string {
+  return UUID_RE.test((label ?? "").trim()) ? "Unknown" : label;
 }
 
 function formatRelative(iso: string): string {
