@@ -39,6 +39,7 @@ import {
   UnreadBadge,
 } from "../messages/inbox-prefs";
 import { useAutosize, usePersistedDraft, composerKeyDown } from "../messages/composer-utils";
+import { EmojiButton } from "../messages/EmojiPicker";
 
 interface ThreadSummary {
   id: string;
@@ -73,6 +74,41 @@ export function MessagesCard() {
   // Measure the card so we can switch to a two-pane (iMessage-style) layout
   // when it's wide enough.
   const [containerRef, width] = useElementWidth<HTMLDivElement>();
+  // Draggable width of the conversation list (left pane) in the split layout.
+  const [listWidth, setListWidth] = useState(240);
+  useEffect(() => {
+    try {
+      const w = Number(localStorage.getItem("rokki:msg:listw"));
+      if (w >= 180 && w <= 460) setListWidth(w);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = listWidth;
+    document.body.style.userSelect = "none";
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.max(180, Math.min(460, startW + (ev.clientX - startX)));
+      setListWidth(w);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.style.userSelect = "";
+      setListWidth((w) => {
+        try {
+          localStorage.setItem("rokki:msg:listw", String(w));
+        } catch {
+          /* ignore */
+        }
+        return w;
+      });
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -149,9 +185,19 @@ export function MessagesCard() {
   } else if (split) {
     body = (
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-[240px] flex-shrink-0 flex-col border-r border-border">
+        <div
+          style={{ width: Math.min(listWidth, Math.max(180, width - 300)) }}
+          className="flex flex-shrink-0 flex-col"
+        >
           {list}
         </div>
+        <div
+          onMouseDown={startResize}
+          role="separator"
+          aria-label="Drag to resize the conversation list"
+          title="Drag to resize"
+          className="w-1 flex-shrink-0 cursor-col-resize bg-border/60 transition-colors hover:bg-accent"
+        />
         <div className="flex min-h-0 flex-1 flex-col">
           {open ? (
             <ThreadQuickView
@@ -793,6 +839,7 @@ function ThreadQuickView({
               </button>
             </>
           ) : null}
+          <EmojiButton onPick={(emoji) => setDraft((d) => d + emoji)} />
           <textarea
             ref={composerRef}
             value={draft}
