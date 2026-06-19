@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -70,19 +71,26 @@ export function useInboxView() {
   return { filter, setFilter, hidden, hide, unhide, clearHidden };
 }
 
-/** Apply a filter + hide list to a thread array. */
+/** Apply a source filter + hide list + (optional) search query to a thread
+ *  array. `hiddenInFilter` reflects hidden conversations within the active
+ *  source filter, independent of the search query. */
 export function filterThreads<
-  T extends { id: string; source?: "rokki" | "signal" },
+  T extends { id: string; source?: "rokki" | "signal"; label?: string },
 >(
   threads: T[],
   filter: InboxFilter,
   hidden: Set<string>,
+  query = "",
 ): { visible: T[]; hiddenInFilter: number } {
   const bySource = threads.filter((t) =>
     filter === "all" ? true : (t.source ?? "rokki") === filter,
   );
-  const visible = bySource.filter((t) => !hidden.has(t.id));
-  return { visible, hiddenInFilter: bySource.length - visible.length };
+  const afterHidden = bySource.filter((t) => !hidden.has(t.id));
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? afterHidden.filter((t) => (t.label ?? "").toLowerCase().includes(q))
+    : afterHidden;
+  return { visible, hiddenInFilter: bySource.length - afterHidden.length };
 }
 
 const FILTERS: { key: InboxFilter; label: string }[] = [
@@ -137,6 +145,44 @@ export function InboxFilterBar({
           title="Restore hidden conversations"
         >
           {hiddenCount} hidden · show
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Compact search input for filtering the conversation list by name. */
+export function InboxSearch({
+  value,
+  onChange,
+  className,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center gap-1.5 border-b border-border/60 px-2 py-1",
+        className,
+      )}
+    >
+      <Search className="h-3 w-3 flex-shrink-0 text-text-3" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Search conversations"
+        className="w-full bg-transparent text-xs text-text-0 outline-none placeholder:text-text-3"
+      />
+      {value ? (
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+          className="flex-shrink-0 text-text-3 hover:text-text-1"
+        >
+          <X className="h-3 w-3" />
         </button>
       ) : null}
     </div>

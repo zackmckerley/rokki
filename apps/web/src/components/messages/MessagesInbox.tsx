@@ -24,8 +24,14 @@ import {
   useInboxView,
   filterThreads,
   InboxFilterBar,
+  InboxSearch,
   UnreadBadge,
 } from "./inbox-prefs";
+import {
+  useAutosize,
+  usePersistedDraft,
+  composerKeyDown,
+} from "./composer-utils";
 
 interface ThreadSummary {
   id: string;
@@ -74,7 +80,8 @@ export function MessagesInbox() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = usePersistedDraft(activeId ?? "none");
+  const [query, setQuery] = useState("");
   const [sending, setSending] = useState(false);
   const [meId, setMeId] = useState<string | null>(null);
   /**
@@ -87,10 +94,17 @@ export function MessagesInbox() {
   const [statusSending, setStatusSending] = useState<string | null>(null);
   const [refreshingReminders, setRefreshingReminders] = useState(false);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const { filter, setFilter, hidden, hide, clearHidden } = useInboxView();
+  useAutosize(composerRef, draft);
 
   const active = threads.find((t) => t.id === activeId) ?? null;
-  const { visible, hiddenInFilter } = filterThreads(threads, filter, hidden);
+  const { visible, hiddenInFilter } = filterThreads(
+    threads,
+    filter,
+    hidden,
+    query,
+  );
   // Signal threads load + send through a different pipeline (the bridge), so
   // the native message-load and realtime below skip them.
   const activeIsSignal = active?.source === "signal";
@@ -264,6 +278,7 @@ export function MessagesInbox() {
           hiddenCount={hiddenInFilter}
           onShowHidden={clearHidden}
         />
+        <InboxSearch value={query} onChange={setQuery} />
         {/* Reminders CTA — shows once until the user enables it; the
             refresh endpoint creates the thread + posts pings for the
             user's overdue / due-today tasks. After first run the
@@ -554,11 +569,14 @@ export function MessagesInbox() {
             onSubmit={submit}
             className="flex gap-2 border-t border-border bg-bg-1 p-2"
           >
-            <input
+            <textarea
+              ref={composerRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => composerKeyDown(e, () => void submit())}
+              rows={1}
               placeholder={`Message ${active.label}`}
-              className="flex-1 rounded-sm border border-border bg-bg-0 px-2 py-1.5 text-xs text-text-0 outline-none focus:border-border-focus"
+              className="max-h-[140px] flex-1 resize-none rounded-sm border border-border bg-bg-0 px-2 py-1.5 text-xs text-text-0 outline-none focus:border-border-focus"
               disabled={sending}
             />
             <button

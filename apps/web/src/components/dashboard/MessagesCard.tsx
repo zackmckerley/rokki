@@ -31,9 +31,11 @@ import {
   useInboxView,
   filterThreads,
   InboxFilterBar,
+  InboxSearch,
   UnreadBadge,
   type InboxFilter,
 } from "../messages/inbox-prefs";
+import { useAutosize, usePersistedDraft, composerKeyDown } from "../messages/composer-utils";
 
 interface ThreadSummary {
   id: string;
@@ -62,6 +64,7 @@ export function MessagesCard() {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<ThreadSummary | null>(null);
+  const [query, setQuery] = useState("");
   const { filter, setFilter, hidden, hide, clearHidden } = useInboxView();
   // Measure the card so we can switch to a two-pane (iMessage-style) layout
   // when it's wide enough.
@@ -96,7 +99,12 @@ export function MessagesCard() {
     { onInsert: () => void load(), onUpdate: () => void load() },
   );
 
-  const { visible, hiddenInFilter } = filterThreads(threads, filter, hidden);
+  const { visible, hiddenInFilter } = filterThreads(
+    threads,
+    filter,
+    hidden,
+    query,
+  );
   // Two-pane (list + open chat side by side) once the card is wide enough,
   // like Messages on a Mac; below that, the single-pane list↔thread flow.
   const split = width >= 560;
@@ -121,6 +129,8 @@ export function MessagesCard() {
       hiddenInFilter={hiddenInFilter}
       clearHidden={clearHidden}
       hide={hide}
+      query={query}
+      setQuery={setQuery}
       activeId={split ? open?.id ?? null : null}
       onSelect={selectThread}
     />
@@ -206,6 +216,8 @@ function ConversationList({
   hiddenInFilter,
   clearHidden,
   hide,
+  query,
+  setQuery,
   activeId,
   onSelect,
 }: {
@@ -215,6 +227,8 @@ function ConversationList({
   hiddenInFilter: number;
   clearHidden: () => void;
   hide: (id: string) => void;
+  query: string;
+  setQuery: (v: string) => void;
   activeId: string | null;
   onSelect: (t: ThreadSummary) => void;
 }) {
@@ -226,6 +240,7 @@ function ConversationList({
         hiddenCount={hiddenInFilter}
         onShowHidden={clearHidden}
       />
+      <InboxSearch value={query} onChange={setQuery} />
       <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
         {visible.length === 0 ? (
           <li className="px-3 py-6 text-center text-xs text-text-3">
@@ -352,16 +367,18 @@ function ThreadQuickView({
 }) {
   const isSignal = thread.source === "signal";
   const [messages, setMessages] = useState<QuickMessage[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = usePersistedDraft(thread.id);
   const [pending, setPending] = useState<PendingItem[]>([]);
   const [sending, setSending] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
   const pendingRef = useRef<PendingItem[]>([]);
   pendingRef.current = pending;
+  useAutosize(composerRef, draft);
 
   const scrollToEnd = useCallback(() => {
     requestAnimationFrame(() => {
@@ -771,11 +788,14 @@ function ThreadQuickView({
               </button>
             </>
           ) : null}
-          <input
+          <textarea
+            ref={composerRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => composerKeyDown(e, () => void submit())}
+            rows={1}
             placeholder={`Reply${isSignal ? " on Signal" : ""}…`}
-            className="flex-1 rounded-sm border border-border bg-bg-0 px-2 py-1 text-xs text-text-0 outline-none focus:border-border-focus"
+            className="max-h-[120px] flex-1 resize-none rounded-sm border border-border bg-bg-0 px-2 py-1 text-xs text-text-0 outline-none focus:border-border-focus"
           />
           <button
             type="submit"

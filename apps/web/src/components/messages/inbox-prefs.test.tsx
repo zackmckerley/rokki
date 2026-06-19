@@ -43,6 +43,34 @@ describe("filterThreads", () => {
   });
 });
 
+describe("filterThreads search", () => {
+  const labeled = [
+    { id: "a", source: "rokki" as const, label: "Carlos" },
+    { id: "b", source: "signal" as const, label: "Mom" },
+    { id: "c", source: "rokki" as const, label: "Maria" },
+  ];
+  it("filters by label substring, case-insensitive", () => {
+    const { visible } = filterThreads(labeled, "all", new Set(), "MAR");
+    expect(visible.map((t) => t.id)).toEqual(["c"]);
+  });
+  it("combines with the source filter", () => {
+    const { visible } = filterThreads(labeled, "rokki", new Set(), "ca");
+    expect(visible.map((t) => t.id)).toEqual(["a"]);
+  });
+  it("an empty query returns everything in the filter", () => {
+    expect(filterThreads(labeled, "all", new Set(), "").visible.length).toBe(3);
+  });
+  it("hiddenInFilter is independent of the query", () => {
+    const { hiddenInFilter } = filterThreads(
+      labeled,
+      "all",
+      new Set(["a"]),
+      "zzz",
+    );
+    expect(hiddenInFilter).toBe(1);
+  });
+});
+
 describe("UnreadBadge", () => {
   it("renders the count when > 0", () => {
     render(<UnreadBadge count={5} />);

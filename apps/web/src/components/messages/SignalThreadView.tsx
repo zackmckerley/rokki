@@ -22,6 +22,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import {
+  useAutosize,
+  usePersistedDraft,
+  composerKeyDown,
+} from "./composer-utils";
 
 type SignalStatus = "sending" | "sent" | "delivered" | "read" | "failed";
 
@@ -81,7 +86,7 @@ export function SignalThreadView({
   onDeleted?: () => void;
 }) {
   const [messages, setMessages] = useState<SignalMessage[]>([]);
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = usePersistedDraft(threadId);
   const [pending, setPending] = useState<PendingAttachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -90,6 +95,7 @@ export function SignalThreadView({
   const [view, setView] = useState<"chat" | "media">("chat");
   const [lightbox, setLightbox] = useState<number | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // dragenter/dragleave fire for every child element; count depth so the drop
   // overlay only clears when the cursor truly leaves the pane.
@@ -100,6 +106,7 @@ export function SignalThreadView({
   // Mirror of `pending` so the unmount cleanup can revoke any staged object URLs.
   const pendingRef = useRef<PendingAttachment[]>([]);
   pendingRef.current = pending;
+  useAutosize(composerRef, draft);
 
   const load = useCallback(async () => {
     const r = await fetch(`/api/v1/signal/threads/${threadId}`, {
@@ -537,11 +544,14 @@ export function SignalThreadView({
               <Paperclip className="h-3.5 w-3.5" />
             )}
           </button>
-          <input
+          <textarea
+            ref={composerRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => composerKeyDown(e, () => void submit())}
+            rows={1}
             placeholder={`Message ${label} on Signal`}
-            className="flex-1 rounded-sm border border-border bg-bg-0 px-2 py-1.5 text-xs text-text-0 outline-none focus:border-border-focus"
+            className="max-h-[140px] flex-1 resize-none rounded-sm border border-border bg-bg-0 px-2 py-1.5 text-xs text-text-0 outline-none focus:border-border-focus"
           />
           <button
             type="submit"
