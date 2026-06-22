@@ -15,7 +15,7 @@ jobs:
     name: Lint, Typecheck, Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup pnpm
         # Version comes from `packageManager` in root package.json — passing
@@ -51,7 +51,7 @@ jobs:
     name: Database migrations + RLS tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup pnpm
         # Version comes from `packageManager` in root package.json — passing
@@ -126,7 +126,7 @@ jobs:
     # so reviewers see when something goes red.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -208,7 +208,7 @@ jobs:
     # regression in the same PR as the UI change.
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -290,7 +290,7 @@ jobs:
     #      pay them down deliberately, not on every PR)
     # See docs/10_TESTING.md §10.21 for the full policy.
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -340,7 +340,7 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           # gitleaks scans full history on PRs. Default checkout depth is
           # 1, which makes it skip everything except the merge commit.

@@ -32,7 +32,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         # peter-evans/create-pull-request does its own auth via the
         # GITHUB_TOKEN we pass it explicitly. If checkout also
         # persists credentials, the two stack and git fails with
