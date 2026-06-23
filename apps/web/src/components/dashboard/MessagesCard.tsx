@@ -201,21 +201,24 @@ export function MessagesCard() {
   } else if (split) {
     body = (
       <div className="flex min-h-0 flex-1">
+        {/* The list pane's right border IS the divider line — a real 1px
+            border paints reliably at any DPI (a standalone w-px flex child can
+            wash out on HiDPI), so the faint line between inbox and chat is
+            always visible. */}
         <div
           style={{ width: Math.min(listWidth, Math.max(180, width - 300)) }}
-          className="flex flex-shrink-0 flex-col"
+          className="flex flex-shrink-0 flex-col border-r border-border"
         >
           {list}
         </div>
-        {/* A crisp, always-visible hairline between the list and the chat
-            (like the Mac Messages sidebar rule), with a wider invisible grab
-            zone so it's still easy to drag. */}
+        {/* A transparent grab strip straddling that border (pulled left so it
+            adds no width); shows accent on hover to signal it's draggable. */}
         <div
           onMouseDown={startResize}
           role="separator"
           aria-label="Drag to resize the conversation list"
           title="Drag to resize"
-          className="relative w-px flex-shrink-0 cursor-col-resize bg-border transition-colors before:absolute before:inset-y-0 before:-left-1.5 before:-right-1.5 before:content-[''] hover:bg-accent"
+          className="z-10 -ml-1 w-2 flex-shrink-0 cursor-col-resize transition-colors hover:bg-accent/30"
         />
         <div className="flex min-h-0 flex-1 flex-col">
           {open ? (

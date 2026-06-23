@@ -126,6 +126,9 @@ export function ChatMessageList({
             m.attachments.length === 0 && isEmojiOnly(m.body);
           const canDelete =
             Boolean(onDeleteForMe) && !m.id.startsWith("temp-");
+          const hasBody = m.body.trim().length > 0;
+          // The ⋯ menu is worth showing if there's text to copy or an action.
+          const showMenu = hasBody || canDelete;
           const showName =
             showSender && !m.mine && firstInGroup && Boolean(m.sender);
           return (
@@ -155,7 +158,7 @@ export function ChatMessageList({
                     m.mine ? "flex-row" : "flex-row-reverse",
                   )}
                 >
-                  {canDelete ? (
+                  {showMenu ? (
                     <button
                       type="button"
                       onClick={() =>
@@ -224,17 +227,31 @@ export function ChatMessageList({
                       m.mine ? "right-5" : "left-5",
                     )}
                   >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMenuFor(null);
-                        onDeleteForMe?.(m.id);
-                      }}
-                      className="whitespace-nowrap px-3 py-1 text-left text-text-1 hover:bg-bg-2"
-                    >
-                      Delete for me
-                    </button>
-                    {m.mine && onDeleteForEveryone ? (
+                    {hasBody ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuFor(null);
+                          void navigator.clipboard?.writeText(m.body);
+                        }}
+                        className="whitespace-nowrap px-3 py-1 text-left text-text-1 hover:bg-bg-2"
+                      >
+                        Copy text
+                      </button>
+                    ) : null}
+                    {canDelete ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuFor(null);
+                          onDeleteForMe?.(m.id);
+                        }}
+                        className="whitespace-nowrap px-3 py-1 text-left text-text-1 hover:bg-bg-2"
+                      >
+                        Delete for me
+                      </button>
+                    ) : null}
+                    {canDelete && m.mine && onDeleteForEveryone ? (
                       <button
                         type="button"
                         onClick={() => {
@@ -249,7 +266,10 @@ export function ChatMessageList({
                   </div>
                 ) : null}
                 {lastInGroup ? (
-                  <span className="mt-0.5 flex items-center gap-1 px-1 text-2xs text-text-3">
+                  <span
+                    title={new Date(m.at).toLocaleString()}
+                    className="mt-0.5 flex items-center gap-1 px-1 text-2xs text-text-3"
+                  >
                     {formatRelative(m.at)}
                     {m.mine && m.status ? <StatusTick status={m.status} /> : null}
                   </span>

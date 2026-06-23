@@ -191,6 +191,31 @@ describe("ChatMessageList", () => {
     expect(screen.queryByText("Delete for everyone")).toBeNull();
   });
 
+  it("offers Copy text and writes the body to the clipboard", () => {
+    const writeText = vi.fn();
+    Object.assign(navigator, { clipboard: { writeText } });
+    render(
+      <ChatMessageList
+        messages={[msg({ id: "c", body: "hello world" })]}
+        onDeleteForMe={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Message options"));
+    fireEvent.click(screen.getByText("Copy text"));
+    expect(writeText).toHaveBeenCalledWith("hello world");
+  });
+
+  it("lets you copy any message even with no delete handlers", () => {
+    render(
+      <ChatMessageList
+        messages={[msg({ id: "x", mine: false, body: "copy me" })]}
+      />,
+    );
+    fireEvent.click(screen.getByLabelText("Message options"));
+    expect(screen.getByText("Copy text")).toBeTruthy();
+    expect(screen.queryByText("Delete for me")).toBeNull();
+  });
+
   it("calls onOpenImage instead of navigating when provided", () => {
     const onOpenImage = vi.fn();
     render(
