@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Send,
   MessageSquare,
@@ -381,12 +381,21 @@ export function SignalThreadView({
   }
 
   // All attachments with a usable URL, flattened across messages — powers the
-  // media gallery + lightbox.
-  const mediaItems = messages
-    .flatMap((m) => (m.attachments ?? []).map((att) => ({ att, at: m.sent_at })))
-    .filter((x) => Boolean(x.att.url));
-  const imageItems = mediaItems.filter((x) =>
-    (x.att.content_type ?? "").startsWith("image/"),
+  // media gallery + lightbox. Memoized so it isn't recomputed on every render
+  // (this component re-renders on each composer keystroke).
+  const mediaItems = useMemo(
+    () =>
+      messages
+        .flatMap((m) =>
+          (m.attachments ?? []).map((att) => ({ att, at: m.sent_at })),
+        )
+        .filter((x) => Boolean(x.att.url)),
+    [messages],
+  );
+  const imageItems = useMemo(
+    () =>
+      mediaItems.filter((x) => (x.att.content_type ?? "").startsWith("image/")),
+    [mediaItems],
   );
   const openLightbox = (url: string) => {
     const idx = imageItems.findIndex((x) => x.att.url === url);
