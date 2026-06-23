@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -791,9 +792,14 @@ function ThreadQuickView({
   }
 
   // Every image in this thread (with a usable URL) powers the lightbox.
-  const imageItems = messages
-    .flatMap((m) => m.attachments)
-    .filter((a) => (a.content_type ?? "").startsWith("image/") && a.url);
+  // Memoized — this view re-renders on each composer keystroke.
+  const imageItems = useMemo(
+    () =>
+      messages
+        .flatMap((m) => m.attachments)
+        .filter((a) => (a.content_type ?? "").startsWith("image/") && a.url),
+    [messages],
+  );
   const openLightbox = (url: string) => {
     const idx = imageItems.findIndex((a) => a.url === url);
     if (idx >= 0) setLightbox(idx);

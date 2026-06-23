@@ -481,12 +481,16 @@ function withinRun(a: string, b: string): boolean {
   return Math.abs(new Date(b).getTime() - new Date(a).getTime()) < 5 * 60_000;
 }
 
+// One Segmenter for the whole module — constructing it is comparatively
+// expensive and graphemes() runs for every message on every list render.
+let _segmenter: Intl.Segmenter | null = null;
+
 /** Split into user-perceived characters (grapheme clusters) so emoji ZWJ
  *  sequences (👨‍👩‍👧), flags (🇺🇸) and keycaps (1️⃣) each count as one. */
 function graphemes(s: string): string[] {
   if (typeof Intl !== "undefined" && "Segmenter" in Intl) {
-    const seg = new Intl.Segmenter(undefined, { granularity: "grapheme" });
-    return Array.from(seg.segment(s), (g) => g.segment);
+    _segmenter ??= new Intl.Segmenter(undefined, { granularity: "grapheme" });
+    return Array.from(_segmenter.segment(s), (g) => g.segment);
   }
   return Array.from(s); // fallback: code points (imperfect for ZWJ runs)
 }
