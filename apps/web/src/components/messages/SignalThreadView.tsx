@@ -100,6 +100,9 @@ export function SignalThreadView({
   // Temp ids of optimistic bubbles whose send is still in flight — a realtime
   // reload must not wipe these before the stored row exists.
   const inFlightRef = useRef<Set<string>>(new Set());
+  // Ids optimistically deleted whose server delete hasn't landed yet — a
+  // realtime reload must not re-add them mid-delete.
+  const deletedRef = useRef<Set<string>>(new Set());
   // Mirror of `pending` so the unmount cleanup can revoke any staged object URLs.
   const pendingRef = useRef<PendingAttachment[]>([]);
   pendingRef.current = pending;
@@ -111,7 +114,10 @@ export function SignalThreadView({
     });
     if (!r.ok) return; // transient — keep what we have rather than blanking
     const body = (await r.json()) as { data?: { messages?: SignalMessage[] } };
-    const server = body.data?.messages ?? [];
+    // Drop anything mid-delete so an in-flight delete isn't undone by a reload.
+    const server = (body.data?.messages ?? []).filter(
+      (m) => !deletedRef.current.has(m.id),
+    );
     setMessages((prev) => {
       // Preserve optimistic bubbles whose send hasn't resolved yet, so a
       // realtime-triggered reload mid-send doesn't make the message vanish.
@@ -341,23 +347,31 @@ export function SignalThreadView({
   }
 
   async function deleteMessage(id: string) {
-    // Optimistic — drop it immediately, then persist.
+    // Optimistic — drop it immediately and guard against a racing reload, then
+    // persist.
+    deletedRef.current.add(id);
     setMessages((prev) => prev.filter((m) => m.id !== id));
     const r = await fetch(`/api/v1/signal/messages/${id}`, {
       method: "DELETE",
       credentials: "include",
     });
-    if (!r.ok) void load(); // restore on failure
+    if (!r.ok) {
+      deletedRef.current.delete(id);
+      void load(); // restore on failure
+      setError("Couldn’t delete that message.");
+    }
   }
 
   // Delete for EVERYONE on Signal (remote delete) — only your own messages.
   async function deleteForEveryone(id: string) {
+    deletedRef.current.add(id);
     setMessages((prev) => prev.filter((m) => m.id !== id));
     const r = await fetch(`/api/v1/signal/messages/${id}/remote-delete`, {
       method: "POST",
       credentials: "include",
     });
     if (!r.ok) {
+      deletedRef.current.delete(id);
       void load();
       const b = (await r.json().catch(() => ({}))) as {
         errors?: { message: string }[];
@@ -593,7 +607,7 @@ function MediaGallery({
                 {images.map((x, i) =>
                   x.att.url ? (
                     <button
-                      key={i}
+                      key={x.att.url ?? x.att.filename ?? i}
                       type="button"
                       onClick={() => onOpenImage(x.att.url as string)}
                       className="aspect-square overflow-hidden rounded-sm bg-bg-2"
@@ -619,7 +633,7 @@ function MediaGallery({
                 {files.map((x, i) => {
                   const type = x.att.content_type ?? "";
                   return (
-                    <li key={i}>
+                    <li key={x.att.url ?? x.att.filename ?? i}>
                       <a
                         href={x.att.url ?? "#"}
                         target="_blank"
