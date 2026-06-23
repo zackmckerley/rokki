@@ -210,7 +210,7 @@ export function ChatMessageList({
                       ) : null}
                       {m.body ? (
                         <div className="whitespace-pre-wrap break-words px-3 py-2 text-xs leading-relaxed">
-                          {m.body}
+                          {linkify(m.body, m.mine)}
                         </div>
                       ) : null}
                     </div>
@@ -411,6 +411,41 @@ export function StatusTick({ status }: { status: SignalStatus }) {
     default:
       return null;
   }
+}
+
+// Matches http(s) URLs, stopping before trailing punctuation so a URL at the
+// end of a sentence ("see https://x.com.") doesn't swallow the period.
+const URL_RE = /https?:\/\/[^\s<]+[^\s<.,!?;:'")\]}]/gi;
+
+/** Turn bare URLs in message text into safe, clickable links (iMessage/WhatsApp
+ *  parity). Builds React nodes by splitting on matches — never innerHTML — so
+ *  there's no injection surface. */
+export function linkify(text: string, mine: boolean): ReactNode[] {
+  const out: ReactNode[] = [];
+  const re = new RegExp(URL_RE); // fresh instance: reset lastIndex per call
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const url = m[0];
+    out.push(
+      <a
+        key={`${m.index}-${url}`}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer nofollow"
+        className={cn(
+          "break-all underline underline-offset-2",
+          mine ? "text-bg-0" : "text-accent",
+        )}
+      >
+        {url}
+      </a>,
+    );
+    last = m.index + url.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
 }
 
 function isImage(att: ChatAttachment): boolean {
