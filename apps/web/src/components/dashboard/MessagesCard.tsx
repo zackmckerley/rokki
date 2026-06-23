@@ -117,6 +117,24 @@ export function MessagesCard() {
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
   };
+  // Keyboard equivalent of the drag handle (WCAG 2.1.1): ← / → nudge the list
+  // width and persist it like the mouse path does.
+  const resizeByKey = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    setListWidth((w) => {
+      const next = Math.max(
+        180,
+        Math.min(460, w + (e.key === "ArrowLeft" ? -16 : 16)),
+      );
+      try {
+        localStorage.setItem("rokki:msg:listw", String(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   const load = useCallback(async () => {
     try {
@@ -217,10 +235,16 @@ export function MessagesCard() {
             adds no width); shows accent on hover to signal it's draggable. */}
         <div
           onMouseDown={startResize}
+          onKeyDown={resizeByKey}
           role="separator"
-          aria-label="Drag to resize the conversation list"
-          title="Drag to resize"
-          className="z-10 -ml-1 w-2 flex-shrink-0 cursor-col-resize transition-colors hover:bg-accent/30"
+          tabIndex={0}
+          aria-orientation="vertical"
+          aria-label="Resize the conversation list"
+          aria-valuemin={180}
+          aria-valuemax={460}
+          aria-valuenow={Math.round(listWidth)}
+          title="Drag, or focus and use ← / → to resize"
+          className="z-10 -ml-1 w-2 flex-shrink-0 cursor-col-resize transition-colors hover:bg-accent/30 focus-visible:bg-accent/40 focus-visible:outline-none"
         />
         <div className="flex min-h-0 flex-1 flex-col">
           {open ? (

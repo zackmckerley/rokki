@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Search, Loader2, X, MessageSquare, Users, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 interface Contact {
   signal_id: string;
@@ -36,6 +37,10 @@ export function SignalContactPicker({
   const [groupName, setGroupName] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // Treat the picker as a modal dialog: Escape closes it, Tab is trapped, and
+  // focus returns to the trigger on close.
+  useFocusTrap(panelRef, true, onClose);
 
   useEffect(() => {
     let alive = true;
@@ -145,7 +150,13 @@ export function SignalContactPicker({
   }
 
   return (
-    <>
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={groupMode ? "New group" : "New message"}
+      className="flex min-h-0 flex-1 flex-col"
+    >
       <header className="flex h-9 flex-shrink-0 items-center gap-2 border-b border-border bg-bg-0 px-3">
         <span className="text-xs text-text-1">
           {groupMode ? "New group" : "New message"}
@@ -273,6 +284,6 @@ export function SignalContactPicker({
           </ul>
         )}
       </div>
-    </>
+    </div>
   );
 }

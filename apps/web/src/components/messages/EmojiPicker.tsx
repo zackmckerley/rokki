@@ -142,6 +142,7 @@ export function EmojiPicker({
               key={`${e}-${i}`}
               type="button"
               onClick={() => pick(e)}
+              aria-label={e}
               className="flex h-6 w-6 items-center justify-center rounded text-base hover:bg-bg-2"
             >
               {e}
@@ -154,6 +155,7 @@ export function EmojiPicker({
           type="button"
           onClick={() => setCat("recent")}
           title="Recent"
+          aria-label="Recent emojis"
           className={cn(
             "flex h-6 w-6 items-center justify-center rounded hover:bg-bg-2",
             cat === "recent" ? "text-accent" : "text-text-3",
@@ -167,6 +169,7 @@ export function EmojiPicker({
             type="button"
             onClick={() => setCat(c.key)}
             title={c.label}
+            aria-label={c.label}
             className={cn(
               "flex h-6 w-6 items-center justify-center rounded text-sm hover:bg-bg-2",
               cat === c.key ? "bg-bg-2" : "",

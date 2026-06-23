@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { X, ChevronLeft, ChevronRight, Download } from "lucide-react";
 import type { ChatAttachment } from "./ChatThread";
+import { useFocusTrap } from "@/lib/use-focus-trap";
 
 /**
  * Full-screen image viewer with prev/next + keyboard nav (Esc / ← / →), shared
@@ -20,28 +21,33 @@ export function Lightbox({
   onClose: () => void;
   onNav: (i: number) => void;
 }) {
+  const panelRef = useRef<HTMLDivElement>(null);
   const current = items[index];
   const go = useCallback(
     (delta: number) => onNav((index + delta + items.length) % items.length),
     [index, items.length, onNav],
   );
+  // Escape + Tab-trap + focus-in/-restore (consistent with the Dialog primitive).
+  useFocusTrap(panelRef, true, onClose);
+  // Arrow keys page through the gallery.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-      else if (e.key === "ArrowLeft") go(-1);
+      if (e.key === "ArrowLeft") go(-1);
       else if (e.key === "ArrowRight") go(1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go, onClose]);
+  }, [go]);
   if (!current?.url) return null;
   const stop = (e: React.MouseEvent) => e.stopPropagation();
   return (
     <div
+      ref={panelRef}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-8"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
+      aria-label="Image viewer"
     >
       <button
         type="button"
