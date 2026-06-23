@@ -79,14 +79,19 @@ export function ChatMessageList({
 }) {
   const [menuFor, setMenuFor] = useState<string | null>(null);
 
-  // Close an open per-message menu on any outside click.
+  // Close an open per-message menu on any outside click or Escape.
   useEffect(() => {
     if (!menuFor) return;
     const close = () => setMenuFor(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuFor(null);
+    };
     const t = setTimeout(() => window.addEventListener("mousedown", close), 0);
+    window.addEventListener("keydown", onKey);
     return () => {
       clearTimeout(t);
       window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", onKey);
     };
   }, [menuFor]);
 
@@ -165,7 +170,9 @@ export function ChatMessageList({
                         setMenuFor((cur) => (cur === m.id ? null : m.id))
                       }
                       aria-label="Message options"
-                      className="flex-shrink-0 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover/msg:opacity-100"
+                      aria-haspopup="menu"
+                      aria-expanded={menuFor === m.id}
+                      className="flex-shrink-0 rounded-sm p-0.5 text-text-3 opacity-0 transition-opacity hover:text-text-0 group-hover/msg:opacity-100 focus-visible:opacity-100"
                     >
                       <MoreHorizontal className="h-3.5 w-3.5" />
                     </button>
@@ -221,6 +228,8 @@ export function ChatMessageList({
                 </div>
                 {menuFor === m.id ? (
                   <div
+                    role="menu"
+                    aria-label="Message options"
                     onMouseDown={(e) => e.stopPropagation()}
                     className={cn(
                       "absolute top-6 z-20 flex flex-col rounded-md border border-border bg-bg-1 py-1 text-2xs shadow-lg",
@@ -230,6 +239,7 @@ export function ChatMessageList({
                     {hasBody ? (
                       <button
                         type="button"
+                        role="menuitem"
                         onClick={() => {
                           setMenuFor(null);
                           void navigator.clipboard?.writeText(m.body);
@@ -242,6 +252,7 @@ export function ChatMessageList({
                     {canDelete ? (
                       <button
                         type="button"
+                        role="menuitem"
                         onClick={() => {
                           setMenuFor(null);
                           onDeleteForMe?.(m.id);
@@ -254,6 +265,7 @@ export function ChatMessageList({
                     {canDelete && m.mine && onDeleteForEveryone ? (
                       <button
                         type="button"
+                        role="menuitem"
                         onClick={() => {
                           setMenuFor(null);
                           onDeleteForEveryone(m.id);
