@@ -64,6 +64,9 @@ describe("formatRelative", () => {
       formatRelative(new Date(Date.now() - 3 * 3600_000).toISOString()),
     ).toBe("3h");
   });
+  it("returns empty for a malformed timestamp (no 'Invalid Date')", () => {
+    expect(formatRelative("not-a-date")).toBe("");
+  });
 });
 
 describe("ChatMessageList", () => {

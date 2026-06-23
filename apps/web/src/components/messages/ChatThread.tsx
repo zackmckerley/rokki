@@ -348,10 +348,11 @@ function ImageGroup({
             ) : null}
           </span>
         );
-        if (!a.url) return <Fragment key={i}>{tile}</Fragment>;
+        const key = a.url ?? a.filename ?? i;
+        if (!a.url) return <Fragment key={key}>{tile}</Fragment>;
         return onOpenImage ? (
           <button
-            key={i}
+            key={key}
             type="button"
             onClick={() => onOpenImage(a.url as string)}
             className="block cursor-zoom-in"
@@ -359,7 +360,7 @@ function ImageGroup({
             {tile}
           </button>
         ) : (
-          <a key={i} href={a.url} target="_blank" rel="noopener noreferrer">
+          <a key={key} href={a.url} target="_blank" rel="noopener noreferrer">
             {tile}
           </a>
         );
@@ -528,6 +529,7 @@ export function formatBytes(bytes: number): string {
 /** Date/time chip shown between messages with a big time gap (iMessage-style).*/
 function formatStamp(iso: string): string {
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return ""; // malformed timestamp — no chip
   const now = new Date();
   const sameDay = d.toDateString() === now.toDateString();
   const time = d.toLocaleTimeString(undefined, {
@@ -540,7 +542,9 @@ function formatStamp(iso: string): string {
 
 /** Compact relative timestamp (now / 5m / 3h / 2d / Jun 4). */
 export function formatRelative(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return ""; // malformed timestamp
+  const ms = Date.now() - then;
   const s = Math.floor(ms / 1000);
   if (s < 60) return "now";
   const m = Math.floor(s / 60);

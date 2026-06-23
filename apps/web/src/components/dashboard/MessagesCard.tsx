@@ -478,6 +478,9 @@ function ThreadQuickView({
   const dragDepth = useRef(0);
   const pendingRef = useRef<PendingItem[]>([]);
   pendingRef.current = pending;
+  // Ids optimistically deleted whose server delete hasn't landed — a realtime
+  // reload must not re-add them mid-delete.
+  const deletedRef = useRef<Set<string>>(new Set());
   useAutosize(composerRef, draft);
 
   const scrollToEnd = useCallback(() => {
@@ -507,17 +510,19 @@ function ThreadQuickView({
         };
       };
       setMessages(
-        (b.data?.messages ?? []).map((m) => ({
-          id: m.id,
-          mine: m.direction === "out",
-          // Empty (not "them") when the sender is unknown, so the shared
-          // renderer shows no group label — matching the full-page view.
-          who: m.direction === "out" ? "you" : m.sender ?? "",
-          body: m.body ?? "",
-          at: m.sent_at,
-          attachments: Array.isArray(m.attachments) ? m.attachments : [],
-          status: m.status,
-        })),
+        (b.data?.messages ?? [])
+          .filter((m) => !deletedRef.current.has(m.id))
+          .map((m) => ({
+            id: m.id,
+            mine: m.direction === "out",
+            // Empty (not "them") when the sender is unknown, so the shared
+            // renderer shows no group label — matching the full-page view.
+            who: m.direction === "out" ? "you" : m.sender ?? "",
+            body: m.body ?? "",
+            at: m.sent_at,
+            attachments: Array.isArray(m.attachments) ? m.attachments : [],
+            status: m.status,
+          })),
       );
     } else {
       const r = await fetch(`/api/v1/messages/threads/${thread.id}`, {
@@ -642,20 +647,27 @@ function ThreadQuickView({
   // Per-message delete: "for me" (Rokki-local) and "for everyone" (Signal
   // remote delete — only your own messages).
   async function deleteForMe(id: string) {
+    deletedRef.current.add(id);
     setMessages((prev) => prev.filter((mm) => mm.id !== id));
     const r = await fetch(`/api/v1/signal/messages/${id}`, {
       method: "DELETE",
       credentials: "include",
     });
-    if (!r.ok) void load();
+    if (!r.ok) {
+      deletedRef.current.delete(id);
+      void load();
+      setError("Couldn’t delete that message.");
+    }
   }
   async function deleteForEveryone(id: string) {
+    deletedRef.current.add(id);
     setMessages((prev) => prev.filter((mm) => mm.id !== id));
     const r = await fetch(`/api/v1/signal/messages/${id}/remote-delete`, {
       method: "POST",
       credentials: "include",
     });
     if (!r.ok) {
+      deletedRef.current.delete(id);
       void load();
       const b = (await r.json().catch(() => ({}))) as {
         errors?: { message: string }[];

@@ -82,8 +82,14 @@ export function EmojiPicker({
 
   useEffect(() => {
     try {
-      const r = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? "[]") as string[];
-      setRecent(Array.isArray(r) ? r.slice(0, 24) : []);
+      const r = JSON.parse(localStorage.getItem(RECENTS_KEY) ?? "[]") as unknown;
+      // Defend against a corrupted store: keep only strings so a non-string
+      // entry can't crash a tile render.
+      setRecent(
+        Array.isArray(r)
+          ? r.filter((x): x is string => typeof x === "string").slice(0, 24)
+          : [],
+      );
     } catch {
       setRecent([]);
     }
