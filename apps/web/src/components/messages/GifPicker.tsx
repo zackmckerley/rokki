@@ -22,11 +22,13 @@ function GifGrid({
   const [results, setResults] = useState<Gif[]>([]);
   const [loading, setLoading] = useState(true);
   const [unconfigured, setUnconfigured] = useState(false);
+  const [error, setError] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
+    setError(false);
     const t = setTimeout(() => {
       fetch(`/api/v1/gif/search?q=${encodeURIComponent(q)}`, {
         credentials: "include",
@@ -36,13 +38,21 @@ function GifGrid({
             if (alive) setUnconfigured(true);
             return { data: [] };
           }
-          return r.ok ? r.json() : { data: [] };
+          if (!r.ok) {
+            // A server/proxy error is NOT an empty result — surface it.
+            if (alive) setError(true);
+            return { data: [] };
+          }
+          return r.json();
         })
         .then((b: { data?: Gif[] }) => {
           if (alive) setResults(b.data ?? []);
         })
         .catch(() => {
-          if (alive) setResults([]);
+          if (alive) {
+            setError(true);
+            setResults([]);
+          }
         })
         .finally(() => {
           if (alive) setLoading(false);
@@ -86,6 +96,10 @@ function GifGrid({
           <p className="col-span-2 px-2 py-6 text-center text-2xs text-text-3">
             GIF search isn’t set up yet — add a Tenor API key.
           </p>
+        ) : error ? (
+          <p className="col-span-2 py-6 text-center text-2xs text-text-3">
+            Couldn’t reach GIF search.
+          </p>
         ) : loading && results.length === 0 ? (
           <p className="col-span-2 py-6 text-center text-2xs text-text-3">
             Searching…
@@ -100,6 +114,7 @@ function GifGrid({
               key={g.id}
               type="button"
               onClick={() => onPick(g)}
+              aria-label={g.description || "Insert GIF"}
               className="aspect-square overflow-hidden rounded-sm bg-bg-2 hover:opacity-80"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}

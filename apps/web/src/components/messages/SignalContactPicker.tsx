@@ -45,11 +45,20 @@ export function SignalContactPicker({
         method: "POST",
         credentials: "include",
       }).catch(() => {});
-      const r = await fetch("/api/v1/signal/contacts", { credentials: "include" });
-      const b = (await r.json().catch(() => ({}))) as { data?: Contact[] };
-      if (alive) {
-        setContacts(b.data ?? []);
-        setLoading(false);
+      try {
+        const r = await fetch("/api/v1/signal/contacts", {
+          credentials: "include",
+        });
+        const b = (await r.json().catch(() => ({}))) as { data?: Contact[] };
+        if (alive) {
+          setContacts(b.data ?? []);
+          if (!r.ok) setError("Couldn’t load contacts.");
+        }
+      } catch {
+        // Network failure (offline / bridge down) — don't hang on the spinner.
+        if (alive) setError("Couldn’t load contacts.");
+      } finally {
+        if (alive) setLoading(false);
       }
     })();
     return () => {
@@ -70,6 +79,7 @@ export function SignalContactPicker({
   async function pick(c: Contact) {
     if (opening) return;
     setOpening(c.signal_id);
+    setError(null);
     try {
       const r = await fetch("/api/v1/signal/threads", {
         method: "POST",
@@ -81,8 +91,18 @@ export function SignalContactPicker({
           title: c.name ?? undefined,
         }),
       });
-      const b = (await r.json().catch(() => ({}))) as { data?: { id?: string } };
-      if (b.data?.id) onPick(b.data.id);
+      const b = (await r.json().catch(() => ({}))) as {
+        data?: { id?: string };
+        errors?: { message: string }[];
+      };
+      if (!r.ok || !b.data?.id) {
+        // Don't leave the user staring at the picker with no feedback.
+        setError(b.errors?.[0]?.message ?? "Couldn’t open that conversation.");
+        return;
+      }
+      onPick(b.data.id);
+    } catch {
+      setError("Couldn’t open that conversation.");
     } finally {
       setOpening(null);
     }
