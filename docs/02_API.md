@@ -653,7 +653,89 @@ Others are optional but recommended for write retries.
 - Deprecations: old endpoint returns `Deprecation: date` header and `Sunset: date`
 - Minimum deprecation window: 12 months for public APIs, 3 months for internal-only
 
-## 2.23 Common pitfalls
+## 2.23 Signal messaging
+
+Signal is integrated as a per-user **linked (secondary) device**. Rokki never
+holds the user's Signal identity keys; a separate **bridge** service
+(`apps/signal-bridge`, deployed to Fly.io) runs `signal-cli` and is the only
+component that talks to Signal. The web app calls the bridge **server-side** over
+HTTPS, authenticated by a shared secret (`x-bridge-secret`); browsers only ever
+hit our own `/v1/signal/*` routes. See `docs/adr/0006-signal-linked-device.md`.
+
+### 2.23.1 Account & linking
+
+```
+POST   /v1/signal/link        → { uri }            // sgnl:// device-link URI to render as a QR
+GET    /v1/signal/account     → { status, signal_number? }
+DELETE /v1/signal/account                          // unlink this device + purge local data
+```
+
+Linking starts a JVM in the bridge, so `POST /link` can take ~30–60s.
+
+### 2.23.2 Contacts & sync
+
+```
+GET    /v1/signal/contacts    → { data: [{ signal_id, kind, name }] }   // kind ∈ direct | group
+POST   /v1/signal/sync                             // refresh contacts + groups from the device
+```
+
+### 2.23.3 Threads & messages
+
+```
+POST   /v1/signal/threads          { signalId, kind, title? } → { data: { id } }   // ensure a thread exists
+GET    /v1/signal/threads/:id      → { data: { messages: [...] } }
+DELETE /v1/signal/threads/:id                       // remove Rokki's local copy of the conversation
+POST   /v1/signal/threads/:id/read                  // send read receipts for inbound messages (direct only)
+```
+
+Inbox listing is unified — Signal threads surface in `GET /v1/messages/threads`
+alongside everything else (`source: "signal"`). A message row:
+`{ id, direction: "in"|"out", sender, body, sent_at, status?, attachments? }`,
+where `status` ∈ `sending | sent | delivered | read | failed`.
+
+### 2.23.4 Sending & attachments
+
+```
+POST   /v1/signal/media   (multipart: file) → { data: { storage_key, content_type, filename, size } }
+POST   /v1/signal/send    { signalId, kind, text, attachments?: [{ storage_key, content_type, filename, size }] }
+```
+
+Attachments are uploaded to staging first (`/media`), then referenced by
+`storage_key` on `/send`; the bridge downloads each from storage before handing
+it to `signal-cli`. `/send` re-checks the caller owns every `storage_key` — an
+IDOR guard, because the bridge uses a service-role key that bypasses RLS.
+
+### 2.23.5 Deleting (synced both ways)
+
+```
+DELETE /v1/signal/messages/:id                      // "delete for me" — Rokki-local only
+POST   /v1/signal/messages/:id/remote-delete        // "delete for everyone" — Signal remote-delete (own messages only)
+```
+
+A remote-delete performed in the Signal app (from the phone) is reflected in
+Rokki, and vice-versa — best-effort, since the inbound `remoteDelete` envelope
+field is undocumented in `signal-cli`.
+
+### 2.23.6 Groups
+
+```
+POST   /v1/signal/groups   { name, members: [signalId, …] } → { data: { threadId } }
+```
+
+### 2.23.7 Hard protocol limits (not bugs)
+
+A linked device fundamentally cannot do these, so the UI never promises them:
+
+- **No history backfill** — messages predating the link don't sync; a thread
+  starts empty in Rokki.
+- **No presence/online status** for Signal contacts.
+- **No calls** — `signal-cli` can neither place nor receive Signal calls.
+
+**Parity note:** the Signal surface is currently **REST + UI only**; MCP tools
+are not yet exposed (tracked separately), which is a known exception to the
+API+MCP-parity rule for this in-progress feature.
+
+## 2.24 Common pitfalls
 
 - **404 vs 403:** `not_found` is returned for BOTH missing and forbidden resources. Never return 403 for a resource the caller can't see — that leaks existence. Only return 403 for resources they can see but can't mutate.
 - **Rate limit on magic link:** 5/min per IP is aggressive. For legitimate bulk invites, the admin endpoint bypasses this — use `POST /v1/orgs/:slug/members` with server-side session, not `POST /v1/auth/magic-link` in a loop.
