@@ -45,6 +45,7 @@ import {
   type SignalStatus,
 } from "../messages/ChatThread";
 import { SignalContactPicker } from "../messages/SignalContactPicker";
+import { Lightbox } from "../messages/Lightbox";
 
 interface ThreadSummary {
   id: string;
@@ -470,6 +471,7 @@ function ThreadQuickView({
   const [sending, setSending] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<number | null>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -776,6 +778,15 @@ function ThreadQuickView({
     }
   }
 
+  // Every image in this thread (with a usable URL) powers the lightbox.
+  const imageItems = messages
+    .flatMap((m) => m.attachments)
+    .filter((a) => (a.content_type ?? "").startsWith("image/") && a.url);
+  const openLightbox = (url: string) => {
+    const idx = imageItems.findIndex((a) => a.url === url);
+    if (idx >= 0) setLightbox(idx);
+  };
+
   return (
     <div
       className="relative flex min-h-0 flex-1 flex-col"
@@ -818,6 +829,7 @@ function ThreadQuickView({
           showSender={thread.signal_kind === "group"}
           onDeleteForMe={isSignal ? deleteForMe : undefined}
           onDeleteForEveryone={isSignal ? deleteForEveryone : undefined}
+          onOpenImage={openLightbox}
         />
       </div>
 
@@ -926,6 +938,15 @@ function ThreadQuickView({
             <span className="text-xs font-medium">Drop to attach</span>
           </div>
         </div>
+      ) : null}
+
+      {lightbox !== null && imageItems[lightbox] ? (
+        <Lightbox
+          items={imageItems}
+          index={lightbox}
+          onClose={() => setLightbox(null)}
+          onNav={setLightbox}
+        />
       ) : null}
     </div>
   );
