@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { type ReactElement } from "react";
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import {
@@ -6,6 +7,7 @@ import {
   isEmojiOnly,
   formatBytes,
   formatRelative,
+  linkify,
   type ChatMessage,
 } from "./ChatThread";
 
@@ -221,5 +223,39 @@ describe("ChatMessageList", () => {
       />,
     );
     expect(screen.getByText("Alice")).toBeTruthy();
+  });
+
+  it("turns URLs in message text into safe links", () => {
+    render(
+      <ChatMessageList
+        messages={[
+          msg({ id: "u", body: "see https://rokki.ai/docs for more" }),
+        ]}
+      />,
+    );
+    const link = screen.getByRole("link", {
+      name: "https://rokki.ai/docs",
+    }) as HTMLAnchorElement;
+    expect(link.href).toBe("https://rokki.ai/docs");
+    expect(link.target).toBe("_blank");
+    expect(link.rel).toContain("noopener");
+    // Surrounding text is preserved.
+    expect(screen.getByText(/for more/)).toBeTruthy();
+  });
+
+  it("does not create links for plain text", () => {
+    render(<ChatMessageList messages={[msg({ id: "p", body: "just text" })]} />);
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+});
+
+describe("linkify", () => {
+  it("does not swallow trailing punctuation", () => {
+    const nodes = linkify("go to https://x.com.", false);
+    const link = nodes.find(
+      (n): n is ReactElement<{ href: string }> =>
+        typeof n === "object" && n !== null && "props" in n,
+    );
+    expect(link?.props.href).toBe("https://x.com");
   });
 });
