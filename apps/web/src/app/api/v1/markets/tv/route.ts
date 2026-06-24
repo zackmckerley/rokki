@@ -37,7 +37,7 @@ async function handleGet(request: NextRequest) {
     id: channel.id,
     name: channel.name,
     attribution: channel.attribution,
-    youtubeChannelId: channel.youtubeChannelId,
+    handle: channel.handle,
   };
 
   if (!tvAvailable()) {
@@ -45,7 +45,7 @@ async function handleGet(request: NextRequest) {
   }
 
   try {
-    const videoId = await resolveLiveVideoId(channel.youtubeChannelId);
+    const videoId = await resolveLiveVideoId(channel);
     return ok({ configured: true, videoId, channel: meta, channels });
   } catch (e) {
     return mapMarketError(e);
