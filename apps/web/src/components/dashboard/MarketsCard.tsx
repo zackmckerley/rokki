@@ -10,9 +10,15 @@ import {
   fmtPct,
   fmtChange,
   fmtVolume,
+  fmtRelative,
   changeClass,
 } from "@/lib/markets/format";
-import type { Quote, Mover, MoverKind } from "@/lib/markets/providers/types";
+import type {
+  Quote,
+  Mover,
+  MoverKind,
+  NewsItem,
+} from "@/lib/markets/providers/types";
 import {
   WATCHING_ID,
   watchingList,
@@ -21,6 +27,7 @@ import {
 import type { RatesBoard, RateRow } from "@/lib/markets/rates";
 import {
   getMovers,
+  getNews,
   getOverview,
   getQuotes,
   getRatesBoard,
@@ -29,11 +36,12 @@ import {
 } from "@/modules/markets/lib/client-api";
 
 /** The in-panel views — the dashboard card switches mode without routing. */
-type MarketsView = "list" | "overview" | "movers";
+type MarketsView = "list" | "overview" | "movers" | "news";
 const VIEWS: { key: MarketsView; label: string }[] = [
   { key: "list", label: "Watchlist" },
   { key: "overview", label: "Overview" },
   { key: "movers", label: "Movers" },
+  { key: "news", label: "News" },
 ];
 
 /** Index/ETF pulse shown at the top of the card (free-feed-friendly proxies). */
@@ -193,6 +201,8 @@ export function MarketsCard() {
           <OverviewView />
         ) : view === "movers" ? (
           <MoversView />
+        ) : view === "news" ? (
+          <NewsView symbols={active?.symbols.map((s) => s.symbol) ?? []} />
         ) : (
           <>
             <IndicesStrip quotes={quotes} />
@@ -396,6 +406,85 @@ function MoversView() {
         </ul>
       )}
     </div>
+  );
+}
+
+/** Merge per-symbol news into one stream: dedupe by id|url, newest first. */
+function mergeNews(lists: NewsItem[][]): NewsItem[] {
+  const seen = new Set<string>();
+  const out: NewsItem[] = [];
+  for (const item of lists.flat()) {
+    const key = item.url || item.id;
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      out.push(item);
+    }
+  }
+  out.sort((a, b) => (a.datetime < b.datetime ? 1 : -1));
+  return out;
+}
+
+/** News view — a watchlist-wide headline feed (the active list's first few
+ *  symbols, merged). Capped to stay within the free news feed's rate limits;
+ *  symbols with no company news (crypto/commodities) simply contribute none. */
+function NewsView({ symbols }: { symbols: string[] }) {
+  const [items, setItems] = useState<NewsItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  // Cap the fan-out — one news call per symbol, so keep it small on a panel.
+  const key = symbols.slice(0, 6).join(",");
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    const subset = key ? key.split(",") : [];
+    Promise.all(
+      subset.map((s) => getNews(s, 7).catch(() => [] as NewsItem[])),
+    )
+      .then((lists) => {
+        if (alive) setItems(mergeNews(lists).slice(0, 30));
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [key]);
+
+  if (loading && items.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-4 text-xs text-text-3">
+        Loading…
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-text-3">
+        No recent news for this list.
+      </div>
+    );
+  }
+  return (
+    <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
+      {items.map((n) => (
+        <li key={n.url || n.id}>
+          <a
+            href={n.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block px-3 py-1.5 hover:bg-bg-2"
+          >
+            <p className="line-clamp-2 text-xs text-text-1">{n.headline}</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-text-3">
+              <span className="truncate">{n.source}</span>
+              <span aria-hidden="true">·</span>
+              <span className="flex-shrink-0">{fmtRelative(n.datetime)}</span>
+            </p>
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }
 
