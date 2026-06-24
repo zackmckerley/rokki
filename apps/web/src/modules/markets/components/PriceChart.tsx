@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCandles } from "../lib/client-api";
-import { sma, ema } from "@/lib/markets/indicators";
+import { sma, ema, rsi } from "@/lib/markets/indicators";
 import { dailyReturns, maxDrawdown, stdev, totalReturn } from "@/lib/markets/risk";
 import type { Candle, Range } from "@/lib/markets/providers/types";
 
@@ -233,10 +233,19 @@ export function PriceChart({
   const stats = useMemo(() => {
     if (candles.length < 3) return null;
     const closes = candles.map((c) => c.close);
+    const rsiSeries = rsi(closes, 14);
+    let lastRsi: number | null = null;
+    for (let i = rsiSeries.length - 1; i >= 0; i--) {
+      if (rsiSeries[i] != null) {
+        lastRsi = rsiSeries[i]!;
+        break;
+      }
+    }
     return {
       ret: totalReturn(closes),
       dd: maxDrawdown(closes),
       vol: stdev(dailyReturns(closes)),
+      rsi: lastRsi,
     };
   }, [candles]);
 
@@ -344,6 +353,22 @@ export function PriceChart({
               {(stats.vol * 100).toFixed(2)}%
             </span>
           </span>
+          {stats.rsi != null && (
+            <span>
+              RSI(14){" "}
+              <span
+                className={`font-mono ${
+                  stats.rsi >= 70
+                    ? "text-danger"
+                    : stats.rsi <= 30
+                      ? "text-success"
+                      : "text-text-1"
+                }`}
+              >
+                {stats.rsi.toFixed(1)}
+              </span>
+            </span>
+          )}
         </div>
       )}
     </div>

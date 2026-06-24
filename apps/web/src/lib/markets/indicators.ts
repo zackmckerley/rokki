@@ -35,3 +35,33 @@ export function ema(values: number[], period: number): (number | null)[] {
   }
   return out;
 }
+
+/**
+ * Relative Strength Index (Wilder's smoothing), bounded 0–100. Null until the
+ * first `period` deltas are available. >70 ≈ overbought, <30 ≈ oversold.
+ */
+export function rsi(values: number[], period = 14): (number | null)[] {
+  const out: (number | null)[] = new Array(values.length).fill(null);
+  if (period <= 0 || values.length <= period) return out;
+
+  let gain = 0;
+  let loss = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = values[i]! - values[i - 1]!;
+    if (d >= 0) gain += d;
+    else loss -= d;
+  }
+  let avgGain = gain / period;
+  let avgLoss = loss / period;
+  out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+
+  for (let i = period + 1; i < values.length; i++) {
+    const d = values[i]! - values[i - 1]!;
+    const g = d > 0 ? d : 0;
+    const l = d < 0 ? -d : 0;
+    avgGain = (avgGain * (period - 1) + g) / period;
+    avgLoss = (avgLoss * (period - 1) + l) / period;
+    out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  }
+  return out;
+}
