@@ -45,19 +45,30 @@ const CRYPTO: Record<string, { id: string; name: string }> = {
 };
 
 /**
+ * Bare bases we'll treat as crypto WITHOUT an explicit fiat suffix. These have
+ * no real US-equity ticker collision. Everything else in CRYPTO (LINK, DOT,
+ * ADA, BCH, …) is also a plausible equity ticker, so it only counts as crypto
+ * when the symbol carries an explicit -USD/USD/USDT quote — otherwise a
+ * watchlist's `LINK` equity would be silently hijacked to the Chainlink price.
+ */
+const BARE_SAFE = new Set(["BTC", "ETH", "XRP", "SOL", "DOGE", "USDT", "USDC"]);
+
+/**
  * Reduce a user-entered symbol to its known crypto base, or null if it isn't
- * one. Accepts the common shapes: `BTC`, `BTC-USD`, `BTC/USD`, `BTCUSD`.
+ * one. Accepts the fiat-quoted shapes `BTC-USD`, `BTC/USD`, `BTCUSD`,
+ * `BTC-USDT`, `BTCUSDT` for any known base; a bare ticker (`BTC`) only resolves
+ * for the unambiguous coins in BARE_SAFE so equity tickers aren't hijacked.
  */
 export function cryptoBase(symbol: string): string | null {
   const s = symbol.trim().toUpperCase();
-  const candidates = [
-    s,
-    s.replace(/[-/]USD$/, ""),
-    s.replace(/[-/]USDT$/, ""),
-    s.replace(/USD$/, ""),
-  ];
-  for (const c of candidates) {
-    if (Object.prototype.hasOwnProperty.call(CRYPTO, c)) return c;
+  // Strip an explicit fiat quote (separator optional): USDT first, then USD.
+  const stripped = s.replace(/[-/]?USDT$/, "").replace(/[-/]?USD$/, "");
+  if (stripped !== s && Object.prototype.hasOwnProperty.call(CRYPTO, stripped)) {
+    return stripped; // explicit crypto intent (e.g. LINK-USD) is always honored
+  }
+  // Bare ticker, no fiat suffix: only the collision-free coins count as crypto.
+  if (BARE_SAFE.has(s) && Object.prototype.hasOwnProperty.call(CRYPTO, s)) {
+    return s;
   }
   return null;
 }
