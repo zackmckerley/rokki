@@ -123,3 +123,35 @@ export function configuredProviders(): { id: string; attribution: string }[] {
   if (fmpAvailable()) out.push({ id: fmp.id, attribution: fmp.attribution });
   return out;
 }
+
+/** Per-provider "is an API key configured" booleans (no key values). */
+export function providerAvailability(): {
+  finnhub: boolean;
+  twelvedata: boolean;
+  fmp: boolean;
+} {
+  return {
+    finnhub: finnhubAvailable(),
+    twelvedata: twelvedataAvailable(),
+    fmp: fmpAvailable(),
+  };
+}
+
+/** Whether each data class has at least one configured provider — i.e. which
+ *  Markets features will actually return data. Mirrors the dispatch above. */
+export function dataClassAvailability(): Record<string, boolean> {
+  const fh = finnhubAvailable();
+  const td = twelvedataAvailable();
+  const f = fmpAvailable();
+  return {
+    quote: fh || td,
+    search: fh || td,
+    candles: td,
+    profile: fh,
+    news: fh,
+    financials: f,
+    calendar: fh,
+    movers: f,
+    fx: td,
+  };
+}
