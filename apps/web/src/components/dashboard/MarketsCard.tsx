@@ -20,10 +20,19 @@ import {
 } from "@/lib/markets/watching";
 import type { RatesBoard, RateRow } from "@/lib/markets/rates";
 import {
+  getOverview,
   getQuotes,
   getRatesBoard,
   listWatchlists,
+  type BoardRow,
 } from "@/modules/markets/lib/client-api";
+
+/** The in-panel views — the dashboard card switches mode without routing. */
+type MarketsView = "list" | "overview";
+const VIEWS: { key: MarketsView; label: string }[] = [
+  { key: "list", label: "Watchlist" },
+  { key: "overview", label: "Overview" },
+];
 
 /** Index/ETF pulse shown at the top of the card (free-feed-friendly proxies). */
 const INDICES = [
@@ -54,6 +63,7 @@ export function MarketsCard() {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [rates, setRates] = useState<RatesBoard | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [view, setView] = useState<MarketsView>("list");
 
   // The built-in Watching list always leads; the viewer's own watchlists follow.
   const lists = useMemo(() => [watchingList(), ...userLists], [userLists]);
@@ -159,7 +169,7 @@ export function MarketsCard() {
       expandHref="/modules/markets"
       bodyClassName="flex min-h-0 flex-col overflow-hidden"
       headerRight={
-        lists.length > 1 ? (
+        view === "list" && lists.length > 1 ? (
           <select
             value={active?.id ?? WATCHING_ID}
             onChange={(e) => setActiveId(e.target.value)}
@@ -176,34 +186,147 @@ export function MarketsCard() {
       }
     >
       <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
-        <IndicesStrip quotes={quotes} />
-        <RatesRibbon board={rates} />
-        {!active || active.symbols.length === 0 ? (
-          <Empty />
+        <ViewTabs view={view} onChange={setView} />
+        {view === "overview" ? (
+          <OverviewView />
         ) : (
           <>
-            {xwide ? <QuoteHeader /> : null}
-            <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
-              {!loaded
-                ? active.symbols.map((s) => (
-                    <SkeletonRow key={s.symbol} xwide={xwide} />
-                  ))
-                : active.symbols.map((s) => (
-                    <QuoteRow
-                      key={s.symbol}
-                      symbol={s.symbol}
-                      label={s.label}
-                      quote={quotes[s.symbol]}
-                      wide={wide}
-                      xwide={xwide}
-                    />
-                  ))}
-            </ul>
-            <Attribution lastUpdated={lastUpdated} />
+            <IndicesStrip quotes={quotes} />
+            <RatesRibbon board={rates} />
+            {!active || active.symbols.length === 0 ? (
+              <Empty />
+            ) : (
+              <>
+                {xwide ? <QuoteHeader /> : null}
+                <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
+                  {!loaded
+                    ? active.symbols.map((s) => (
+                        <SkeletonRow key={s.symbol} xwide={xwide} />
+                      ))
+                    : active.symbols.map((s) => (
+                        <QuoteRow
+                          key={s.symbol}
+                          symbol={s.symbol}
+                          label={s.label}
+                          quote={quotes[s.symbol]}
+                          wide={wide}
+                          xwide={xwide}
+                        />
+                      ))}
+                </ul>
+                <Attribution lastUpdated={lastUpdated} />
+              </>
+            )}
           </>
         )}
       </div>
     </DashboardCard>
+  );
+}
+
+/** Compact in-panel view switcher (Watchlist · Overview · …). */
+function ViewTabs({
+  view,
+  onChange,
+}: {
+  view: MarketsView;
+  onChange: (v: MarketsView) => void;
+}) {
+  return (
+    <div className="flex flex-shrink-0 items-center gap-1 overflow-x-auto border-b border-border/40 px-2 py-1">
+      {VIEWS.map((v) => (
+        <button
+          key={v.key}
+          type="button"
+          onClick={() => onChange(v.key)}
+          aria-pressed={view === v.key}
+          className={`flex-shrink-0 rounded-sm px-2 py-0.5 text-2xs font-medium ${
+            view === v.key
+              ? "bg-bg-3 text-text-0"
+              : "text-text-2 hover:bg-bg-2 hover:text-text-0"
+          }`}
+        >
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Overview view — the macro board (indices, sectors, commodities, FX) inline
+ *  on the dashboard. Read-only; degrades to a message when the feed is down. */
+function OverviewView() {
+  const [board, setBoard] = useState<Awaited<
+    ReturnType<typeof getOverview>
+  > | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    getOverview()
+      .then((b) => {
+        if (alive) setBoard(b);
+      })
+      .catch((e) => {
+        if (alive) setErr(e instanceof Error ? e.message : "Unavailable");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (err) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-text-3">
+        {err}
+      </div>
+    );
+  }
+  if (!board) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-4 text-xs text-text-3">
+        Loading…
+      </div>
+    );
+  }
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <OverviewGroup title="Indices" rows={board.indices} />
+      <OverviewGroup title="Sectors" rows={board.sectors} />
+      <OverviewGroup title="Commodities" rows={board.commodities} />
+      <OverviewGroup title="FX" rows={board.fx} />
+    </div>
+  );
+}
+
+function OverviewGroup({ title, rows }: { title: string; rows: BoardRow[] }) {
+  if (!rows || rows.length === 0) return null;
+  return (
+    <div>
+      <header className="sticky top-0 z-10 border-b border-border/40 bg-bg-1 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+        {title}
+      </header>
+      <ul className="divide-y divide-border/30">
+        {rows.map((r) => (
+          <li
+            key={r.symbol}
+            className="flex items-center gap-2 px-3 py-[var(--rk-row-py)]"
+          >
+            <span className="flex-1 truncate text-xs text-text-1">{r.label}</span>
+            <span className="font-mono text-xs tabular-nums text-text-0">
+              {r.price != null ? fmtPrice(r.price) : "—"}
+            </span>
+            <span
+              className={`w-16 text-right font-mono text-2xs tabular-nums ${changeClass(
+                r.changePct,
+              )}`}
+            >
+              {r.changePct != null ? fmtPct(r.changePct) : "—"}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
