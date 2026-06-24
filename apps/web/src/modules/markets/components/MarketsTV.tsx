@@ -17,7 +17,7 @@ interface TvData {
     id: string;
     name: string;
     attribution: string;
-    youtubeChannelId: string;
+    handle: string;
   };
   channels: { id: string; name: string }[];
 }
@@ -66,8 +66,8 @@ export function MarketsTV() {
 
   const channel = data?.channel;
   const youtubeLiveUrl = channel
-    ? `https://www.youtube.com/channel/${channel.youtubeChannelId}/live`
-    : "https://www.youtube.com/results?search_query=bloomberg+tv+live";
+    ? `https://www.youtube.com/@${channel.handle}/live`
+    : "https://www.youtube.com/@markets/live";
   const embedSrc = data?.videoId
     ? `https://www.youtube-nocookie.com/embed/${data.videoId}?autoplay=1&mute=${
         muted ? 1 : 0
