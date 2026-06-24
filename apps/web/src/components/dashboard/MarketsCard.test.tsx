@@ -9,18 +9,24 @@ vi.mock("@/modules/markets/lib/client-api", () => ({
   getQuotes: vi.fn(),
   getRatesBoard: vi.fn().mockResolvedValue({ configured: false, board: null }),
   getOverview: vi.fn(),
+  getMovers: vi.fn(),
+  getNews: vi.fn(),
 }));
 
 import {
   listWatchlists,
   getQuotes,
   getOverview,
+  getMovers,
+  getNews,
 } from "@/modules/markets/lib/client-api";
 import { MarketsCard } from "./MarketsCard";
 
 const mockList = vi.mocked(listWatchlists);
 const mockQuotes = vi.mocked(getQuotes);
 const mockOverview = vi.mocked(getOverview);
+const mockMovers = vi.mocked(getMovers);
+const mockNews = vi.mocked(getNews);
 
 function q(symbol: string, price: number, changePct: number): Quote {
   return { symbol, name: `${symbol} Inc`, price, changePct } as unknown as Quote;
@@ -80,5 +86,45 @@ describe("MarketsCard", () => {
     expect(await screen.findByText("Indices")).toBeTruthy(); // group header
     expect(screen.getByText("S&P 500")).toBeTruthy(); // board row
     expect(mockOverview).toHaveBeenCalled();
+  });
+
+  it("switches to the Movers view and renders gainers", async () => {
+    mockList.mockResolvedValue([]);
+    mockQuotes.mockResolvedValue({});
+    mockMovers.mockResolvedValue([
+      { symbol: "AMD", name: "Advanced Micro", price: 120, change: 5, changePct: 4.3, volume: null },
+    ]);
+
+    render(<MarketsCard />);
+    expect(await screen.findByText("AAPL")).toBeTruthy(); // default Watchlist view
+
+    fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    expect(await screen.findByText("AMD")).toBeTruthy(); // mover row (not in Watching)
+    expect(mockMovers).toHaveBeenCalledWith("gainers");
+  });
+
+  it("switches to the News view and renders merged headlines", async () => {
+    mockList.mockResolvedValue([]);
+    mockQuotes.mockResolvedValue({});
+    mockNews.mockResolvedValue([
+      {
+        id: "n1",
+        headline: "Apple ships a new thing",
+        summary: null,
+        source: "Reuters",
+        url: "https://example.com/news/1",
+        imageUrl: null,
+        datetime: "2026-06-23T12:00:00Z",
+        symbols: ["AAPL"],
+      },
+    ]);
+
+    render(<MarketsCard />);
+    expect(await screen.findByText("AAPL")).toBeTruthy(); // default Watchlist view
+
+    fireEvent.click(screen.getByRole("button", { name: "News" }));
+    // Same article returned per symbol → deduped to one headline.
+    expect(await screen.findByText("Apple ships a new thing")).toBeTruthy();
+    expect(mockNews).toHaveBeenCalled();
   });
 });
