@@ -9,18 +9,21 @@ vi.mock("@/modules/markets/lib/client-api", () => ({
   getQuotes: vi.fn(),
   getRatesBoard: vi.fn().mockResolvedValue({ configured: false, board: null }),
   getOverview: vi.fn(),
+  getMovers: vi.fn(),
 }));
 
 import {
   listWatchlists,
   getQuotes,
   getOverview,
+  getMovers,
 } from "@/modules/markets/lib/client-api";
 import { MarketsCard } from "./MarketsCard";
 
 const mockList = vi.mocked(listWatchlists);
 const mockQuotes = vi.mocked(getQuotes);
 const mockOverview = vi.mocked(getOverview);
+const mockMovers = vi.mocked(getMovers);
 
 function q(symbol: string, price: number, changePct: number): Quote {
   return { symbol, name: `${symbol} Inc`, price, changePct } as unknown as Quote;
@@ -80,5 +83,20 @@ describe("MarketsCard", () => {
     expect(await screen.findByText("Indices")).toBeTruthy(); // group header
     expect(screen.getByText("S&P 500")).toBeTruthy(); // board row
     expect(mockOverview).toHaveBeenCalled();
+  });
+
+  it("switches to the Movers view and renders gainers", async () => {
+    mockList.mockResolvedValue([]);
+    mockQuotes.mockResolvedValue({});
+    mockMovers.mockResolvedValue([
+      { symbol: "AMD", name: "Advanced Micro", price: 120, change: 5, changePct: 4.3, volume: null },
+    ]);
+
+    render(<MarketsCard />);
+    expect(await screen.findByText("AAPL")).toBeTruthy(); // default Watchlist view
+
+    fireEvent.click(screen.getByRole("button", { name: "Movers" }));
+    expect(await screen.findByText("AMD")).toBeTruthy(); // mover row (not in Watching)
+    expect(mockMovers).toHaveBeenCalledWith("gainers");
   });
 });

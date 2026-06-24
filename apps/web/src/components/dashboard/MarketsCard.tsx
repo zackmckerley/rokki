@@ -12,7 +12,7 @@ import {
   fmtVolume,
   changeClass,
 } from "@/lib/markets/format";
-import type { Quote } from "@/lib/markets/providers/types";
+import type { Quote, Mover, MoverKind } from "@/lib/markets/providers/types";
 import {
   WATCHING_ID,
   watchingList,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/markets/watching";
 import type { RatesBoard, RateRow } from "@/lib/markets/rates";
 import {
+  getMovers,
   getOverview,
   getQuotes,
   getRatesBoard,
@@ -28,10 +29,11 @@ import {
 } from "@/modules/markets/lib/client-api";
 
 /** The in-panel views — the dashboard card switches mode without routing. */
-type MarketsView = "list" | "overview";
+type MarketsView = "list" | "overview" | "movers";
 const VIEWS: { key: MarketsView; label: string }[] = [
   { key: "list", label: "Watchlist" },
   { key: "overview", label: "Overview" },
+  { key: "movers", label: "Movers" },
 ];
 
 /** Index/ETF pulse shown at the top of the card (free-feed-friendly proxies). */
@@ -189,6 +191,8 @@ export function MarketsCard() {
         <ViewTabs view={view} onChange={setView} />
         {view === "overview" ? (
           <OverviewView />
+        ) : view === "movers" ? (
+          <MoversView />
         ) : (
           <>
             <IndicesStrip quotes={quotes} />
@@ -295,6 +299,102 @@ function OverviewView() {
       <OverviewGroup title="Sectors" rows={board.sectors} />
       <OverviewGroup title="Commodities" rows={board.commodities} />
       <OverviewGroup title="FX" rows={board.fx} />
+    </div>
+  );
+}
+
+const MOVER_TABS: { key: MoverKind; label: string }[] = [
+  { key: "gainers", label: "Gainers" },
+  { key: "losers", label: "Losers" },
+  { key: "active", label: "Active" },
+];
+
+/** Movers view — market gainers / losers / most-active, inline on the
+ *  dashboard. Read-only; degrades to a message when the feed is down. */
+function MoversView() {
+  const [kind, setKind] = useState<MoverKind>("gainers");
+  const [movers, setMovers] = useState<Mover[]>([]);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    setErr(null);
+    setLoading(true);
+    getMovers(kind)
+      .then((m) => {
+        if (alive) setMovers(m);
+      })
+      .catch((e) => {
+        if (alive) {
+          setMovers([]);
+          setErr(e instanceof Error ? e.message : "Movers unavailable");
+        }
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [kind]);
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-shrink-0 items-center gap-1 border-b border-border/40 px-2 py-1">
+        {MOVER_TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setKind(t.key)}
+            aria-pressed={kind === t.key}
+            className={`rounded-sm px-2 py-0.5 text-2xs font-medium ${
+              kind === t.key
+                ? "bg-bg-3 text-text-0"
+                : "text-text-2 hover:bg-bg-2 hover:text-text-0"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {err ? (
+        <div className="flex flex-1 items-center justify-center p-4 text-center text-xs text-text-3">
+          {err}
+        </div>
+      ) : loading && movers.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center p-4 text-xs text-text-3">
+          Loading…
+        </div>
+      ) : (
+        <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
+          {movers.map((m) => (
+            <li key={m.symbol}>
+              <Link
+                href={`/modules/markets/quote/${encodeURIComponent(m.symbol)}`}
+                className="flex items-center gap-2 px-3 py-[var(--rk-row-py)] hover:bg-bg-2"
+              >
+                <span className="w-16 flex-shrink-0 truncate font-mono text-xs font-semibold text-text-0">
+                  {m.symbol}
+                </span>
+                <span className="flex-1 truncate text-2xs text-text-3">
+                  {m.name ?? ""}
+                </span>
+                <span className="font-mono text-xs tabular-nums text-text-0">
+                  {fmtPrice(m.price)}
+                </span>
+                <span
+                  className={`w-16 text-right font-mono text-2xs tabular-nums ${changeClass(
+                    m.changePct,
+                  )}`}
+                >
+                  {fmtPct(m.changePct)}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
