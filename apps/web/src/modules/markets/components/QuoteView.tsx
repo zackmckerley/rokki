@@ -33,6 +33,41 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Horizontal range bar showing where `value` sits between low and high.
+ *  CSS-only (deterministic marker position); hidden when data is missing. */
+function RangeBar({
+  label,
+  low,
+  high,
+  value,
+  currency,
+}: {
+  label: string;
+  low: number | null;
+  high: number | null;
+  value: number | null;
+  currency?: string;
+}) {
+  if (low == null || high == null || value == null || high <= low) return null;
+  const pct = Math.min(100, Math.max(0, ((value - low) / (high - low)) * 100));
+  return (
+    <div className="col-span-2 py-1">
+      <span className="text-[10px] uppercase tracking-wide text-text-3">{label}</span>
+      <div className="relative mt-1.5 h-1.5 rounded-full bg-bg-3">
+        <div
+          className="absolute top-1/2 h-3 w-1 -translate-x-1/2 -translate-y-1/2 rounded-sm bg-accent"
+          style={{ left: `${pct}%` }}
+          aria-hidden="true"
+        />
+      </div>
+      <div className="mt-1 flex justify-between font-mono text-[10px] text-text-2">
+        <span>{fmtPrice(low, currency)}</span>
+        <span>{fmtPrice(high, currency)}</span>
+      </div>
+    </div>
+  );
+}
+
 export function QuoteView({
   symbol,
   initialQuote,
@@ -104,8 +139,28 @@ export function QuoteView({
             <Stat label="52W Low" value={fmtPrice(quote?.week52Low, quote?.currency)} />
             <Stat label="Volume" value={fmtCompact(quote?.volume)} />
             <Stat label="Market Cap" value={fmtMarketCap(quote?.marketCap ?? profile?.marketCap)} />
+            <Stat
+              label="P/E"
+              value={
+                quote?.peRatio != null ? quote.peRatio.toFixed(2) : "—"
+              }
+            />
             <Stat label="Sector" value={profile?.sector ?? "—"} />
             <Stat label="Country" value={profile?.country ?? "—"} />
+            <RangeBar
+              label="Day range"
+              low={quote?.low ?? null}
+              high={quote?.high ?? null}
+              value={quote?.price ?? null}
+              currency={quote?.currency}
+            />
+            <RangeBar
+              label="52-week range"
+              low={quote?.week52Low ?? null}
+              high={quote?.week52High ?? null}
+              value={quote?.price ?? null}
+              currency={quote?.currency}
+            />
           </div>
           <div className="space-y-2 text-xs text-text-2">
             {profile?.description ? (
