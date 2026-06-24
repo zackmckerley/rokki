@@ -48,6 +48,10 @@ const VIEWS: { key: MarketsView; label: string }[] = [
   { key: "tv", label: "TV" },
 ];
 
+// Per-device persistence: remember the last view + watchlist across reloads.
+const VIEW_KEY = "rokki:markets-view";
+const LIST_KEY = "rokki:markets-list";
+
 /** Index/ETF pulse shown at the top of the card (free-feed-friendly proxies). */
 const INDICES = [
   { symbol: "SPY", label: "S&P 500" },
@@ -82,6 +86,13 @@ export function MarketsCard() {
   // The built-in Watching list always leads; the viewer's own watchlists follow.
   const lists = useMemo(() => [watchingList(), ...userLists], [userLists]);
   const active = lists.find((l) => l.id === activeId) ?? lists[0];
+  // Stable symbol array for the Chart/News views — memoized so their effects
+  // don't re-fire on every realtime quote tick (the inline .map would allocate
+  // a fresh array each render).
+  const activeSymbols = useMemo(
+    () => active?.symbols.map((s) => s.symbol) ?? [],
+    [active],
+  );
   // Density tiers: tight → +name → +change/volume table as the panel widens.
   const wide = width >= 460;
   const xwide = width >= 640;
@@ -96,6 +107,33 @@ export function MarketsCard() {
     }
     return max > 0 ? new Date(max) : null;
   }, [quotes]);
+
+  // Restore the last-used view + watchlist on mount (client-only; an effect, not
+  // a useState initializer, to avoid an SSR/hydration mismatch).
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY);
+      if (v && VIEWS.some((x) => x.key === v)) setView(v as MarketsView);
+      const l = localStorage.getItem(LIST_KEY);
+      if (l) setActiveId(l);
+    } catch {
+      /* storage blocked (private mode) → defaults */
+    }
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem(VIEW_KEY, view);
+    } catch {
+      /* ignore */
+    }
+  }, [view]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(LIST_KEY, activeId);
+    } catch {
+      /* ignore */
+    }
+  }, [activeId]);
 
   useEffect(() => {
     let alive = true;
@@ -206,9 +244,9 @@ export function MarketsCard() {
         ) : view === "movers" ? (
           <MoversView />
         ) : view === "news" ? (
-          <NewsView symbols={active?.symbols.map((s) => s.symbol) ?? []} />
+          <NewsView symbols={activeSymbols} />
         ) : view === "chart" ? (
-          <ChartView symbols={active?.symbols.map((s) => s.symbol) ?? []} />
+          <ChartView symbols={activeSymbols} />
         ) : view === "tv" ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <MarketsTV />

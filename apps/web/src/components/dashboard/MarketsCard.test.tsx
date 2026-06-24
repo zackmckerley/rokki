@@ -39,7 +39,10 @@ function q(symbol: string, price: number, changePct: number): Quote {
   return { symbol, name: `${symbol} Inc`, price, changePct } as unknown as Quote;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  localStorage.clear(); // the card persists view/list — isolate tests
+});
 
 describe("MarketsCard", () => {
   it("renders the built-in Watching list + indices strip even with no DB watchlists", async () => {
@@ -153,5 +156,19 @@ describe("MarketsCard", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "TV" }));
     expect(await screen.findByText("TV stream")).toBeTruthy();
+  });
+
+  it("restores the last-used view from localStorage on mount", async () => {
+    mockList.mockResolvedValue([]);
+    mockQuotes.mockResolvedValue({});
+    mockMovers.mockResolvedValue([
+      { symbol: "AMD", name: "Advanced Micro", price: 120, change: 5, changePct: 4.3, volume: null },
+    ]);
+    localStorage.setItem("rokki:markets-view", "movers");
+
+    render(<MarketsCard />);
+    // Opens directly in the restored Movers view, not the default Watchlist.
+    expect(await screen.findByText("AMD")).toBeTruthy();
+    expect(mockMovers).toHaveBeenCalledWith("gainers");
   });
 });
