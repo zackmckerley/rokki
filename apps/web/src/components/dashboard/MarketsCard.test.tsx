@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import type { Quote } from "@/lib/markets/providers/types";
 
 vi.mock("@/lib/supabase/realtime", () => ({ useRealtimeTable: () => {} }));
@@ -8,13 +8,19 @@ vi.mock("@/modules/markets/lib/client-api", () => ({
   listWatchlists: vi.fn(),
   getQuotes: vi.fn(),
   getRatesBoard: vi.fn().mockResolvedValue({ configured: false, board: null }),
+  getOverview: vi.fn(),
 }));
 
-import { listWatchlists, getQuotes } from "@/modules/markets/lib/client-api";
+import {
+  listWatchlists,
+  getQuotes,
+  getOverview,
+} from "@/modules/markets/lib/client-api";
 import { MarketsCard } from "./MarketsCard";
 
 const mockList = vi.mocked(listWatchlists);
 const mockQuotes = vi.mocked(getQuotes);
+const mockOverview = vi.mocked(getOverview);
 
 function q(symbol: string, price: number, changePct: number): Quote {
   return { symbol, name: `${symbol} Inc`, price, changePct } as unknown as Quote;
@@ -53,5 +59,26 @@ describe("MarketsCard", () => {
     );
     expect(options).toContain("Watching");
     expect(options).toContain("My List");
+  });
+
+  it("switches to the Overview view and renders the macro board inline", async () => {
+    mockList.mockResolvedValue([]);
+    mockQuotes.mockResolvedValue({});
+    mockOverview.mockResolvedValue({
+      indices: [
+        { symbol: "SPX", label: "S&P 500", price: 5000, change: 10, changePct: 0.2 },
+      ],
+      sectors: [],
+      commodities: [],
+      fx: [],
+    });
+
+    render(<MarketsCard />);
+    expect(await screen.findByText("AAPL")).toBeTruthy(); // default Watchlist view
+
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
+    expect(await screen.findByText("Indices")).toBeTruthy(); // group header
+    expect(screen.getByText("S&P 500")).toBeTruthy(); // board row
+    expect(mockOverview).toHaveBeenCalled();
   });
 });
