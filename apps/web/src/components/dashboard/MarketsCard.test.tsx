@@ -36,6 +36,7 @@ describe("MarketsCard", () => {
     expect(screen.getByText("BTC-USD")).toBeTruthy(); // crypto row present
     expect(screen.getByText("GLD")).toBeTruthy(); // commodity proxy present
     expect(screen.getByText("S&P 500")).toBeTruthy(); // indices pulse strip
+    expect(screen.getByText(/CoinGecko/)).toBeTruthy(); // source attribution footer
   });
 
   it("offers the watchlist picker (Watching + the viewer's lists) when DB lists exist", async () => {
