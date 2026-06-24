@@ -6,6 +6,7 @@ import {
   dataClassAvailability,
 } from "@/lib/markets/providers";
 import { tvAvailable } from "@/lib/markets/tv";
+import { ratesAvailable } from "@/lib/markets/rates";
 
 import { withObservability } from "@/lib/observability";
 
@@ -42,6 +43,8 @@ async function handleGet() {
         classes: dataClassAvailability(),
         attribution: configuredProviders(),
         tv: tvAvailable(), // YOUTUBE_API_KEY present (Markets TV embed)
+        rates: ratesAvailable(), // FRED_API_KEY present (rates ribbon)
+        crypto: true, // CoinGecko — keyless, always available
       },
     },
     { status: allOk ? 200 : 503 },
