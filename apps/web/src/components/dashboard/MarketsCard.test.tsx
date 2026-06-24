@@ -7,6 +7,7 @@ vi.mock("@/lib/supabase/realtime", () => ({ useRealtimeTable: () => {} }));
 vi.mock("@/modules/markets/lib/client-api", () => ({
   listWatchlists: vi.fn(),
   getQuotes: vi.fn(),
+  getRatesBoard: vi.fn().mockResolvedValue({ configured: false, board: null }),
 }));
 
 import { listWatchlists, getQuotes } from "@/modules/markets/lib/client-api";

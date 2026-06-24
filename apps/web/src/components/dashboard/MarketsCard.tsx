@@ -12,7 +12,12 @@ import {
   watchingList,
   type MarketsList,
 } from "@/lib/markets/watching";
-import { getQuotes, listWatchlists } from "@/modules/markets/lib/client-api";
+import type { RatesBoard, RateRow } from "@/lib/markets/rates";
+import {
+  getQuotes,
+  getRatesBoard,
+  listWatchlists,
+} from "@/modules/markets/lib/client-api";
 
 /** Index/ETF pulse shown at the top of the card (free-feed-friendly proxies). */
 const INDICES = [
@@ -41,6 +46,7 @@ export function MarketsCard() {
   const [userLists, setUserLists] = useState<MarketsList[]>([]);
   const [activeId, setActiveId] = useState<string>(WATCHING_ID);
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
+  const [rates, setRates] = useState<RatesBoard | null>(null);
 
   // The built-in Watching list always leads; the viewer's own watchlists follow.
   const lists = useMemo(() => [watchingList(), ...userLists], [userLists]);
@@ -62,6 +68,21 @@ export function MarketsCard() {
       })
       .catch(() => {
         /* unconfigured / no access → just the built-in Watching list */
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Benchmark rates (FRED) — degrades silently when no FRED key is configured.
+  useEffect(() => {
+    let alive = true;
+    getRatesBoard()
+      .then((r) => {
+        if (alive && r.configured) setRates(r.board);
+      })
+      .catch(() => {
+        /* unconfigured / no access → ribbon hidden */
       });
     return () => {
       alive = false;
@@ -128,6 +149,7 @@ export function MarketsCard() {
     >
       <div ref={containerRef} className="flex min-h-0 flex-1 flex-col">
         <IndicesStrip quotes={quotes} />
+        <RatesRibbon board={rates} />
         {!active || active.symbols.length === 0 ? (
           <Empty />
         ) : (
@@ -161,6 +183,38 @@ function IndicesStrip({ quotes }: { quotes: Record<string, Quote> }) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/** Benchmark rates ribbon — Treasury yields + SOFR/Prime/Fed Funds (FRED).
+ *  Hidden entirely until a FRED key is configured and values are present, so
+ *  it never shows as a broken row of dashes. */
+function RatesRibbon({ board }: { board: RatesBoard | null }) {
+  if (!board) return null;
+  const rows = [...board.treasury, ...board.reference].filter(
+    (r) => r.value !== null,
+  );
+  if (rows.length === 0) return null;
+  return (
+    <div className="flex flex-shrink-0 items-center gap-3 overflow-x-auto border-b border-border/40 px-3 py-1">
+      <span className="text-2xs font-medium uppercase tracking-wide text-text-3">
+        Rates
+      </span>
+      {rows.map((r) => (
+        <RateCell key={r.id} row={r} />
+      ))}
+    </div>
+  );
+}
+
+function RateCell({ row }: { row: RateRow }) {
+  return (
+    <div className="flex items-baseline gap-1 whitespace-nowrap">
+      <span className="text-2xs text-text-2">{row.label}</span>
+      <span className="font-mono text-2xs tabular-nums text-text-0">
+        {row.value!.toFixed(2)}
+      </span>
     </div>
   );
 }
