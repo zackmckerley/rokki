@@ -53,6 +53,7 @@ export function MarketsCard() {
   const [activeId, setActiveId] = useState<string>(WATCHING_ID);
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [rates, setRates] = useState<RatesBoard | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   // The built-in Watching list always leads; the viewer's own watchlists follow.
   const lists = useMemo(() => [watchingList(), ...userLists], [userLists]);
@@ -60,6 +61,17 @@ export function MarketsCard() {
   // Density tiers: tight → +name → +change/volume table as the panel widens.
   const wide = width >= 460;
   const xwide = width >= 640;
+
+  // Freshest quote timestamp on screen — surfaced in the footer as a data-
+  // freshness signal (a real terminal always tells you how stale it is).
+  const lastUpdated = useMemo(() => {
+    let max = 0;
+    for (const q of Object.values(quotes)) {
+      const t = q.asOf ? new Date(q.asOf).getTime() : 0;
+      if (Number.isFinite(t) && t > max) max = t;
+    }
+    return max > 0 ? new Date(max) : null;
+  }, [quotes]);
 
   useEffect(() => {
     let alive = true;
@@ -110,7 +122,12 @@ export function MarketsCard() {
       .then((q) => {
         if (!cancelled) setQuotes((prev) => ({ ...prev, ...q }));
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        // Flip out of the skeleton once the first batch settles — even on
+        // failure, so missing-key states show "—" rows, not a perpetual pulse.
+        if (!cancelled) setLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -164,18 +181,22 @@ export function MarketsCard() {
           <>
             {xwide ? <QuoteHeader /> : null}
             <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
-              {active.symbols.map((s) => (
-                <QuoteRow
-                  key={s.symbol}
-                  symbol={s.symbol}
-                  label={s.label}
-                  quote={quotes[s.symbol]}
-                  wide={wide}
-                  xwide={xwide}
-                />
-              ))}
+              {!loaded
+                ? active.symbols.map((s) => (
+                    <SkeletonRow key={s.symbol} xwide={xwide} />
+                  ))
+                : active.symbols.map((s) => (
+                    <QuoteRow
+                      key={s.symbol}
+                      symbol={s.symbol}
+                      label={s.label}
+                      quote={quotes[s.symbol]}
+                      wide={wide}
+                      xwide={xwide}
+                    />
+                  ))}
             </ul>
-            <Attribution />
+            <Attribution lastUpdated={lastUpdated} />
           </>
         )}
       </div>
@@ -320,13 +341,38 @@ function QuoteRow({
   );
 }
 
-/** Source credit — these free feeds require attribution when their data is
- *  displayed. Compact, muted, always at the foot of the live list. */
-function Attribution() {
+/** Placeholder row shown while the first quote batch loads — keeps the table
+ *  height stable and reads as "loading", not "broken". */
+function SkeletonRow({ xwide }: { xwide: boolean }) {
+  return (
+    <li
+      className="flex items-center gap-2 px-3 py-[var(--rk-row-py)]"
+      aria-hidden="true"
+    >
+      <span className="h-3 w-16 flex-shrink-0 animate-pulse rounded bg-bg-3" />
+      <span className="h-3 flex-1 animate-pulse rounded bg-bg-3/50" />
+      {xwide ? (
+        <span className="h-3 w-20 animate-pulse rounded bg-bg-3/50" />
+      ) : null}
+      <span className="h-3 w-16 animate-pulse rounded bg-bg-3" />
+    </li>
+  );
+}
+
+/** Source credit + data freshness — these free feeds require attribution when
+ *  their data is displayed; the timestamp tells you how current it is. Compact,
+ *  muted, always at the foot of the live list. */
+function Attribution({ lastUpdated }: { lastUpdated: Date | null }) {
   return (
     <p className="flex-shrink-0 border-t border-border/40 px-3 py-1 text-[9px] leading-tight text-text-3">
       Quotes: Finnhub · Twelve Data · Crypto: CoinGecko · Rates: FRED. Cached,
       may be delayed.
+      {lastUpdated
+        ? ` · Updated ${lastUpdated.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          })}`
+        : ""}
     </p>
   );
 }
