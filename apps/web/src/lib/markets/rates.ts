@@ -80,10 +80,13 @@ function parseVal(v: string | undefined): number | null {
 
 async function fetchSeries(def: SeriesDef, key: string): Promise<RateRow> {
   try {
+    // Pull headroom (not just 2): the latest FRED rows are often "." while a
+    // value is pending, and weekends/holidays are missing — so the freshest
+    // real value + true prior business-day value can sit a few rows deep.
     const url =
       `${BASE}/series/observations?series_id=${encodeURIComponent(def.id)}` +
       `&api_key=${encodeURIComponent(key)}&file_type=json` +
-      `&sort_order=desc&limit=2`;
+      `&sort_order=desc&limit=8`;
     const data = await fetchJson<FredObsResponse>(url, { provider: "fred" });
     const obs = (data.observations ?? []).filter((o) => parseVal(o.value) !== null);
     const latest = obs[0];
@@ -117,7 +120,11 @@ export async function getRatesBoard(): Promise<RatesBoard> {
     Promise.all(REFERENCE.map((d) => fetchSeries(d, key))),
   ]);
   const board: RatesBoard = { treasury, reference };
-  cache = { board, at: Date.now() };
+  // Don't memoize a board where every series failed (transient FRED outage or a
+  // cold-start network race) — caching it would pin the ribbon to all-null for
+  // a full hour even after FRED recovers. Serve it once, retry next request.
+  const hasAny = [...treasury, ...reference].some((r) => r.value !== null);
+  if (hasAny) cache = { board, at: Date.now() };
   return board;
 }
 

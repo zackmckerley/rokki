@@ -25,6 +25,20 @@ describe("cryptoBase / isCryptoSymbol", () => {
     expect(cryptoBase("ETHUSD")).toBe("ETH");
     expect(cryptoBase("SOL-USD")).toBe("SOL");
     expect(cryptoBase("XRP-USD")).toBe("XRP");
+    expect(cryptoBase("BTCUSDT")).toBe("BTC"); // separator-less USDT pair
+    expect(cryptoBase("BTC-USDT")).toBe("BTC");
+  });
+
+  it("does NOT hijack bare equity-collision tickers, but honors explicit -USD", () => {
+    // LINK/DOT/ADA/BCH are also real/plausible equity tickers — bare form must
+    // stay equity so a watchlist's LINK isn't silently shown as Chainlink.
+    expect(cryptoBase("LINK")).toBeNull();
+    expect(cryptoBase("DOT")).toBeNull();
+    expect(cryptoBase("ADA")).toBeNull();
+    expect(isCryptoSymbol("LINK")).toBe(false);
+    // …but an explicit fiat suffix signals crypto intent and resolves.
+    expect(cryptoBase("LINK-USD")).toBe("LINK");
+    expect(cryptoBase("DOT/USD")).toBe("DOT");
   });
 
   it("returns null for equities/ETFs/unknowns", () => {

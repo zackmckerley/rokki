@@ -38,6 +38,19 @@ describe("ratesAvailable", () => {
   });
 });
 
+// Build a FRED response with N descending-date observations from raw values.
+function obsRows(values: string[]): Response {
+  const observations = values.map((v, i) => ({
+    date: `2026-06-${String(23 - i).padStart(2, "0")}`,
+    value: v,
+  }));
+  return {
+    ok: true,
+    status: 200,
+    text: async () => JSON.stringify({ observations }),
+  } as Response;
+}
+
 describe("getRatesBoard", () => {
   it("throws when no key is configured", async () => {
     delete process.env.FRED_API_KEY;
@@ -81,5 +94,31 @@ describe("getRatesBoard", () => {
     const callsAfterFirst = fetchMock.mock.calls.length;
     await getRatesBoard();
     expect(fetchMock.mock.calls.length).toBe(callsAfterFirst); // served from cache
+  });
+
+  it("resolves value + change from deeper rows when the newest observation is '.'", async () => {
+    process.env.FRED_API_KEY = "k";
+    // newest row is a pending placeholder, then two real business days
+    vi.stubGlobal("fetch", vi.fn(async () => obsRows([".", "4.50", "4.48"])));
+    const board = await getRatesBoard();
+    const threeM = board.treasury.find((r) => r.label === "3M")!;
+    expect(threeM.value).toBe(4.5); // latest real value, not null
+    expect(threeM.change).toBeCloseTo(0.02, 3); // 4.50 − 4.48 (true prior day)
+  });
+
+  it("does NOT cache an all-null board — retries FRED on the next call", async () => {
+    process.env.FRED_API_KEY = "k";
+    let recovered = false;
+    const fetchMock = vi.fn(async () =>
+      recovered ? obsRes("4.10", "4.05") : obsRows(["."]),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const first = await getRatesBoard();
+    expect(first.treasury.every((r) => r.value === null)).toBe(true);
+    const callsAfterFirst = fetchMock.mock.calls.length;
+    recovered = true;
+    const second = await getRatesBoard(); // must re-fetch, not serve cached nulls
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(callsAfterFirst);
+    expect(second.treasury.find((r) => r.label === "3M")!.value).toBe(4.1);
   });
 });

@@ -118,14 +118,17 @@ export function MarketsCard() {
   useEffect(() => {
     if (symbols.length === 0) return;
     let cancelled = false;
+    // Re-show the skeleton whenever the symbol set changes (e.g. switching
+    // watchlists) so the new list reads as "loading", not a flash of "—".
+    setLoaded(false);
     getQuotes(symbols)
       .then((q) => {
         if (!cancelled) setQuotes((prev) => ({ ...prev, ...q }));
       })
       .catch(() => {})
       .finally(() => {
-        // Flip out of the skeleton once the first batch settles — even on
-        // failure, so missing-key states show "—" rows, not a perpetual pulse.
+        // Flip out of the skeleton once the batch settles — even on failure,
+        // so missing-key states show "—" rows, not a perpetual pulse.
         if (!cancelled) setLoaded(true);
       });
     return () => {
