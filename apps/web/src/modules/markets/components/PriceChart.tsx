@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCandles } from "../lib/client-api";
 import { sma, ema } from "@/lib/markets/indicators";
+import { dailyReturns, maxDrawdown, stdev, totalReturn } from "@/lib/markets/risk";
 import type { Candle, Range } from "@/lib/markets/providers/types";
 
 const RANGES: Range[] = ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "MAX"];
@@ -227,6 +228,18 @@ export function PriceChart({
 
   const hc = hover !== null ? candles[hover] : null;
 
+  // Risk/return stats over the visible range — annualization-free so they're
+  // correct whatever the bar interval is.
+  const stats = useMemo(() => {
+    if (candles.length < 3) return null;
+    const closes = candles.map((c) => c.close);
+    return {
+      ret: totalReturn(closes),
+      dd: maxDrawdown(closes),
+      vol: stdev(dailyReturns(closes)),
+    };
+  }, [candles]);
+
   return (
     <div ref={wrapRef} className="w-full">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
@@ -305,6 +318,34 @@ export function PriceChart({
           </>
         )}
       </div>
+
+      {stats && (
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-text-3">
+          <span>
+            Range{" "}
+            <span
+              className={`font-mono ${
+                stats.ret >= 0 ? "text-success" : "text-danger"
+              }`}
+            >
+              {stats.ret >= 0 ? "+" : ""}
+              {(stats.ret * 100).toFixed(1)}%
+            </span>
+          </span>
+          <span>
+            Max drawdown{" "}
+            <span className="font-mono text-danger">
+              −{(stats.dd * 100).toFixed(1)}%
+            </span>
+          </span>
+          <span>
+            Volatility/bar{" "}
+            <span className="font-mono text-text-1">
+              {(stats.vol * 100).toFixed(2)}%
+            </span>
+          </span>
+        </div>
+      )}
     </div>
   );
 }
