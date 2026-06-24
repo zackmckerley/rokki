@@ -28,6 +28,7 @@ import type {
   ScopeKind,
 } from "@/lib/markets/db";
 import type { PortfolioPerformance } from "@/lib/markets/portfolio";
+import type { RatesBoard } from "@/lib/markets/rates";
 
 async function req<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -95,6 +96,9 @@ export const getOverview = () =>
 
 export const getMovers = (type: MoverKind) =>
   req<{ movers: Mover[] }>(`${B}/movers?type=${type}`).then((d) => d.movers);
+
+export const getRatesBoard = () =>
+  req<{ configured: boolean; board: RatesBoard | null }>(`${B}/rates`);
 
 export const getCalendar = (from: string, to: string) =>
   req<{ events: EarningsEvent[] }>(`${B}/calendar?from=${from}&to=${to}`).then(
