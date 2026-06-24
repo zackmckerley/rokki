@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCandles } from "../lib/client-api";
+import { sma, ema } from "@/lib/markets/indicators";
 import type { Candle, Range } from "@/lib/markets/providers/types";
 
 const RANGES: Range[] = ["1D", "5D", "1M", "6M", "YTD", "1Y", "5Y", "MAX"];
@@ -11,21 +12,11 @@ const COLORS = {
   down: "#f85149",
   line: "#58a6ff",
   ma: "#ff9d00",
+  ema: "#bc8cff",
   grid: "#3b3b45",
   text: "#9099a4",
   vol: "#2d2d32",
 };
-
-function sma(values: number[], period: number): (number | null)[] {
-  const out: (number | null)[] = [];
-  let sum = 0;
-  for (let i = 0; i < values.length; i++) {
-    sum += values[i]!;
-    if (i >= period) sum -= values[i - period]!;
-    out.push(i >= period - 1 ? sum / period : null);
-  }
-  return out;
-}
 
 /**
  * Dependency-free canvas price chart. Line/candle modes, range presets, an
@@ -42,6 +33,7 @@ export function PriceChart({
   const [range, setRange] = useState<Range>(initialRange);
   const [type, setType] = useState<"line" | "candle">("line");
   const [showMA, setShowMA] = useState(true);
+  const [showEMA, setShowEMA] = useState(false);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -187,6 +179,25 @@ export function PriceChart({
       ctx.stroke();
     }
 
+    // EMA overlay
+    if (showEMA && candles.length > 21) {
+      const e = ema(closes, 21);
+      ctx.beginPath();
+      let startedE = false;
+      e.forEach((m, i) => {
+        if (m === null) return;
+        const xx = x(i);
+        const yy = y(m);
+        if (!startedE) {
+          ctx.moveTo(xx, yy);
+          startedE = true;
+        } else ctx.lineTo(xx, yy);
+      });
+      ctx.strokeStyle = COLORS.ema;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
     // Crosshair
     if (hover !== null && hover >= 0 && hover < candles.length) {
       const xx = x(hover);
@@ -197,7 +208,7 @@ export function PriceChart({
       ctx.lineTo(xx, priceBottom);
       ctx.stroke();
     }
-  }, [candles, type, showMA, hover, width]);
+  }, [candles, type, showMA, showEMA, hover, width]);
 
   useEffect(() => {
     draw();
@@ -248,6 +259,14 @@ export function PriceChart({
             }`}
           >
             MA50
+          </button>
+          <button
+            onClick={() => setShowEMA((v) => !v)}
+            className={`rounded-sm px-1.5 py-0.5 text-[10px] font-semibold ${
+              showEMA ? "text-accent" : "text-text-2 hover:text-text-0"
+            }`}
+          >
+            EMA21
           </button>
         </div>
       </div>
