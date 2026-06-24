@@ -22,6 +22,7 @@ import {
 import { SymbolSearch } from "./SymbolSearch";
 import { WatchlistPanel } from "./WatchlistPanel";
 import { AttributionFooter } from "./AttributionFooter";
+import { MarketContextBand } from "./MarketContextBand";
 
 interface QuoteCacheRow {
   symbol: string;
@@ -147,6 +148,9 @@ export function MarketsDashboard({
 
   return (
     <div className="space-y-4 p-2 sm:p-3">
+      {/* Live market context — indices + benchmark rates */}
+      <MarketContextBand />
+
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-2">
         <SymbolSearch
