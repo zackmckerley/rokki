@@ -34,14 +34,18 @@ import {
   listWatchlists,
   type BoardRow,
 } from "@/modules/markets/lib/client-api";
+import { PriceChart } from "@/modules/markets/components/PriceChart";
+import { MarketsTV } from "@/modules/markets/components/MarketsTV";
 
 /** The in-panel views — the dashboard card switches mode without routing. */
-type MarketsView = "list" | "overview" | "movers" | "news";
+type MarketsView = "list" | "overview" | "movers" | "news" | "chart" | "tv";
 const VIEWS: { key: MarketsView; label: string }[] = [
   { key: "list", label: "Watchlist" },
   { key: "overview", label: "Overview" },
   { key: "movers", label: "Movers" },
   { key: "news", label: "News" },
+  { key: "chart", label: "Chart" },
+  { key: "tv", label: "TV" },
 ];
 
 /** Index/ETF pulse shown at the top of the card (free-feed-friendly proxies). */
@@ -203,6 +207,12 @@ export function MarketsCard() {
           <MoversView />
         ) : view === "news" ? (
           <NewsView symbols={active?.symbols.map((s) => s.symbol) ?? []} />
+        ) : view === "chart" ? (
+          <ChartView symbols={active?.symbols.map((s) => s.symbol) ?? []} />
+        ) : view === "tv" ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <MarketsTV />
+          </div>
         ) : (
           <>
             <IndicesStrip quotes={quotes} />
@@ -405,6 +415,45 @@ function MoversView() {
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/** Chart view — a price chart for one symbol from the active list, chosen via
+ *  a compact picker. Reuses the module's dependency-free PriceChart. */
+function ChartView({ symbols }: { symbols: string[] }) {
+  const [sym, setSym] = useState(symbols[0] ?? "");
+  // Keep the selection valid if the active list changes underneath us.
+  useEffect(() => {
+    if (symbols.length > 0 && !symbols.includes(sym)) setSym(symbols[0]);
+  }, [symbols, sym]);
+
+  if (!sym) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-4 text-xs text-text-3">
+        No symbols to chart.
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-shrink-0 items-center gap-2 border-b border-border/40 px-2 py-1">
+        <select
+          value={sym}
+          onChange={(e) => setSym(e.target.value)}
+          aria-label="Chart symbol"
+          className="rounded-sm border border-border bg-bg-0 px-1.5 py-0.5 text-2xs text-text-1 outline-none focus:border-border-focus"
+        >
+          {symbols.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="min-h-0 flex-1 overflow-auto p-2">
+        <PriceChart symbol={sym} initialRange="1M" />
+      </div>
     </div>
   );
 }

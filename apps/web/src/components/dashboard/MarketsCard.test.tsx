@@ -12,6 +12,13 @@ vi.mock("@/modules/markets/lib/client-api", () => ({
   getMovers: vi.fn(),
   getNews: vi.fn(),
 }));
+// PriceChart is canvas-based and MarketsTV fetches — stub both for jsdom.
+vi.mock("@/modules/markets/components/PriceChart", () => ({
+  PriceChart: ({ symbol }: { symbol: string }) => <div>{`chart-${symbol}`}</div>,
+}));
+vi.mock("@/modules/markets/components/MarketsTV", () => ({
+  MarketsTV: () => <div>TV stream</div>,
+}));
 
 import {
   listWatchlists,
@@ -126,5 +133,25 @@ describe("MarketsCard", () => {
     // Same article returned per symbol → deduped to one headline.
     expect(await screen.findByText("Apple ships a new thing")).toBeTruthy();
     expect(mockNews).toHaveBeenCalled();
+  });
+
+  it("switches to the Chart view and charts the first symbol", async () => {
+    mockList.mockResolvedValue([]);
+    mockQuotes.mockResolvedValue({});
+    render(<MarketsCard />);
+    expect(await screen.findByText("AAPL")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Chart" }));
+    expect(await screen.findByText("chart-AAPL")).toBeTruthy(); // first Watching symbol
+  });
+
+  it("switches to the TV view and embeds the stream", async () => {
+    mockList.mockResolvedValue([]);
+    mockQuotes.mockResolvedValue({});
+    render(<MarketsCard />);
+    expect(await screen.findByText("AAPL")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "TV" }));
+    expect(await screen.findByText("TV stream")).toBeTruthy();
   });
 });
