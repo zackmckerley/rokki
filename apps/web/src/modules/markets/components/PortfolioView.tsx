@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import {
   changeClass,
@@ -11,6 +11,7 @@ import {
 } from "@/lib/markets/format";
 import type { MktLotRow, MktPortfolioRow } from "@/lib/markets/db";
 import type { PortfolioPerformance } from "@/lib/markets/portfolio";
+import { realizedGains, summarizeRealized } from "@/lib/markets/tax-lots";
 import { addLot, deleteLot, getPortfolio } from "../lib/client-api";
 import { AttributionFooter } from "./AttributionFooter";
 
@@ -37,6 +38,13 @@ export function PortfolioView({ initial }: { initial: Data }) {
 
   const { portfolio, performance, lots } = data;
   const cur = portfolio.base_currency;
+
+  // FIFO realized gains (short/long-term, YTD) — complements the average-cost
+  // realized P/L below.
+  const realized = useMemo(
+    () => summarizeRealized(realizedGains(lots), new Date().getUTCFullYear()),
+    [lots],
+  );
 
   async function refresh() {
     setData(await getPortfolio(portfolio.id));
@@ -238,9 +246,48 @@ export function PortfolioView({ initial }: { initial: Data }) {
         </details>
       )}
 
+      {realized.count > 0 && (
+        <div className="rounded border border-border bg-bg-1 px-3 py-2">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+            Realized gains (FIFO) · {realized.count} lot
+            {realized.count === 1 ? "" : "s"} closed
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
+            <span className="text-text-2">
+              Total{" "}
+              <span className={`font-mono ${changeClass(realized.totalGain)}`}>
+                {fmtChange(realized.totalGain)} {cur}
+              </span>
+            </span>
+            <span className="text-text-2">
+              Short-term{" "}
+              <span
+                className={`font-mono ${changeClass(realized.shortTermGain)}`}
+              >
+                {fmtChange(realized.shortTermGain)}
+              </span>
+            </span>
+            <span className="text-text-2">
+              Long-term{" "}
+              <span
+                className={`font-mono ${changeClass(realized.longTermGain)}`}
+              >
+                {fmtChange(realized.longTermGain)}
+              </span>
+            </span>
+            <span className="text-text-2">
+              YTD{" "}
+              <span className={`font-mono ${changeClass(realized.ytdGain)}`}>
+                {fmtChange(realized.ytdGain)}
+              </span>
+            </span>
+          </div>
+        </div>
+      )}
+
       <p className="text-[10px] text-text-3">
-        Realized P/L to date: {fmtChange(performance.totalRealizedPL)} {cur} ·{" "}
-        cost basis {fmtCompact(performance.totalCostBasis)}
+        Realized P/L to date (avg cost): {fmtChange(performance.totalRealizedPL)}{" "}
+        {cur} · cost basis {fmtCompact(performance.totalCostBasis)}
       </p>
 
       <AttributionFooter />
