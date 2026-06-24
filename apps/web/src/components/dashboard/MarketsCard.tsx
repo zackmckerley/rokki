@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { TrendingUp, ChevronUp, ChevronDown } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
