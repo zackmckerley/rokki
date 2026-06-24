@@ -12,6 +12,7 @@ import { MarketDataError } from "../http";
 import { finnhub, finnhubAvailable } from "./finnhub";
 import { twelvedata, twelvedataAvailable } from "./twelvedata";
 import { fmp, fmpAvailable } from "./fmp";
+import { coingecko, coingeckoAvailable, isCryptoSymbol } from "./coingecko";
 import type {
   Candle,
   CompanyProfile,
@@ -55,6 +56,12 @@ async function firstOf<T>(cls: string, attempts: Attempt<T>[]): Promise<T> {
 
 export function getQuote(symbol: string): Promise<Quote> {
   return firstOf("quote", [
+    // Crypto resolves via CoinGecko (no key); the keyed feeds don't serve
+    // canonical crypto symbols on their free tiers. Non-crypto skips this.
+    {
+      available: coingeckoAvailable() && isCryptoSymbol(symbol) && !!coingecko.quote,
+      run: () => coingecko.quote!(symbol),
+    },
     { available: finnhubAvailable() && !!finnhub.quote, run: () => finnhub.quote!(symbol) },
     { available: twelvedataAvailable() && !!twelvedata.quote, run: () => twelvedata.quote!(symbol) },
   ]);
@@ -121,6 +128,8 @@ export function configuredProviders(): { id: string; attribution: string }[] {
   if (finnhubAvailable()) out.push({ id: finnhub.id, attribution: finnhub.attribution });
   if (twelvedataAvailable()) out.push({ id: twelvedata.id, attribution: twelvedata.attribution });
   if (fmpAvailable()) out.push({ id: fmp.id, attribution: fmp.attribution });
+  // Always available (no key) — credit it whenever crypto can be shown.
+  if (coingeckoAvailable()) out.push({ id: coingecko.id, attribution: coingecko.attribution });
   return out;
 }
 
