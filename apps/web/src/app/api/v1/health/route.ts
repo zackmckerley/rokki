@@ -5,6 +5,7 @@ import {
   providerAvailability,
   dataClassAvailability,
 } from "@/lib/markets/providers";
+import { tvAvailable } from "@/lib/markets/tv";
 
 import { withObservability } from "@/lib/observability";
 
@@ -40,6 +41,7 @@ async function handleGet() {
         providers: providerAvailability(),
         classes: dataClassAvailability(),
         attribution: configuredProviders(),
+        tv: tvAvailable(), // YOUTUBE_API_KEY present (Markets TV embed)
       },
     },
     { status: allOk ? 200 : 503 },

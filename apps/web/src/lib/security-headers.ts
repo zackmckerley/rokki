@@ -93,6 +93,14 @@ export function buildContentSecurityPolicy(): string {
     "img-src": imgSrc,
     "font-src": ["'self'", "data:"],
     "connect-src": connectSrc,
+    // What WE may embed — the Markets TV panel embeds official YouTube live
+    // streams. (Distinct from `frame-ancestors`, which controls who may embed
+    // us and stays 'none'.)
+    "frame-src": [
+      "'self'",
+      "https://www.youtube-nocookie.com",
+      "https://www.youtube.com",
+    ],
     "frame-ancestors": ["'none'"],
     "form-action": ["'self'"],
     "base-uri": ["'self'"],
