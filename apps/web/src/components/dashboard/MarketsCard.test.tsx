@@ -22,30 +22,34 @@ function q(symbol: string, price: number, changePct: number): Quote {
 afterEach(cleanup);
 
 describe("MarketsCard", () => {
-  it("renders the active watchlist with live quotes + the indices strip", async () => {
-    mockList.mockResolvedValue([
-      {
-        id: "w1",
-        name: "Watching",
-        symbols: [{ symbol: "AAPL" }, { symbol: "MSFT" }],
-      },
-    ] as unknown as Awaited<ReturnType<typeof listWatchlists>>);
+  it("renders the built-in Watching list + indices strip even with no DB watchlists", async () => {
+    mockList.mockResolvedValue([]);
     mockQuotes.mockResolvedValue({
       AAPL: q("AAPL", 200, 1.5),
-      MSFT: q("MSFT", 400, -0.8),
       SPY: q("SPY", 500, 0.3),
     });
 
     render(<MarketsCard />);
+    // Built-in Watching symbols render immediately (no DB list required).
     expect(await screen.findByText("AAPL")).toBeTruthy();
-    expect(screen.getByText("MSFT")).toBeTruthy();
+    expect(screen.getByText("BTC-USD")).toBeTruthy(); // crypto row present
+    expect(screen.getByText("GLD")).toBeTruthy(); // commodity proxy present
     expect(screen.getByText("S&P 500")).toBeTruthy(); // indices pulse strip
   });
 
-  it("shows an empty state when there are no watchlists", async () => {
-    mockList.mockResolvedValue([]);
-    mockQuotes.mockResolvedValue({});
+  it("offers the watchlist picker (Watching + the viewer's lists) when DB lists exist", async () => {
+    mockList.mockResolvedValue([
+      { id: "w1", name: "My List", symbols: [{ symbol: "TSLA" }] },
+    ] as unknown as Awaited<ReturnType<typeof listWatchlists>>);
+    mockQuotes.mockResolvedValue({ AAPL: q("AAPL", 200, 1.5) });
+
     render(<MarketsCard />);
-    expect(await screen.findByText("No watchlists yet.")).toBeTruthy();
+    // Wait for the DB lists to load and the picker to appear.
+    const picker = await screen.findByRole("combobox", { name: "Watchlist" });
+    const options = Array.from(picker.querySelectorAll("option")).map(
+      (o) => o.textContent,
+    );
+    expect(options).toContain("Watching");
+    expect(options).toContain("My List");
   });
 });
