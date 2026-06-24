@@ -199,6 +199,12 @@ export function MarketsDashboard({
         >
           Alerts ↗
         </Link>
+        <Link
+          href="/modules/markets/tv"
+          className="text-xs text-text-2 hover:text-text-0"
+        >
+          TV ↗
+        </Link>
       </div>
 
       {error && <p className="text-xs text-danger">{error}</p>}
