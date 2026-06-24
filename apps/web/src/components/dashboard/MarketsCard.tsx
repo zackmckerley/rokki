@@ -5,7 +5,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { TrendingUp, ChevronUp, ChevronDown } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
-import { fmtPrice, fmtPct, changeClass } from "@/lib/markets/format";
+import {
+  fmtPrice,
+  fmtPct,
+  fmtChange,
+  fmtVolume,
+  changeClass,
+} from "@/lib/markets/format";
 import type { Quote } from "@/lib/markets/providers/types";
 import {
   WATCHING_ID,
@@ -51,7 +57,9 @@ export function MarketsCard() {
   // The built-in Watching list always leads; the viewer's own watchlists follow.
   const lists = useMemo(() => [watchingList(), ...userLists], [userLists]);
   const active = lists.find((l) => l.id === activeId) ?? lists[0];
+  // Density tiers: tight → +name → +change/volume table as the panel widens.
   const wide = width >= 460;
+  const xwide = width >= 640;
 
   useEffect(() => {
     let alive = true;
@@ -153,17 +161,22 @@ export function MarketsCard() {
         {!active || active.symbols.length === 0 ? (
           <Empty />
         ) : (
-          <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
-            {active.symbols.map((s) => (
-              <QuoteRow
-                key={s.symbol}
-                symbol={s.symbol}
-                label={s.label}
-                quote={quotes[s.symbol]}
-                wide={wide}
-              />
-            ))}
-          </ul>
+          <>
+            {xwide ? <QuoteHeader /> : null}
+            <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
+              {active.symbols.map((s) => (
+                <QuoteRow
+                  key={s.symbol}
+                  symbol={s.symbol}
+                  label={s.label}
+                  quote={quotes[s.symbol]}
+                  wide={wide}
+                  xwide={xwide}
+                />
+              ))}
+            </ul>
+            <Attribution />
+          </>
         )}
       </div>
     </DashboardCard>
@@ -219,17 +232,36 @@ function RateCell({ row }: { row: RateRow }) {
   );
 }
 
-/** One list row — density adapts to the panel width. */
+/** Column header for the wide "table" tier — aligns with QuoteRow's columns. */
+function QuoteHeader() {
+  return (
+    <div className="flex flex-shrink-0 items-center gap-2 border-b border-border/40 px-3 py-1 text-[10px] uppercase tracking-wide text-text-3">
+      <span className="w-16 flex-shrink-0">Symbol</span>
+      <span className="flex-1">Name</span>
+      <span className="w-20 text-right">Volume</span>
+      <span className="w-24 text-right">Last</span>
+      <span className="w-20 text-right">Chg</span>
+      <span className="w-16 text-right">%</span>
+    </div>
+  );
+}
+
+/** One list row — density adapts to the panel width:
+ *  - narrow: symbol · price · %chg
+ *  - wide (≥460): + company name
+ *  - xwide (≥640): + volume · absolute change, as a real table. */
 function QuoteRow({
   symbol,
   label,
   quote,
   wide,
+  xwide,
 }: {
   symbol: string;
   label?: string;
   quote: Quote | undefined;
   wide: boolean;
+  xwide: boolean;
 }) {
   const up = (quote?.changePct ?? 0) >= 0;
   return (
@@ -248,9 +280,27 @@ function QuoteRow({
         ) : (
           <span className="flex-1" />
         )}
-        <span className="font-mono text-xs tabular-nums text-text-0">
+        {xwide ? (
+          <span className="w-20 text-right font-mono text-2xs tabular-nums text-text-3">
+            {quote ? fmtVolume(quote.volume) : "—"}
+          </span>
+        ) : null}
+        <span
+          className={`text-right font-mono text-xs tabular-nums text-text-0 ${
+            xwide ? "w-24" : ""
+          }`}
+        >
           {quote ? fmtPrice(quote.price, quote.currency) : "—"}
         </span>
+        {xwide ? (
+          <span
+            className={`w-20 text-right font-mono text-2xs tabular-nums ${
+              quote ? changeClass(quote.change) : "text-text-3"
+            }`}
+          >
+            {quote ? fmtChange(quote.change) : "—"}
+          </span>
+        ) : null}
         <span
           className={`flex w-16 items-center justify-end gap-0.5 font-mono text-2xs tabular-nums ${
             quote ? changeClass(quote.changePct) : "text-text-3"
@@ -267,6 +317,17 @@ function QuoteRow({
         </span>
       </Link>
     </li>
+  );
+}
+
+/** Source credit — these free feeds require attribution when their data is
+ *  displayed. Compact, muted, always at the foot of the live list. */
+function Attribution() {
+  return (
+    <p className="flex-shrink-0 border-t border-border/40 px-3 py-1 text-[9px] leading-tight text-text-3">
+      Quotes: Finnhub · Twelve Data · Crypto: CoinGecko · Rates: FRED. Cached,
+      may be delayed.
+    </p>
   );
 }
 
