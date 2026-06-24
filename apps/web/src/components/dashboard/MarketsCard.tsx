@@ -52,6 +52,10 @@ const VIEWS: { key: MarketsView; label: string }[] = [
 const VIEW_KEY = "rokki:markets-view";
 const LIST_KEY = "rokki:markets-list";
 
+// The non-realtime views (Overview/Movers) poll on this cadence so they stay
+// live like the watchlist; quotes ride the realtime cache instead.
+const REFRESH_MS = 60_000;
+
 /** Index/ETF pulse shown at the top of the card (free-feed-friendly proxies). */
 const INDICES = [
   { symbol: "SPY", label: "S&P 500" },
@@ -325,6 +329,8 @@ function OverviewView() {
 
   useEffect(() => {
     let alive = true;
+    // Initial load may surface an error; periodic refreshes update on success
+    // but keep the last good board on failure (never flip live data to an error).
     getOverview()
       .then((b) => {
         if (alive) setBoard(b);
@@ -332,8 +338,21 @@ function OverviewView() {
       .catch((e) => {
         if (alive) setErr(e instanceof Error ? e.message : "Unavailable");
       });
+    const id = setInterval(() => {
+      getOverview()
+        .then((b) => {
+          if (alive) {
+            setBoard(b);
+            setErr(null);
+          }
+        })
+        .catch(() => {
+          /* keep stale board */
+        });
+    }, REFRESH_MS);
     return () => {
       alive = false;
+      clearInterval(id);
     };
   }, []);
 
@@ -379,21 +398,27 @@ function MoversView() {
     let alive = true;
     setErr(null);
     setLoading(true);
-    getMovers(kind)
-      .then((m) => {
-        if (alive) setMovers(m);
-      })
-      .catch((e) => {
-        if (alive) {
-          setMovers([]);
-          setErr(e instanceof Error ? e.message : "Movers unavailable");
-        }
-      })
-      .finally(() => {
-        if (alive) setLoading(false);
-      });
+    // initial=true surfaces errors + clears the skeleton; periodic refreshes
+    // update silently and keep the last good list on failure.
+    const fetchKind = (initial: boolean) =>
+      getMovers(kind)
+        .then((m) => {
+          if (alive) setMovers(m);
+        })
+        .catch((e) => {
+          if (alive && initial) {
+            setMovers([]);
+            setErr(e instanceof Error ? e.message : "Movers unavailable");
+          }
+        })
+        .finally(() => {
+          if (alive && initial) setLoading(false);
+        });
+    fetchKind(true);
+    const id = setInterval(() => fetchKind(false), REFRESH_MS);
     return () => {
       alive = false;
+      clearInterval(id);
     };
   }, [kind]);
 

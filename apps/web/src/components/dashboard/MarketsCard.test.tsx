@@ -171,4 +171,29 @@ describe("MarketsCard", () => {
     expect(await screen.findByText("AMD")).toBeTruthy();
     expect(mockMovers).toHaveBeenCalledWith("gainers");
   });
+
+  it("auto-refreshes the Overview board on an interval", async () => {
+    vi.useFakeTimers();
+    try {
+      mockList.mockResolvedValue([]);
+      mockQuotes.mockResolvedValue({});
+      mockOverview.mockResolvedValue({
+        indices: [],
+        sectors: [],
+        commodities: [],
+        fx: [],
+      });
+      localStorage.setItem("rokki:markets-view", "overview"); // open straight into Overview
+
+      render(<MarketsCard />);
+      await vi.advanceTimersByTimeAsync(0); // flush mount effects + initial fetch
+      const initial = mockOverview.mock.calls.length;
+      expect(initial).toBeGreaterThan(0);
+
+      await vi.advanceTimersByTimeAsync(60_000); // one refresh tick
+      expect(mockOverview.mock.calls.length).toBeGreaterThan(initial);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
