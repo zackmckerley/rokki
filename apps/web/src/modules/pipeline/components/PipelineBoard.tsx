@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Loader2, X } from "lucide-react";
+import { Plus, Loader2, X, Clock, Flame } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
-import { groupByStage } from "@/lib/pipeline/board";
+import { groupByStage, isFollowUpDue, isRotting } from "@/lib/pipeline/board";
 import {
   getSpaces,
   getBoard,
@@ -26,6 +26,7 @@ export function PipelineBoard() {
   const [leads, setLeads] = useState<LeadRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [attentionOnly, setAttentionOnly] = useState(false);
   const nowMs = Date.now();
 
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
@@ -121,10 +122,20 @@ export function PipelineBoard() {
     }
   }
 
-  const visibleLeads = leads.filter(
+  const stages = pipeline?.stages ?? [];
+  const activeLeads = leads.filter(
     (l) => l.status !== "converted" && l.status !== "dead",
   );
-  const { columns } = groupByStage(visibleLeads, pipeline?.stages ?? []);
+  const needsAttention = (l: LeadRow) =>
+    isFollowUpDue(l, nowMs) || isRotting(l, stages, nowMs);
+  let fuCount = 0;
+  let coldCount = 0;
+  for (const l of activeLeads) {
+    if (isFollowUpDue(l, nowMs)) fuCount++;
+    if (isRotting(l, stages, nowMs)) coldCount++;
+  }
+  const visibleLeads = attentionOnly ? activeLeads.filter(needsAttention) : activeLeads;
+  const { columns } = groupByStage(visibleLeads, stages);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -158,6 +169,32 @@ export function PipelineBoard() {
           <Plus className="h-3 w-3" /> Lead
         </Button>
       </div>
+
+      {/* Needs-attention strip — follow-ups due + going cold; click to focus */}
+      {(fuCount > 0 || coldCount > 0) && (
+        <button
+          type="button"
+          onClick={() => setAttentionOnly((a) => !a)}
+          aria-pressed={attentionOnly}
+          className={`flex flex-shrink-0 items-center gap-3 border-b border-border/60 px-3 py-1.5 text-2xs ${
+            attentionOnly ? "bg-accent/10 text-text-1" : "text-text-2 hover:text-text-0"
+          }`}
+        >
+          {fuCount > 0 && (
+            <span className="flex items-center gap-1 text-accent">
+              <Clock className="h-3 w-3" /> {fuCount} to follow up
+            </span>
+          )}
+          {coldCount > 0 && (
+            <span className="flex items-center gap-1 text-danger">
+              <Flame className="h-3 w-3" /> {coldCount} going cold
+            </span>
+          )}
+          <span className="ml-auto text-text-3">
+            {attentionOnly ? "Show all" : "Focus"}
+          </span>
+        </button>
+      )}
 
       {/* Board */}
       {loading ? (
