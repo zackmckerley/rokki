@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Search, Users, X, Loader2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DashboardCard } from "./DashboardCard";
@@ -31,7 +31,24 @@ function rowName(c: ContactListItem) {
   );
 }
 
-/** Lightweight centered modal — used for the create form. */
+/** Measure an element's width via ResizeObserver (SSR-safe; 0 until mounted).
+ *  Same helper the Messages card uses to drive its split layout. */
+function useElementWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      for (const e of entries) setWidth(e.contentRect.width);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+/** Centered modal — used only for the create form. */
 function Modal({
   title,
   onClose,
@@ -69,18 +86,54 @@ function Modal({
   );
 }
 
+function SelectPrompt() {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-text-3">
+      <Users className="h-6 w-6" aria-hidden="true" />
+      <p className="text-xs">Select a contact to see their card.</p>
+    </div>
+  );
+}
+
 /**
- * Dashboard Contacts panel — the contacts surface. List + search + quick-add.
- * Clicking a contact opens its CARD (read view with Call/Text/Email/Message
- * actions); editing is a button inside the card, not the default click.
+ * Dashboard Contacts panel. Signal-style split: the contact list on the left,
+ * the selected contact's card on the right (where the message thread sits in
+ * Messenger). When the panel is narrow it falls back to the list, and tapping a
+ * contact drills into the card with a back button.
  */
 export function ContactsCard() {
   const [contacts, setContacts] = useState<ContactListItem[]>([]);
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  // The open contact card (read-first), by id.
-  const [viewId, setViewId] = useState<string | null>(null);
+  // Split layout (mirrors MessagesCard).
+  const [containerRef, width] = useElementWidth<HTMLDivElement>();
+  const [listWidth, setListWidth] = useState(260);
+  const split = width >= 560;
+
+  const startResize = (e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = listWidth;
+    const onMove = (ev: MouseEvent) => {
+      const w = startW + (ev.clientX - startX);
+      if (w >= 200 && w <= 460) setListWidth(w);
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+  const resizeByKey = (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    setListWidth((w) =>
+      Math.max(200, Math.min(460, w + (e.key === "ArrowRight" ? 16 : -16))),
+    );
+  };
 
   // Create
   const [creating, setCreating] = useState(false);
@@ -102,7 +155,6 @@ export function ContactsCard() {
     loadSuggestions();
   }, []);
 
-  // Debounced load on mount + search change.
   useEffect(() => {
     let alive = true;
     const t = setTimeout(() => {
@@ -149,6 +201,7 @@ export function ContactsCard() {
       closeCreate();
       await refresh();
       loadSuggestions();
+      if (res.contact) setSelectedId(res.contact.id);
     } catch (e) {
       setCreateErr(e instanceof Error ? e.message : "Could not create");
     } finally {
@@ -173,25 +226,11 @@ export function ContactsCard() {
     }
   }
 
-  return (
-    <DashboardCard
-      title="Contacts"
-      count={contacts.length}
-      expandHref={null}
-      headerRight={
-        <button
-          type="button"
-          onClick={openCreate}
-          aria-label="New contact"
-          className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
-      }
-      bodyClassName="flex flex-col"
-    >
+  // ── the list pane (search + suggestions + rows) ───────────────────
+  const listPane = (
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* Search */}
-      <div className="sticky top-0 z-10 flex-shrink-0 border-b border-border/60 bg-bg-1 p-2">
+      <div className="flex-shrink-0 border-b border-border/60 p-2">
         <div className="flex items-center gap-1.5 rounded border border-border bg-bg-2 px-2 py-1 focus-within:border-border-focus">
           <Search className="h-3 w-3 flex-shrink-0 text-text-3" aria-hidden="true" />
           <input
@@ -254,71 +293,119 @@ export function ContactsCard() {
           )}
         </div>
       ) : (
-        <ul className="flex-1 divide-y divide-border/30">
-          {contacts.map((c) => (
-            <li key={c.id}>
-              <button
-                type="button"
-                onClick={() => setViewId(c.id)}
-                className="flex w-full items-center gap-2.5 px-3 py-[var(--rk-row-py)] text-left hover:bg-bg-2"
-              >
-                {c.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={c.avatar_url}
-                    alt=""
-                    className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 font-mono text-2xs text-text-1">
-                    {initials(c)}
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium text-text-0">
-                    {rowName(c)}
-                    {c.user_id && (
-                      <span className="ml-1 inline-block rounded-sm bg-accent/15 px-1 py-px align-middle text-[9px] font-semibold uppercase tracking-wide text-accent">
-                        Rokki
+        <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
+          {contacts.map((c) => {
+            const active = split && c.id === selectedId;
+            return (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(c.id)}
+                  aria-current={active ? "true" : undefined}
+                  className={`flex w-full items-center gap-2.5 px-3 py-[var(--rk-row-py)] text-left ${
+                    active ? "bg-bg-2" : "hover:bg-bg-2"
+                  }`}
+                >
+                  {c.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.avatar_url}
+                      alt=""
+                      className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 font-mono text-2xs text-text-1">
+                      {initials(c)}
+                    </span>
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-medium text-text-0">
+                      {rowName(c)}
+                      {c.user_id && (
+                        <span className="ml-1 inline-block rounded-sm bg-accent/15 px-1 py-px align-middle text-[9px] font-semibold uppercase tracking-wide text-accent">
+                          Rokki
+                        </span>
+                      )}
+                    </span>
+                    {(c.company || c.title) && (
+                      <span className="block truncate text-2xs text-text-3">
+                        {[c.title, c.company].filter(Boolean).join(" · ")}
                       </span>
                     )}
                   </span>
-                  {(c.company || c.title) && (
-                    <span className="block truncate text-2xs text-text-3">
-                      {[c.title, c.company].filter(Boolean).join(" · ")}
-                    </span>
-                  )}
-                </span>
-                <span className="hidden truncate text-2xs text-text-3 sm:block sm:max-w-[10rem]">
-                  {c.primary_email ?? c.primary_phone ?? ""}
-                </span>
-              </button>
-            </li>
-          ))}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       )}
+    </div>
+  );
 
-      {/* Contact card (read-first drawer) */}
-      {viewId && (
+  const detailPane = selectedId ? (
+    <ContactDetail
+      contactId={selectedId}
+      onClose={() => setSelectedId(null)}
+      onChanged={() => {
+        void refresh();
+        loadSuggestions();
+      }}
+    />
+  ) : null;
+
+  // ── body: split (list | card) vs narrow (list, then drill-in) ─────
+  let body: React.ReactNode;
+  if (split) {
+    body = (
+      <div className="flex min-h-0 flex-1">
         <div
-          className="fixed inset-0 z-50 flex items-stretch justify-end bg-black/50"
-          onClick={() => setViewId(null)}
+          style={{ width: Math.min(listWidth, Math.max(200, width - 300)) }}
+          className="flex flex-shrink-0 flex-col border-r border-border"
         >
-          <div
-            className="h-full w-full max-w-[400px] border-l border-border bg-bg-1 shadow-xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <ContactDetail
-              contactId={viewId}
-              onClose={() => setViewId(null)}
-              onChanged={() => {
-                void refresh();
-                loadSuggestions();
-              }}
-            />
-          </div>
+          {listPane}
         </div>
-      )}
+        <div
+          onMouseDown={startResize}
+          onKeyDown={resizeByKey}
+          role="separator"
+          tabIndex={0}
+          aria-orientation="vertical"
+          aria-label="Resize the contact list"
+          aria-valuemin={200}
+          aria-valuemax={460}
+          aria-valuenow={Math.round(listWidth)}
+          title="Drag, or focus and use ← / → to resize"
+          className="z-10 -ml-1 w-2 flex-shrink-0 cursor-col-resize transition-colors hover:bg-accent/30 focus-visible:bg-accent/40 focus-visible:outline-none"
+        />
+        <div className="flex min-h-0 flex-1 flex-col">{detailPane ?? <SelectPrompt />}</div>
+      </div>
+    );
+  } else if (selectedId) {
+    body = <div className="flex min-h-0 flex-1 flex-col">{detailPane}</div>;
+  } else {
+    body = listPane;
+  }
+
+  return (
+    <DashboardCard
+      title="Contacts"
+      count={contacts.length}
+      expandHref={null}
+      bodyClassName="flex min-h-0 flex-col overflow-hidden"
+      headerRight={
+        <button
+          type="button"
+          onClick={openCreate}
+          aria-label="New contact"
+          className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+        >
+          <Plus className="h-3.5 w-3.5" />
+        </button>
+      }
+    >
+      <div ref={containerRef} className="relative flex min-h-0 flex-1 flex-col">
+        {body}
+      </div>
 
       {/* Create modal */}
       {creating && (
@@ -337,7 +424,7 @@ export function ContactsCard() {
                   onClick={() => {
                     const id = duplicate.id;
                     closeCreate();
-                    setViewId(id);
+                    setSelectedId(id);
                   }}
                 >
                   Open existing
