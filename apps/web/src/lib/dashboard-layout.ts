@@ -22,11 +22,12 @@ export const DASH_PANEL_IDS = [
   "markets",
   "goals",
   "contacts",
+  "pipeline",
 ] as const;
 export type DashPanelId = (typeof DASH_PANEL_IDS)[number];
 
 export const DEFAULT_DASH_LAYOUT: DashLayout = {
-  center: ["week", "tasks"],
+  center: ["week", "tasks", "pipeline"],
   right: ["messages", "markets", "goals", "contacts"],
 };
 

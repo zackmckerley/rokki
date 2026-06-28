@@ -12,6 +12,7 @@ import { MessagesCard } from "./dashboard/MessagesCard";
 import { MarketsCard } from "./dashboard/MarketsCard";
 import { GoalsCard } from "./dashboard/GoalsCard";
 import { ContactsCard } from "./dashboard/ContactsCard";
+import { PipelineCard } from "./dashboard/PipelineCard";
 import { DashboardPanels } from "./dashboard/DashboardPanels";
 import { ModuleVisibilityProvider } from "./dashboard/module-visibility";
 import { PresenceProvider } from "./presence/PresenceProvider";
@@ -268,6 +269,7 @@ export function DashboardClient({
             markets={<MarketsCard />}
             goals={<GoalsCard />}
             contacts={<ContactsCard />}
+            pipeline={<PipelineCard />}
           />
         }
       />
