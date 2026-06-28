@@ -8,6 +8,7 @@ import {
   TrendingUp,
   Target,
   Contact,
+  KanbanSquare,
   ChevronUp,
   ChevronDown,
   EyeOff,
@@ -33,6 +34,7 @@ const ICONS: Record<string, LucideIcon> = {
   markets: TrendingUp,
   goals: Target,
   contacts: Contact,
+  pipeline: KanbanSquare,
 };
 
 /** Modules with their own settings page get a Configure gear on their row. */

@@ -11,7 +11,7 @@ describe("movePanel", () => {
   it("moves a panel from one column to another at an index", () => {
     const out = movePanel(DEFAULT_DASH_LAYOUT, "messages", "center", 1);
     expect(out).toEqual({
-      center: ["week", "messages", "tasks"],
+      center: ["week", "messages", "tasks", "pipeline"],
       right: ["markets", "goals", "contacts"],
     });
   });
@@ -19,7 +19,7 @@ describe("movePanel", () => {
   it("reorders within a column (down)", () => {
     const out = movePanel(DEFAULT_DASH_LAYOUT, "week", "center", 2);
     // week removed from idx0, tasks shifts up, week appended after tasks
-    expect(out.center).toEqual(["tasks", "week"]);
+    expect(out.center).toEqual(["tasks", "week", "pipeline"]);
   });
 
   it("reorders within a column (up)", () => {
@@ -41,7 +41,7 @@ describe("movePanel", () => {
 describe("normalizeLayout", () => {
   it("returns the default-shaped layout when given nothing", () => {
     expect(normalizeLayout(null)).toEqual({
-      center: ["week", "tasks", "messages", "markets", "goals", "contacts"],
+      center: ["week", "tasks", "messages", "markets", "goals", "contacts", "pipeline"],
       right: [],
     });
   });
@@ -56,7 +56,7 @@ describe("normalizeLayout", () => {
       right: ["messages", "tasks", "messages"],
     });
     expect(out).toEqual({
-      center: ["week", "markets", "goals", "contacts"],
+      center: ["week", "markets", "goals", "contacts", "pipeline"],
       right: ["messages", "tasks"],
     });
   });
@@ -69,6 +69,7 @@ describe("normalizeLayout", () => {
       "goals",
       "markets",
       "messages",
+      "pipeline",
       "tasks",
       "week",
     ]);

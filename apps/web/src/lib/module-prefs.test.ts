@@ -52,10 +52,19 @@ describe("module catalog constants", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("MODULE_IDS mirrors the catalog ids", () => {
-    expect(MODULE_IDS).toEqual(["week", "tasks", "messages", "markets", "goals", "contacts"]);
+    expect(MODULE_IDS).toEqual([
+      "week",
+      "tasks",
+      "messages",
+      "markets",
+      "goals",
+      "contacts",
+      "pipeline",
+    ]);
   });
   it("week is labelled Schedule", () => {
     expect(MODULE_LABELS.week).toBe("Schedule");
@@ -86,6 +95,7 @@ describe("defaultModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("nothing hidden by default", () => {
@@ -116,6 +126,7 @@ describe("defaultModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
 });
@@ -141,6 +152,7 @@ describe("normalizeModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("appends missing ids in catalog order", () => {
@@ -151,6 +163,7 @@ describe("normalizeModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("drops unknown ids from order", () => {
@@ -161,6 +174,7 @@ describe("normalizeModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("dedupes order", () => {
@@ -171,6 +185,7 @@ describe("normalizeModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("non-array order → default order", () => {
@@ -181,6 +196,7 @@ describe("normalizeModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("non-string order entries are dropped", () => {
@@ -191,6 +207,7 @@ describe("normalizeModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("keeps known hidden ids", () => {
@@ -275,6 +292,7 @@ describe("parseModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
 });
@@ -313,6 +331,7 @@ describe("activeModuleIds", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("respects order", () => {
@@ -329,6 +348,7 @@ describe("activeModuleIds", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("excludes multiple hidden", () => {
@@ -337,11 +357,12 @@ describe("activeModuleIds", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("all hidden → empty", () => {
     expect(
-      activeModuleIds(prefs({ hidden: ["week", "tasks", "messages", "markets", "goals", "contacts"] })),
+      activeModuleIds(prefs({ hidden: ["week", "tasks", "messages", "markets", "goals", "contacts", "pipeline"] })),
     ).toEqual([]);
   });
   it("hidden + reordered", () => {
@@ -367,6 +388,7 @@ describe("orderedVisibleModules", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("carries labels", () => {
@@ -379,6 +401,7 @@ describe("orderedVisibleModules", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("reorders", () => {
@@ -388,7 +411,7 @@ describe("orderedVisibleModules", () => {
   });
   it("empty when all hidden", () => {
     expect(
-      orderedVisibleModules(prefs({ hidden: ["week", "tasks", "messages", "markets", "goals", "contacts"] })),
+      orderedVisibleModules(prefs({ hidden: ["week", "tasks", "messages", "markets", "goals", "contacts", "pipeline"] })),
     ).toEqual([]);
   });
 });
@@ -409,8 +432,8 @@ describe("hiddenModules", () => {
   });
   it("all when everything hidden", () => {
     expect(
-      hiddenModules(prefs({ hidden: ["week", "tasks", "messages", "markets", "goals", "contacts"] })).length,
-    ).toBe(6);
+      hiddenModules(prefs({ hidden: ["week", "tasks", "messages", "markets", "goals", "contacts", "pipeline"] })).length,
+    ).toBe(7);
   });
 });
 
@@ -533,6 +556,7 @@ describe("moveModule", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("moves to the end", () => {
@@ -543,6 +567,7 @@ describe("moveModule", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("moves to the middle", () => {
@@ -553,6 +578,7 @@ describe("moveModule", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("clamps a negative index to 0", () => {
@@ -563,6 +589,7 @@ describe("moveModule", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("clamps an over-large index to the end", () => {
@@ -572,6 +599,7 @@ describe("moveModule", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
       "week",
     ]);
   });
@@ -583,6 +611,7 @@ describe("moveModule", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("unknown id is a no-op (same reference)", () => {
@@ -596,7 +625,7 @@ describe("moveModule", () => {
   it("does not mutate the input order", () => {
     const p = defaultModulePrefs();
     moveModule(p, "week", 2);
-    expect(p.order).toEqual(["week", "tasks", "messages", "markets", "goals", "contacts"]);
+    expect(p.order).toEqual(["week", "tasks", "messages", "markets", "goals", "contacts", "pipeline"]);
   });
   it("preserves hidden/minimized/layout", () => {
     const p = prefs({ hidden: ["tasks"], minimized: ["week"], layout: "stacked" });
@@ -616,6 +645,7 @@ describe("moveModuleBy", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("moves up by one", () => {
@@ -626,6 +656,7 @@ describe("moveModuleBy", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("moves down by two", () => {
@@ -636,6 +667,7 @@ describe("moveModuleBy", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("moving the first up is a no-op", () => {
@@ -644,11 +676,11 @@ describe("moveModuleBy", () => {
   });
   it("moving the last down is a no-op", () => {
     const p = defaultModulePrefs();
-    expect(moveModuleBy(p, "contacts", 1)).toBe(p);
+    expect(moveModuleBy(p, "pipeline", 1)).toBe(p);
   });
   it("over-shooting down clamps to no-op", () => {
     const p = defaultModulePrefs();
-    expect(moveModuleBy(p, "tasks", 5)).toBe(p);
+    expect(moveModuleBy(p, "tasks", 6)).toBe(p);
   });
   it("over-shooting up clamps to no-op", () => {
     const p = defaultModulePrefs();
@@ -671,6 +703,7 @@ describe("moveModuleBy", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
 });
@@ -799,7 +832,7 @@ describe("resetModulePrefs", () => {
       sectionCollapsed: true,
     });
     const reset = resetModulePrefs(messy);
-    expect(reset.order).toEqual(["week", "tasks", "messages", "markets", "goals", "contacts"]);
+    expect(reset.order).toEqual(["week", "tasks", "messages", "markets", "goals", "contacts", "pipeline"]);
     expect(reset.hidden).toEqual([]);
     expect(reset.minimized).toEqual([]);
     expect(reset.layout).toBe("split");
@@ -869,20 +902,20 @@ describe("presetToDashLayout", () => {
 describe("dashLayoutForPrefs", () => {
   it("default prefs → split of all three", () => {
     expect(dashLayoutForPrefs(defaultModulePrefs())).toEqual({
-      center: ["week", "tasks", "messages"],
-      right: ["markets", "goals", "contacts"],
+      center: ["week", "tasks", "messages", "markets"],
+      right: ["goals", "contacts", "pipeline"],
     });
   });
   it("stacked layout", () => {
     expect(dashLayoutForPrefs(prefs({ layout: "stacked" }))).toEqual({
-      center: ["week", "tasks", "messages", "markets", "goals", "contacts"],
+      center: ["week", "tasks", "messages", "markets", "goals", "contacts", "pipeline"],
       right: [],
     });
   });
   it("hidden module drops out of the layout", () => {
     expect(dashLayoutForPrefs(prefs({ hidden: ["messages"] }))).toEqual({
       center: ["week", "tasks", "markets"],
-      right: ["goals", "contacts"],
+      right: ["goals", "contacts", "pipeline"],
     });
   });
   it("reorder changes the columns", () => {
@@ -905,6 +938,7 @@ describe("serializeModulePrefs", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("round-trips through JSON", () => {
@@ -957,7 +991,7 @@ describe("realistic sequences", () => {
   it("hide then show restores active set", () => {
     let p = defaultModulePrefs();
     p = hideModule(p, "messages");
-    expect(activeModuleIds(p)).toEqual(["week", "tasks", "markets", "goals", "contacts"]);
+    expect(activeModuleIds(p)).toEqual(["week", "tasks", "markets", "goals", "contacts", "pipeline"]);
     p = showModule(p, "messages");
     expect(activeModuleIds(p)).toEqual([
       "week",
@@ -966,12 +1000,13 @@ describe("realistic sequences", () => {
       "markets",
       "goals",
       "contacts",
+      "pipeline",
     ]);
   });
   it("reorder then hide keeps the new order on the rest", () => {
     let p = moveModule(defaultModulePrefs(), "messages", 0);
     p = hideModule(p, "week");
-    expect(activeModuleIds(p)).toEqual(["messages", "tasks", "markets", "goals", "contacts"]);
+    expect(activeModuleIds(p)).toEqual(["messages", "tasks", "markets", "goals", "contacts", "pipeline"]);
   });
   it("minimize survives a reorder", () => {
     let p = setModuleMinimized(defaultModulePrefs(), "tasks", true);
@@ -1002,7 +1037,7 @@ describe("realistic sequences", () => {
     p = setLayoutPreset(p, "stacked");
     p = hideModule(p, "week");
     expect(dashLayoutForPrefs(p)).toEqual({
-      center: ["tasks", "messages", "markets", "goals", "contacts"],
+      center: ["tasks", "messages", "markets", "goals", "contacts", "pipeline"],
       right: [],
     });
   });
