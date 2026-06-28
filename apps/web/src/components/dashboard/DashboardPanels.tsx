@@ -33,6 +33,7 @@ const TITLES: Record<string, string> = {
   messages: "Messages",
   markets: "Markets",
   goals: "Goals",
+  contacts: "Contacts",
 };
 
 type DropHint =
@@ -62,6 +63,7 @@ export function DashboardPanels({
   messages,
   markets,
   goals,
+  contacts,
 }: {
   focus?: ReactNode;
   briefing: ReactNode;
@@ -70,6 +72,7 @@ export function DashboardPanels({
   messages: ReactNode;
   markets: ReactNode;
   goals: ReactNode;
+  contacts: ReactNode;
 }) {
   const nodes: Record<string, ReactNode> = {
     week,
@@ -77,6 +80,7 @@ export function DashboardPanels({
     messages,
     markets,
     goals,
+    contacts,
   };
 
   const [hydrated, setHydrated] = useState(false);
@@ -88,6 +92,7 @@ export function DashboardPanels({
     messages: 1,
     markets: 1,
     goals: 1,
+    contacts: 1,
   });
   const [centerFrac, setCenterFrac] = useState(0.6);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -298,7 +303,7 @@ export function DashboardPanels({
 
   function resetLayout() {
     setLayout(normalizeLayout(DEFAULT_DASH_LAYOUT));
-    setWeights({ week: 1, tasks: 1, messages: 1, markets: 1, goals: 1 });
+    setWeights({ week: 1, tasks: 1, messages: 1, markets: 1, goals: 1, contacts: 1 });
     setCenterFrac(0.6);
   }
 

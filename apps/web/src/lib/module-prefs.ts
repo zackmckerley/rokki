@@ -35,6 +35,7 @@ export const MODULE_CATALOG: readonly ModuleCatalogItem[] = [
   { id: "messages", label: "Messages" },
   { id: "markets", label: "Markets" },
   { id: "goals", label: "Goals" },
+  { id: "contacts", label: "Contacts" },
 ];
 
 export const MODULE_IDS: readonly string[] = MODULE_CATALOG.map((m) => m.id);

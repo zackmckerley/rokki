@@ -88,7 +88,7 @@ describe("ModulePrefs provider", () => {
       </ModuleVisibilityProvider>,
     );
     expect(screen.getByTestId("order").textContent).toBe(
-      "week,tasks,messages,markets,goals",
+      "week,tasks,messages,markets,goals,contacts",
     );
     expect(screen.getByTestId("layout").textContent).toBe("split");
     expect(screen.getByTestId("sync").textContent).toBe("false");
@@ -103,7 +103,7 @@ describe("ModulePrefs provider", () => {
     );
     await waitFor(() =>
       expect(screen.getByTestId("order").textContent).toBe(
-        "messages,tasks,week,markets,goals",
+        "messages,tasks,week,markets,goals,contacts",
       ),
     );
     expect(screen.getByTestId("layout").textContent).toBe("stacked");
@@ -147,6 +147,7 @@ describe("ModulePrefs provider", () => {
       "tasks",
       "markets",
       "goals",
+      "contacts",
     ]);
   });
 

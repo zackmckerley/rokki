@@ -21,12 +21,13 @@ export const DASH_PANEL_IDS = [
   "messages",
   "markets",
   "goals",
+  "contacts",
 ] as const;
 export type DashPanelId = (typeof DASH_PANEL_IDS)[number];
 
 export const DEFAULT_DASH_LAYOUT: DashLayout = {
   center: ["week", "tasks"],
-  right: ["messages", "markets", "goals"],
+  right: ["messages", "markets", "goals", "contacts"],
 };
 
 export const DASH_LAYOUT_STORAGE_KEY = "rokki:dash-panels";

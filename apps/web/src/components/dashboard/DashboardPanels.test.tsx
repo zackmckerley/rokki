@@ -67,6 +67,7 @@ describe("DashboardPanels", () => {
         messages={<div>MESSAGES_PANEL</div>}
         markets={<div>MARKETS_PANEL</div>}
         goals={<div>GOALS_PANEL</div>}
+        contacts={<div>CONTACTS_PANEL</div>}
       />,
     );
     expect(screen.getByText("BRIEFING")).toBeTruthy();
@@ -84,6 +85,7 @@ describe("DashboardPanels", () => {
         messages={<div>m</div>}
         markets={<div>mk</div>}
         goals={<div>g</div>}
+        contacts={<div>c</div>}
       />,
     );
     expect(screen.getByTestId("probe").textContent).toBe("has-handle");
@@ -106,6 +108,7 @@ describe("DashboardPanels", () => {
         messages={<div>MESSAGES_PANEL</div>}
         markets={<div>MARKETS_PANEL</div>}
         goals={<div>GOALS_PANEL</div>}
+        contacts={<div>CONTACTS_PANEL</div>}
       />,
     );
     // Whatever the saved arrangement, no panel is ever lost.
@@ -127,6 +130,7 @@ describe("DashboardPanels", () => {
         messages={<div>m</div>}
         markets={<div>mk</div>}
         goals={<div>g</div>}
+        contacts={<div>c</div>}
       />,
     );
     const tasksPanel = () =>
@@ -159,6 +163,7 @@ describe("DashboardPanels", () => {
           messages={<div>m</div>}
         markets={<div>mk</div>}
         goals={<div>g</div>}
+        contacts={<div>c</div>}
         />
       </ModuleVisibilityProvider>,
     );

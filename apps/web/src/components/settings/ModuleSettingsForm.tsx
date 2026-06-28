@@ -7,6 +7,7 @@ import {
   MessageSquare,
   TrendingUp,
   Target,
+  Contact,
   ChevronUp,
   ChevronDown,
   EyeOff,
@@ -31,6 +32,7 @@ const ICONS: Record<string, LucideIcon> = {
   messages: MessageSquare,
   markets: TrendingUp,
   goals: Target,
+  contacts: Contact,
 };
 
 /** Modules with their own settings page get a Configure gear on their row. */

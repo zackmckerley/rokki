@@ -58,6 +58,7 @@ describe("ModuleSettingsForm", () => {
         "messages",
         "markets",
         "goals",
+        "contacts",
       ]);
     });
     it("moves a module down and persists", () => {
@@ -69,6 +70,7 @@ describe("ModuleSettingsForm", () => {
         "messages",
         "markets",
         "goals",
+        "contacts",
       ]);
     });
     it("disables Move up on the first module", () => {
@@ -80,7 +82,7 @@ describe("ModuleSettingsForm", () => {
     it("disables Move down on the last module", () => {
       renderForm();
       expect(
-        (screen.getByRole("button", { name: "Move Goals down" }) as HTMLButtonElement).disabled,
+        (screen.getByRole("button", { name: "Move Contacts down" }) as HTMLButtonElement).disabled,
       ).toBe(true);
     });
   });
@@ -110,6 +112,7 @@ describe("ModuleSettingsForm", () => {
       fireEvent.click(screen.getByRole("button", { name: "Hide Messages" }));
       fireEvent.click(screen.getByRole("button", { name: "Hide Markets" }));
       fireEvent.click(screen.getByRole("button", { name: "Hide Goals" }));
+      fireEvent.click(screen.getByRole("button", { name: "Hide Contacts" }));
       expect(screen.getByText(/All modules are hidden/i)).toBeTruthy();
     });
   });
