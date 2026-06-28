@@ -34,7 +34,7 @@ export type ContactListItem = Pick<
   | "avatar_url"
   | "contact_types"
   | "tags"
-  | "firm"
+  | "company"
   | "title"
   | "primary_email"
   | "primary_phone"
@@ -90,3 +90,22 @@ export const updateContact = (id: string, patch: Partial<ContactRow>) =>
 
 export const archiveContact = (id: string) =>
   req<void>(`${B}/${encodeURIComponent(id)}`, { method: "DELETE" });
+
+/**
+ * Upload a profile picture and get back its public URL. Multipart, so it
+ * bypasses the JSON `req` helper. The caller saves the returned URL on the
+ * contact's `avatar_url`.
+ */
+export async function uploadAvatar(file: File): Promise<string> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch(`${B}/avatar`, { method: "POST", body });
+  const json = (await res.json().catch(() => ({}))) as {
+    data?: { url: string };
+    errors?: { code: string; message: string }[];
+  };
+  if (!res.ok || !json.data?.url) {
+    throw new Error(json.errors?.[0]?.message ?? `Upload failed (${res.status})`);
+  }
+  return json.data.url;
+}

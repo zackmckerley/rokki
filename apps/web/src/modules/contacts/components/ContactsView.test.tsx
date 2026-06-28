@@ -14,7 +14,7 @@ const { items } = vi.hoisted(() => ({
       avatar_url: null,
       contact_types: ["broker"],
       tags: [],
-      firm: "Realty Co",
+      company: "Realty Co",
       title: null,
       primary_email: "bob@x.com",
       primary_phone: null,
@@ -32,6 +32,7 @@ vi.mock("../lib/client-api", () => ({
   createContact: vi.fn(),
   updateContact: vi.fn(),
   archiveContact: vi.fn(),
+  uploadAvatar: vi.fn(),
 }));
 
 import { ContactsView } from "./ContactsView";

@@ -127,7 +127,7 @@ export function ContactsView({
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search name, firm, email…"
+            placeholder="Search name, company, email…"
             aria-label="Search contacts"
             className="w-48 rounded border border-border bg-bg-2 py-1 pl-7 pr-2 text-xs text-text-1 placeholder:text-text-3 outline-none focus:border-border-focus"
           />
@@ -159,16 +159,25 @@ export function ContactsView({
                 onClick={() => setSelectedId(c.id)}
                 className="flex w-full items-center gap-2.5 px-3 py-[var(--rk-row-py)] text-left hover:bg-bg-2"
               >
-                <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 font-mono text-2xs text-text-1">
-                  {initials(c)}
-                </span>
+                {c.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={c.avatar_url}
+                    alt=""
+                    className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 font-mono text-2xs text-text-1">
+                    {initials(c)}
+                  </span>
+                )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-medium text-text-0">
                     {rowName(c)}
                   </span>
-                  {(c.firm || c.title) && (
+                  {(c.company || c.title) && (
                     <span className="block truncate text-2xs text-text-3">
-                      {[c.title, c.firm].filter(Boolean).join(" · ")}
+                      {[c.title, c.company].filter(Boolean).join(" · ")}
                     </span>
                   )}
                 </span>
