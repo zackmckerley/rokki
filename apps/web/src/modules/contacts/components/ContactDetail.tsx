@@ -8,15 +8,23 @@ import {
   Cake,
   Users,
   Link as LinkIcon,
+  MessageSquare,
+  Send,
   Pencil,
   Archive,
+  Unlink,
   X,
   Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { ContactRow, ContactAddress } from "@/lib/contacts/db";
 import { timeAgo, formatBirthday } from "@/lib/contacts/format";
-import { getContact, updateContact, archiveContact } from "../lib/client-api";
+import {
+  getContact,
+  updateContact,
+  archiveContact,
+  unlinkContact,
+} from "../lib/client-api";
 import { ContactForm } from "./ContactForm";
 
 function initials(c: {
@@ -102,6 +110,21 @@ export function ContactDetail({
     }
   }
 
+  async function unlink() {
+    setBusy(true);
+    try {
+      const updated = await unlinkContact(contactId);
+      setContact(updated);
+      onChanged();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not unlink");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const phone = contact?.primary_phone ?? contact?.phones?.[0]?.phone ?? null;
+  const email = contact?.primary_email ?? contact?.emails?.[0]?.email ?? null;
   const fullName = contact
     ? [contact.prefix, contact.first_name, contact.middle_name, contact.last_name, contact.suffix]
         .filter(Boolean)
@@ -158,8 +181,15 @@ export function ContactDetail({
                 </span>
               )}
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-text-0">
-                  {fullName || contact.nickname || "Unnamed"}
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-sm font-semibold text-text-0">
+                    {fullName || contact.nickname || "Unnamed"}
+                  </span>
+                  {contact.user_id && (
+                    <span className="flex-shrink-0 rounded-sm bg-accent/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-accent">
+                      Rokki
+                    </span>
+                  )}
                 </div>
                 {contact.nickname && fullName && (
                   <div className="truncate text-xs text-text-3">“{contact.nickname}”</div>
@@ -182,6 +212,33 @@ export function ContactDetail({
                     {t}
                   </span>
                 ))}
+              </div>
+            )}
+
+            {/* Quick actions */}
+            {(phone || email || contact.user_id) && (
+              <div className="grid grid-cols-4 gap-1">
+                <ActionButton
+                  icon={<Phone className="h-4 w-4" />}
+                  label="Call"
+                  href={phone ? `tel:${phone}` : undefined}
+                />
+                <ActionButton
+                  icon={<MessageSquare className="h-4 w-4" />}
+                  label="Text"
+                  href={phone ? `sms:${phone}` : undefined}
+                />
+                <ActionButton
+                  icon={<Mail className="h-4 w-4" />}
+                  label="Email"
+                  href={email ? `mailto:${email}` : undefined}
+                />
+                <ActionButton
+                  icon={<Send className="h-4 w-4" />}
+                  label="Message"
+                  href={contact.user_id ? "/messages" : undefined}
+                  title={contact.user_id ? "Message in Rokki" : "Not a Rokki user"}
+                />
               </div>
             )}
 
@@ -300,10 +357,15 @@ export function ContactDetail({
               </p>
             )}
 
-            <div className="mt-1 flex items-center gap-2 border-t border-border/40 pt-3">
+            <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
               <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
                 <Pencil className="h-3 w-3" /> Edit
               </Button>
+              {contact.user_id && (
+                <Button size="sm" variant="ghost" onClick={unlink} disabled={busy}>
+                  <Unlink className="h-3 w-3" /> Unlink
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={archive} disabled={busy}>
                 <Archive className="h-3 w-3" /> Archive
               </Button>
@@ -332,5 +394,46 @@ function Tag({ children }: { children: React.ReactNode }) {
     <span className="ml-1 rounded-sm bg-bg-3 px-1 py-px text-[9px] uppercase tracking-wide text-text-3">
       {children}
     </span>
+  );
+}
+
+/** A quick-action tile (Call / Text / Email / Message). Disabled when the
+ *  contact has no value for it (e.g. no phone → Call/Text are inert). */
+function ActionButton({
+  icon,
+  label,
+  href,
+  title,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  href?: string;
+  title?: string;
+}) {
+  const base =
+    "flex flex-col items-center justify-center gap-1 rounded border py-2 text-2xs";
+  if (!href) {
+    return (
+      <span
+        className={`${base} border-border/50 text-text-3 opacity-50`}
+        title={title ?? `No ${label.toLowerCase()}`}
+        aria-disabled="true"
+      >
+        {icon}
+        {label}
+      </span>
+    );
+  }
+  const external = href.startsWith("/");
+  return (
+    <a
+      href={href}
+      title={title ?? label}
+      {...(external ? {} : { rel: "noopener noreferrer" })}
+      className={`${base} border-border bg-bg-2 text-text-1 hover:border-border-focus hover:text-text-0`}
+    >
+      {icon}
+      {label}
+    </a>
   );
 }
