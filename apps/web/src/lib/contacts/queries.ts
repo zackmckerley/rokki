@@ -11,6 +11,7 @@ import {
   type ContactPhone,
   type ContactAddress,
   type ContactSocial,
+  type ContactFamilyMember,
 } from "./db";
 import { primaryEmail, primaryPhone, hasName } from "./normalize";
 
@@ -25,8 +26,9 @@ export interface ContactInput {
   contact_types?: string[];
   tags?: string[];
   title?: string | null;
-  firm?: string | null;
+  company?: string | null;
   license_no?: string | null;
+  birthday?: string | null;
   strength?: number;
   source?: string | null;
   status?: "active" | "archived";
@@ -36,15 +38,16 @@ export interface ContactInput {
   phones?: ContactPhone[];
   addresses?: ContactAddress[];
   socials?: ContactSocial[];
+  family?: ContactFamilyMember[];
   custom?: Record<string, unknown>;
   user_id?: string | null;
 }
 
 const WRITABLE: (keyof ContactInput)[] = [
   "first_name", "middle_name", "last_name", "prefix", "suffix", "nickname",
-  "avatar_url", "contact_types", "tags", "title", "firm", "license_no",
-  "strength", "source", "status", "do_not_contact", "notes", "emails",
-  "phones", "addresses", "socials", "custom", "user_id",
+  "avatar_url", "contact_types", "tags", "title", "company", "license_no",
+  "birthday", "strength", "source", "status", "do_not_contact", "notes",
+  "emails", "phones", "addresses", "socials", "family", "custom", "user_id",
 ];
 
 /** Strip everything except the writable fields (never trust client owner_id/id). */
@@ -97,7 +100,7 @@ export async function listContacts(
           `first_name.ilike.%${q}%`,
           `last_name.ilike.%${q}%`,
           `nickname.ilike.%${q}%`,
-          `firm.ilike.%${q}%`,
+          `company.ilike.%${q}%`,
           `primary_email.ilike.%${q}%`,
           `primary_phone.ilike.%${q}%`,
         ].join(","),

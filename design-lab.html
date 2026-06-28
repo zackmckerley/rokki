@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Rokki Design Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; height: 100vh; overflow: hidden; background: #0a0a0b;
+         font-family: ui-sans-serif, system-ui, sans-serif; }
+
+  /* ============================ PREVIEW ============================ */
+  /* Tunable tokens live here as defaults; the panel overrides them
+     via inline style on this element, so the panel UI itself is never
+     affected by your tweaks. Defaults = current sandbox values. */
+  .preview {
+    --bg-0:#0a0a0b; --bg-1:#121214; --bg-2:#1a1a1d; --bg-3:#232327; --bg-4:#2d2d32;
+    --border:#2a2a2f; --border-strong:#34343b;
+    --text-0:#dadadf; --text-1:#c8c8cd; --text-2:#8a8a92; --text-3:#9099a4;
+    --accent:#f5a623; --success:#3fb950; --warning:#d29922; --danger:#f85149; --info:#58a6ff;
+    --text-2xs:10px; --text-xs:11px; --text-sm:13px; --text-base:14px;
+    --lh:1.4;
+    --divider-pct:40%;
+    --card-header-h:40px; --card-gutter:12px; --row-py:6px; --ctrl-py:8px;
+    --rail-header-h:40px; --rail-indent:12px; --rail-indent-child:32px;
+
+    flex: 1; min-width: 0; height: 100%; display: flex;
+    background: var(--bg-0); color: var(--text-1);
+    font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+    font-size: var(--text-base); line-height: var(--lh);
+    -webkit-font-smoothing: antialiased;
+  }
+  .preview .mono { font-family: 'Geist Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .dlist > li + li { border-top: 1px solid color-mix(in srgb, var(--border) var(--divider-pct), transparent); }
+
+  /* ---- Explorer rail ---- */
+  .rail { width: 232px; flex: none; height: 100%; display: flex; flex-direction: column;
+          background: var(--bg-0); border-right: 1px solid var(--border); }
+  .rail-header { height: var(--rail-header-h); flex: none; display: flex; align-items: center;
+                 padding: 0 12px; border-bottom: 1px solid var(--border);
+                 font-size: var(--text-xs); font-weight: 600; text-transform: uppercase;
+                 letter-spacing: .05em; color: var(--text-3); }
+  .rail-search { padding: 10px 8px; border-bottom: 1px solid var(--border); }
+  .rail-search input { height: 32px; width: 100%; background: var(--bg-1);
+                       border: 1px solid var(--border); border-radius: 4px; padding: 0 8px;
+                       color: var(--text-0); font-size: var(--text-xs); font-family: inherit; }
+  .rail-search input::placeholder { color: var(--text-3); }
+  .rail-tree { flex: 1; overflow: auto; padding: 8px 4px; }
+  .section-head { display: flex; align-items: center; gap: 4px; padding: 4px;
+                  font-size: var(--text-xs); font-weight: 600; text-transform: uppercase;
+                  letter-spacing: .05em; color: var(--text-3); }
+  .section-head.mods { margin-top: 12px; }
+  .tree-list { list-style: none; margin: 0; padding: 0 0 0 var(--rail-indent); }
+  .space-row { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px;
+               font-size: var(--text-xs); color: var(--text-1); }
+  .chev { color: var(--text-3); width: 14px; display: inline-block; }
+  .cog { margin-left: auto; color: var(--text-3); }
+  .term-list { list-style: none; margin: 2px 0 0; padding: 0; }
+  .term { padding: 2px 8px 2px var(--rail-indent-child); font-size: var(--text-xs);
+          color: var(--text-1); border-radius: 4px; }
+  .mod-row { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 4px;
+             font-size: var(--text-xs); color: var(--text-1); }
+  .mod-spacer { width: 14px; flex: none; }
+  .mod-label { flex: 1; }
+  .mod-bar { width: 3px; height: 12px; border-radius: 2px; background: var(--accent); flex: none; }
+  .rail-account { border-top: 1px solid var(--border); padding: 8px 12px; display: flex;
+                  align-items: center; gap: 8px; font-size: var(--text-xs); color: var(--text-0); }
+  .ava { width: 26px; height: 26px; border-radius: 50%; background: var(--bg-3); flex: none;
+         display: flex; align-items: center; justify-content: center;
+         font-size: var(--text-2xs); font-weight: 600; color: var(--text-0); }
+  .acct-mail { color: var(--text-3); font-size: var(--text-2xs); }
+
+  /* ---- Cards ---- */
+  .cards { flex: 1; min-width: 0; display: flex; gap: 12px; padding: 12px; overflow: auto; }
+  .card { flex: 1; min-width: 240px; display: flex; flex-direction: column;
+          background: var(--bg-1); border: 1px solid var(--border-strong); border-radius: 6px;
+          overflow: hidden; max-height: 100%; }
+  .card-head { height: var(--card-header-h); flex: none; display: flex; align-items: center;
+               justify-content: space-between; padding: 0 var(--card-gutter);
+               border-bottom: 1px solid var(--border); }
+  .chl { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .grip { color: var(--text-3); cursor: grab; font-size: var(--text-xs); letter-spacing: -2px; }
+  .card-title { margin: 0; font-size: var(--text-xs); font-weight: 600; text-transform: uppercase;
+                letter-spacing: .04em; color: var(--text-2); white-space: nowrap; }
+  .card-count { font-size: var(--text-2xs); color: var(--text-3); }
+  .chr { display: flex; align-items: center; gap: 8px; color: var(--text-3); }
+  .icon-btn { color: var(--text-3); cursor: pointer; }
+  .range-toggle { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden;
+                  font-size: var(--text-2xs); }
+  .range-toggle span { padding: 2px 6px; text-transform: uppercase; font-weight: 600; color: var(--text-2); }
+  .range-toggle span.active { background: var(--accent); color: var(--bg-0); }
+  .card-body { flex: 1; overflow: auto; }
+  ul.lst { list-style: none; margin: 0; padding: 0; }
+
+  /* Week */
+  .day-head { display: flex; align-items: center; gap: 8px; padding: 4px var(--card-gutter); }
+  .day-label { font-size: var(--text-2xs); font-weight: 600; text-transform: uppercase;
+               letter-spacing: .04em; color: var(--text-2); }
+  .day-count { font-size: var(--text-2xs); color: var(--text-3); }
+  .event { display: flex; align-items: center; gap: 12px; padding: var(--row-py) var(--card-gutter);
+           font-size: var(--text-sm); }
+  .event .time { width: 42px; flex: none; font-size: var(--text-2xs); color: var(--text-3); }
+  .ei { width: 12px; flex: none; }
+  .ei.due { color: var(--warning); } .ei.evt { color: var(--info); }
+  .event .et { flex: 1; min-width: 0; color: var(--text-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Tasks */
+  .ctrl-strip { flex: none; display: flex; flex-wrap: wrap; align-items: center;
+                justify-content: space-between; gap: 8px; padding: var(--ctrl-py) var(--card-gutter);
+                border-bottom: 1px solid var(--border); }
+  .ctrl-left { display: flex; gap: 8px; align-items: center; }
+  .seg { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; display: flex;
+         font-size: var(--text-2xs); }
+  .seg b { padding: 2px 6px; font-weight: 600; text-transform: uppercase; color: var(--text-3); }
+  .seg b.active { background: var(--bg-3); color: var(--text-0); }
+  .filter { height: 26px; border: 1px solid var(--border); background: var(--bg-1); border-radius: 4px;
+            padding: 0 8px; color: var(--text-0); font-size: var(--text-xs); width: 110px; font-family: inherit; }
+  .filter::placeholder { color: var(--text-3); }
+  .newtask { font-size: var(--text-xs); color: var(--text-2); white-space: nowrap; }
+  .task { display: flex; align-items: center; gap: 8px; border-left: 2px solid transparent;
+          padding: var(--row-py) var(--card-gutter) var(--row-py) calc(var(--card-gutter) - 2px);
+          font-size: var(--text-sm); }
+  .task[data-pri="1"] { border-left-color: var(--danger); }
+  .task[data-pri="2"] { border-left-color: var(--warning); }
+  .star { color: var(--warning); font-size: var(--text-xs); flex: none; }
+  .star.off { color: var(--text-3); opacity: .35; }
+  .cbx { width: 16px; height: 16px; border: 1px solid var(--border); border-radius: 3px; flex: none; }
+  .cbx.done { background: #0f2f18; border-color: var(--success); color: var(--success);
+              display: flex; align-items: center; justify-content: center; font-size: 11px; }
+  .ttl { flex: 1; min-width: 0; color: var(--text-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ttl.done { color: var(--text-3); text-decoration: line-through; }
+  .due { font-size: var(--text-2xs); color: var(--text-2); flex: none; }
+  .due.warn { color: var(--warning); } .due.over { color: var(--danger); }
+  .pri { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-2xs);
+         text-transform: uppercase; color: var(--text-2); flex: none; }
+  .pri .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .pill { font-size: var(--text-2xs); text-transform: uppercase; letter-spacing: .04em;
+          border-radius: 3px; padding: 2px 6px; flex: none; }
+  .pill.todo { background: var(--bg-3); color: var(--text-2); }
+  .pill.prog { background: #102b4a; color: var(--info); }
+  .pill.done { background: #0f2f18; color: var(--success); }
+
+  /* Messages */
+  .msg { display: flex; align-items: center; gap: 8px; padding: var(--row-py) var(--card-gutter);
+         font-size: var(--text-sm); }
+  .msg .ic { color: var(--text-3); width: 14px; flex: none; }
+  .msg .lbl { flex: 1; min-width: 0; color: var(--text-0); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg .tm { font-size: var(--text-2xs); color: var(--text-3); flex: none; }
+
+  /* ============================ PANEL ============================ */
+  .panel { width: 344px; flex: none; height: 100%; overflow: auto;
+           background: #0f0f11; border-left: 1px solid #2a2a2f; color: #e6e6ea;
+           font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; }
+  .panel-top { position: sticky; top: 0; z-index: 5; background: #0f0f11;
+               border-bottom: 1px solid #2a2a2f; padding: 12px 14px; }
+  .panel-top h1 { margin: 0 0 2px; font-size: 14px; font-weight: 700; }
+  .panel-top p { margin: 0 0 10px; font-size: 11.5px; color: #9aa0aa; line-height: 1.4; }
+  .btns { display: flex; gap: 8px; }
+  .btn { flex: 1; cursor: pointer; border: 1px solid #34343b; background: #1a1a1d; color: #e6e6ea;
+         border-radius: 5px; padding: 7px 8px; font-size: 12px; font-weight: 600; }
+  .btn.primary { background: #f5a623; border-color: #f5a623; color: #0a0a0b; }
+  .btn:hover { filter: brightness(1.12); }
+  .group { padding: 6px 14px 12px; border-bottom: 1px solid #1c1c20; }
+  .group h2 { margin: 12px 0 8px; font-size: 11px; font-weight: 700; text-transform: uppercase;
+              letter-spacing: .08em; color: #8a8a92; }
+  .knob { margin: 9px 0; }
+  .knob .lab { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+  .knob .lab span:first-child { font-size: 12px; color: #cdd0d6; }
+  .knob .val { font-family: ui-monospace, monospace; font-size: 11px; color: #f5a623; }
+  .knob input[type=range] { width: 100%; accent-color: #f5a623; height: 18px; }
+  .knob .colorrow { display: flex; align-items: center; gap: 8px; }
+  .knob input[type=color] { width: 34px; height: 24px; padding: 0; border: 1px solid #34343b;
+                            border-radius: 4px; background: none; cursor: pointer; }
+  .knob .hex { flex: 1; }
+  .knob input[type=text] { width: 100%; background: #16161a; border: 1px solid #34343b; color: #e6e6ea;
+                           border-radius: 4px; padding: 5px 7px; font-family: ui-monospace, monospace; font-size: 11px; }
+
+  /* Export modal */
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none;
+             align-items: center; justify-content: center; z-index: 50; }
+  .overlay.on { display: flex; }
+  .modal { width: min(620px, 92vw); max-height: 86vh; display: flex; flex-direction: column;
+           background: #121214; border: 1px solid #34343b; border-radius: 10px; overflow: hidden; }
+  .modal header { display: flex; align-items: center; justify-content: space-between;
+                  padding: 12px 16px; border-bottom: 1px solid #2a2a2f; }
+  .modal header h3 { margin: 0; font-size: 14px; color: #e6e6ea; }
+  .modal header button { cursor: pointer; background: none; border: none; color: #9aa0aa; font-size: 18px; }
+  .modal .body { padding: 14px 16px; overflow: auto; }
+  .modal .body p { margin: 0 0 10px; font-size: 12.5px; color: #9aa0aa; line-height: 1.5; }
+  .modal textarea { width: 100%; height: 280px; background: #0a0a0b; border: 1px solid #2a2a2f;
+                    border-radius: 6px; color: #d6d6da; font-family: ui-monospace, monospace;
+                    font-size: 12px; line-height: 1.5; padding: 10px; resize: vertical; }
+  .modal .row { display: flex; gap: 8px; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+  <!-- ============================ PREVIEW ============================ -->
+  <div class="preview" id="preview">
+
+    <!-- Explorer rail -->
+    <div class="rail">
+      <div class="rail-header">Explorer</div>
+      <div class="rail-search"><input placeholder="Search…" /></div>
+      <div class="rail-tree">
+        <div class="section-head"><span class="chev">▾</span>Spaces</div>
+        <ul class="tree-list">
+          <li>
+            <div class="space-row"><span class="chev">▾</span><span>Trump Group</span><span class="cog">⚙</span></div>
+            <ul class="term-list">
+              <li class="term">Casablanca</li>
+              <li class="term">General</li>
+            </ul>
+          </li>
+          <li>
+            <div class="space-row"><span class="chev">▾</span><span>Helios</span><span class="cog">⚙</span></div>
+            <ul class="term-list">
+              <li class="term">Civic</li>
+              <li class="term">HD101</li>
+              <li class="term">HD102</li>
+            </ul>
+          </li>
+        </ul>
+        <div class="section-head mods"><span class="chev">▾</span>Modules</div>
+        <ul class="tree-list">
+          <li class="mod-row"><span class="mod-spacer"></span><span class="mod-label">Schedule</span><span class="mod-bar"></span></li>
+          <li class="mod-row"><span class="mod-spacer"></span><span class="mod-label">Tasks</span><span class="mod-bar"></span></li>
+          <li class="mod-row"><span class="mod-spacer"></span><span class="mod-label">Messages</span></li>
+        </ul>
+      </div>
+      <div class="rail-account">
+        <span class="ava">ZM</span>
+        <span><span style="display:block">Zack McKerley</span><span class="acct-mail mono">zackmckerley@gmail.com</span></span>
+      </div>
+    </div>
+
+    <!-- Cards -->
+    <div class="cards">
+
+      <!-- Schedule -->
+      <section class="card">
+        <header class="card-head">
+          <div class="chl"><span class="grip">⠿</span><h2 class="card-title">This week</h2><span class="card-count mono">7</span></div>
+          <div class="chr">
+            <span class="range-toggle"><span>Today</span><span class="active">Week</span><span>Month</span></span>
+            <span class="icon-btn">⤢</span>
+          </div>
+        </header>
+        <div class="card-body">
+          <ul class="lst dlist">
+            <li>
+              <div class="day-head"><span class="day-label">Today · Mon Jun 8</span><span class="day-count mono">2</span></div>
+              <ul class="lst dlist">
+                <li class="event"><span class="time mono">09:00</span><span class="ei evt">▣</span><span class="et">Standup</span></li>
+                <li class="event"><span class="time mono">14:00</span><span class="ei evt">▣</span><span class="et">Lender call — Casablanca</span></li>
+              </ul>
+            </li>
+            <li>
+              <div class="day-head"><span class="day-label">Tue Jun 9</span><span class="day-count mono">1</span></div>
+              <ul class="lst dlist">
+                <li class="event"><span class="time mono">due</span><span class="ei due">◆</span><span class="et">Title review deadline</span></li>
+              </ul>
+            </li>
+            <li>
+              <div class="day-head"><span class="day-label">Wed Jun 10</span><span class="day-count mono">1</span></div>
+              <ul class="lst dlist">
+                <li class="event"><span class="time mono">11:00</span><span class="ei evt">▣</span><span class="et">Site walk — Helios HD101</span></li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Tasks -->
+      <section class="card">
+        <header class="card-head">
+          <div class="chl"><span class="grip">⠿</span><h2 class="card-title">Tasks</h2><span class="card-count mono">5</span></div>
+          <div class="chr"><span class="icon-btn">▁</span><span class="icon-btn">⤢</span></div>
+        </header>
+        <div class="ctrl-strip">
+          <div class="ctrl-left">
+            <span class="seg"><b class="active">Auto</b><b>Manual</b></span>
+            <span class="seg"><b>Group ▾</b></span>
+          </div>
+          <div class="ctrl-left">
+            <input class="filter" placeholder="Filter tasks…" />
+            <span class="newtask">＋ New task</span>
+          </div>
+        </div>
+        <div class="card-body">
+          <ul class="lst dlist">
+            <li class="task" data-pri="1">
+              <span class="star">★</span><span class="cbx"></span>
+              <span class="ttl">Review lender term sheet</span>
+              <span class="due over mono">1d ago</span>
+              <span class="pri"><span class="dot" style="background:var(--danger)"></span>High</span>
+              <span class="pill todo mono">todo</span>
+            </li>
+            <li class="task" data-pri="1">
+              <span class="star off">★</span><span class="cbx"></span>
+              <span class="ttl">Pull declaration — Bonne Vie</span>
+              <span class="due warn mono">2d</span>
+              <span class="pri"><span class="dot" style="background:var(--danger)"></span>High</span>
+              <span class="pill prog mono">in progress</span>
+            </li>
+            <li class="task" data-pri="2">
+              <span class="star off">★</span><span class="cbx"></span>
+              <span class="ttl">Send wire instructions to title co.</span>
+              <span class="due mono">Jun 14</span>
+              <span class="pri"><span class="dot" style="background:var(--warning)"></span>Med</span>
+              <span class="pill todo mono">todo</span>
+            </li>
+            <li class="task" data-pri="0">
+              <span class="star off">★</span><span class="cbx"></span>
+              <span class="ttl">Draft GC bid invite — Civic</span>
+              <span class="due mono">Jun 20</span>
+              <span class="pri"><span class="dot" style="background:var(--text-3)"></span>Low</span>
+              <span class="pill todo mono">todo</span>
+            </li>
+            <li class="task" data-pri="0">
+              <span class="star off">★</span><span class="cbx done">✓</span>
+              <span class="ttl done">Confirm folio — Grove Palms II</span>
+              <span class="pill done mono">done</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- Messages -->
+      <section class="card">
+        <header class="card-head">
+          <div class="chl"><span class="grip">⠿</span><h2 class="card-title">Messages</h2><span class="card-count mono">4</span></div>
+          <div class="chr"><span class="icon-btn">⤢</span></div>
+        </header>
+        <div class="card-body">
+          <ul class="lst dlist">
+            <li class="msg"><span class="ic">#</span><span class="lbl">casablanca-acq</span><span class="tm mono">2m</span></li>
+            <li class="msg"><span class="ic">#</span><span class="lbl">helios-dev</span><span class="tm mono">1h</span></li>
+            <li class="msg"><span class="ic">@</span><span class="lbl">Daniel — title co.</span><span class="tm mono">3h</span></li>
+            <li class="msg"><span class="ic">@</span><span class="lbl">Maria — GC</span><span class="tm mono">1d</span></li>
+          </ul>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- ============================ PANEL ============================ -->
+  <div class="panel">
+    <div class="panel-top">
+      <h1>Rokki Design Lab</h1>
+      <p>Drag to tune the real design tokens. Live preview ← left. When it looks right, hit Export and paste it to Claude — it gets baked into the app.</p>
+      <div class="btns">
+        <button class="btn primary" id="exportBtn">Export ↗</button>
+        <button class="btn" id="resetBtn">Reset</button>
+      </div>
+    </div>
+    <div id="controls"></div>
+  </div>
+
+  <!-- Export modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <header><h3>Export — paste this to Claude</h3><button id="closeModal">✕</button></header>
+      <div class="body">
+        <p>Only the values you changed from the current app are listed. Copy and paste this whole block into chat — Claude will translate each one to the right place in the code and ship it.</p>
+        <textarea id="exportText" readonly></textarea>
+        <div class="row">
+          <button class="btn primary" id="copyBtn" style="flex:none;padding:7px 16px">Copy</button>
+          <span id="copyNote" style="align-self:center;font-size:12px;color:#9aa0aa"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const KNOBS = [
+    { group: 'Type — font size', items: [
+      { id:'--text-2xs', label:'Meta (counts, chips, times)', min:8,  max:14, step:1, unit:'px', def:'10' },
+      { id:'--text-xs',  label:'Labels & nav',                min:9,  max:16, step:1, unit:'px', def:'11' },
+      { id:'--text-sm',  label:'Content (titles, events)',    min:11, max:18, step:1, unit:'px', def:'13' },
+      { id:'--text-base',label:'Base',                        min:12, max:20, step:1, unit:'px', def:'14' },
+      { id:'--lh',       label:'Line spacing',                min:1.1,max:1.9,step:0.05,unit:'', def:'1.4' },
+    ]},
+    { group: 'Color', items: [
+      { id:'--text-0', label:'Text — brightest (the “white”)', type:'color', def:'#dadadf' },
+      { id:'--text-1', label:'Text — bright (body/nav)',       type:'color', def:'#c8c8cd' },
+      { id:'--text-2', label:'Text — muted (titles/meta)',     type:'color', def:'#8a8a92' },
+      { id:'--text-3', label:'Text — dim (timestamps)',        type:'color', def:'#9099a4' },
+      { id:'--border', label:'Border — soft (dividers)',       type:'color', def:'#2a2a2f' },
+      { id:'--border-strong', label:'Border — strong (cards)', type:'color', def:'#34343b' },
+      { id:'--accent', label:'Accent',                          type:'color', def:'#f5a623' },
+      { id:'--divider-pct', label:'Row divider strength',      min:0, max:100, step:5, unit:'%', def:'40' },
+    ]},
+    { group: 'Spacing & layout', items: [
+      { id:'--card-header-h', label:'Card header height',        min:28, max:56, step:1, unit:'px', def:'40' },
+      { id:'--card-gutter',   label:'Inner gutter (text ↔ edge)',min:6,  max:24, step:1, unit:'px', def:'12' },
+      { id:'--row-py',        label:'Row vertical padding',      min:2,  max:14, step:1, unit:'px', def:'6' },
+      { id:'--ctrl-py',       label:'Tasks controls-row padding',min:2,  max:16, step:1, unit:'px', def:'8' },
+    ]},
+    { group: 'Explorer rail', items: [
+      { id:'--rail-header-h',     label:'Rail header height', min:28, max:56, step:1, unit:'px', def:'40' },
+      { id:'--rail-indent',       label:'Item indent',        min:0,  max:28, step:1, unit:'px', def:'12' },
+      { id:'--rail-indent-child', label:'Terminal indent',    min:8,  max:48, step:1, unit:'px', def:'32' },
+    ]},
+  ];
+
+  const preview = document.getElementById('preview');
+  const STORE = 'rokki-design-lab-v1';
+  const flat = KNOBS.flatMap(g => g.items);
+  const defaults = Object.fromEntries(flat.map(k => [k.id, k.def]));
+  let state = { ...defaults };
+
+  try { const s = JSON.parse(localStorage.getItem(STORE) || '{}'); state = { ...state, ...s }; } catch (e) {}
+
+  function valueOf(k) { // returns the CSS value string (with unit)
+    const raw = state[k.id];
+    if (k.type === 'color') return raw;
+    return (k.unit ? raw + k.unit : raw);
+  }
+  function applyAll() { flat.forEach(k => preview.style.setProperty(k.id, valueOf(k))); }
+  function save() { localStorage.setItem(STORE, JSON.stringify(state)); }
+
+  // Build controls
+  const controls = document.getElementById('controls');
+  KNOBS.forEach(group => {
+    const g = document.createElement('div'); g.className = 'group';
+    const h = document.createElement('h2'); h.textContent = group.group; g.appendChild(h);
+    group.items.forEach(k => {
+      const wrap = document.createElement('div'); wrap.className = 'knob';
+      if (k.type === 'color') {
+        wrap.innerHTML =
+          '<div class="lab"><span>' + k.label + '</span></div>' +
+          '<div class="colorrow">' +
+            '<input type="color" data-id="' + k.id + '" data-kind="color" value="' + state[k.id] + '">' +
+            '<input type="text" class="hex" data-id="' + k.id + '" data-kind="hex" value="' + state[k.id] + '">' +
+          '</div>';
+      } else {
+        wrap.innerHTML =
+          '<div class="lab"><span>' + k.label + '</span><span class="val" id="v' + cssId(k.id) + '">' + state[k.id] + (k.unit||'') + '</span></div>' +
+          '<input type="range" data-id="' + k.id + '" data-kind="range" min="' + k.min + '" max="' + k.max + '" step="' + k.step + '" value="' + state[k.id] + '">';
+      }
+      g.appendChild(wrap);
+    });
+    controls.appendChild(g);
+  });
+
+  function cssId(id){ return id.replace(/[^a-z0-9]/gi,''); }
+
+  controls.addEventListener('input', e => {
+    const t = e.target; const id = t.dataset.id; if (!id) return;
+    const k = flat.find(x => x.id === id);
+    if (t.dataset.kind === 'range') {
+      state[id] = t.value;
+      const v = document.getElementById('v' + cssId(id)); if (v) v.textContent = t.value + (k.unit||'');
+    } else if (t.dataset.kind === 'color') {
+      state[id] = t.value;
+      const hex = controls.querySelector('input[data-kind=hex][data-id="' + id + '"]'); if (hex) hex.value = t.value;
+    } else if (t.dataset.kind === 'hex') {
+      if (!/^#[0-9a-f]{6}$/i.test(t.value)) return;
+      state[id] = t.value;
+      const col = controls.querySelector('input[data-kind=color][data-id="' + id + '"]'); if (col) col.value = t.value;
+    }
+    preview.style.setProperty(id, valueOf(k));
+    save();
+  });
+
+  // Reset
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    state = { ...defaults }; save(); applyAll();
+    controls.querySelectorAll('input').forEach(inp => {
+      const id = inp.dataset.id, k = flat.find(x => x.id === id);
+      if (inp.dataset.kind === 'range') { inp.value = state[id]; const v = document.getElementById('v'+cssId(id)); if (v) v.textContent = state[id]+(k.unit||''); }
+      else { inp.value = state[id]; }
+    });
+  });
+
+  // Export
+  const overlay = document.getElementById('overlay');
+  document.getElementById('exportBtn').addEventListener('click', () => {
+    const changed = flat.filter(k => state[k.id] !== k.def);
+    const lines = changed.map(k => '  ' + k.id + ': ' + valueOf(k) + '   (was ' + (k.unit ? k.def + k.unit : k.def) + ')  — ' + k.label);
+    let out;
+    if (!changed.length) {
+      out = 'No changes yet — everything matches the current app.';
+    } else {
+      out = 'ROKKI DESIGN LAB — tokens to apply (' + changed.length + ' changed):\n\n' + lines.join('\n')
+          + '\n\nJSON:\n' + JSON.stringify(Object.fromEntries(changed.map(k => [k.id, valueOf(k)])), null, 2);
+    }
+    document.getElementById('exportText').value = out;
+    document.getElementById('copyNote').textContent = '';
+    overlay.classList.add('on');
+  });
+  document.getElementById('closeModal').addEventListener('click', () => overlay.classList.remove('on'));
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('on'); });
+  document.getElementById('copyBtn').addEventListener('click', async () => {
+    const ta = document.getElementById('exportText'); ta.select();
+    try { await navigator.clipboard.writeText(ta.value); document.getElementById('copyNote').textContent = 'Copied ✓'; }
+    catch (e) { document.execCommand('copy'); document.getElementById('copyNote').textContent = 'Copied ✓'; }
+  });
+
+  applyAll();
+</script>
+</body>
+</html>

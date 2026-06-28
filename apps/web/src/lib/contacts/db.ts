@@ -34,6 +34,10 @@ export interface ContactSocial {
   kind: string; // linkedin|instagram|x|facebook|website|...
   value: string;
 }
+export interface ContactFamilyMember {
+  name: string;
+  relation?: string; // spouse|child|parent|sibling|partner|assistant|...
+}
 
 export interface ContactRow {
   id: string;
@@ -50,8 +54,9 @@ export interface ContactRow {
   contact_types: string[];
   tags: string[];
   title: string | null;
-  firm: string | null;
+  company: string | null;
   license_no: string | null;
+  birthday: string | null;
   strength: number;
   source: string | null;
   status: "active" | "archived";
@@ -61,6 +66,7 @@ export interface ContactRow {
   phones: ContactPhone[];
   addresses: ContactAddress[];
   socials: ContactSocial[];
+  family: ContactFamilyMember[];
   primary_email: string | null;
   primary_phone: string | null;
   custom: Record<string, unknown>;
@@ -98,7 +104,7 @@ export interface InteractionRow {
 
 /** Columns a contact card needs in a list (keeps payloads lean). */
 export const CONTACT_LIST_COLUMNS =
-  "id, first_name, last_name, nickname, avatar_url, contact_types, tags, firm, " +
+  "id, first_name, last_name, nickname, avatar_url, contact_types, tags, company, " +
   "title, primary_email, primary_phone, status, strength, user_id, updated_at";
 
 /**

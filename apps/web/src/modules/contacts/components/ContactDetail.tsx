@@ -1,23 +1,52 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, Phone, Pencil, Archive, X, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import type { ContactRow } from "@/lib/contacts/db";
 import {
-  getContact,
-  updateContact,
-  archiveContact,
-} from "../lib/client-api";
+  Mail,
+  Phone,
+  MapPin,
+  Cake,
+  Users,
+  Link as LinkIcon,
+  Pencil,
+  Archive,
+  X,
+  Loader2,
+} from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import type { ContactRow, ContactAddress } from "@/lib/contacts/db";
+import { timeAgo, formatBirthday } from "@/lib/contacts/format";
+import { getContact, updateContact, archiveContact } from "../lib/client-api";
 import { ContactForm } from "./ContactForm";
 
-function initials(c: { first_name?: string | null; last_name?: string | null; nickname?: string | null }) {
+function initials(c: {
+  first_name?: string | null;
+  last_name?: string | null;
+  nickname?: string | null;
+}) {
   const a = (c.first_name ?? c.nickname ?? "").trim()[0] ?? "";
   const b = (c.last_name ?? "").trim()[0] ?? "";
   return (a + b).toUpperCase() || "?";
 }
 
-/** Detail drawer for one contact — read view with inline edit + archive. */
+function formatAddress(a: ContactAddress): string {
+  const cityLine = [a.city, a.state].filter(Boolean).join(", ");
+  return [a.line1, a.line2, [cityLine, a.postal].filter(Boolean).join(" "), a.country]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function mapsHref(a: ContactAddress): string {
+  const q = [a.line1, a.line2, a.city, a.state, a.postal, a.country]
+    .filter(Boolean)
+    .join(", ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
+}
+
+const sectionLabel =
+  "text-[10px] font-semibold uppercase tracking-wide text-text-3";
+
+/** Detail drawer for one contact — full read view with inline edit + archive. */
 export function ContactDetail({
   contactId,
   onClose,
@@ -73,12 +102,12 @@ export function ContactDetail({
     }
   }
 
-  const email = contact?.primary_email ?? contact?.emails?.[0]?.email ?? null;
-  const phone = contact?.primary_phone ?? contact?.phones?.[0]?.phone ?? null;
-  const fullName = [contact?.first_name, contact?.last_name]
-    .filter(Boolean)
-    .join(" ")
-    .trim();
+  const fullName = contact
+    ? [contact.prefix, contact.first_name, contact.middle_name, contact.last_name, contact.suffix]
+        .filter(Boolean)
+        .join(" ")
+        .trim()
+    : "";
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -114,17 +143,30 @@ export function ContactDetail({
           />
         ) : (
           <div className="flex flex-col gap-3">
+            {/* Header */}
             <div className="flex items-center gap-3">
-              <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 font-mono text-sm text-text-1">
-                {initials(contact)}
-              </span>
+              {contact.avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={contact.avatar_url}
+                  alt=""
+                  className="h-14 w-14 flex-shrink-0 rounded-full object-cover"
+                />
+              ) : (
+                <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 font-mono text-sm text-text-1">
+                  {initials(contact)}
+                </span>
+              )}
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-text-0">
-                  {contact.nickname || fullName || "Unnamed"}
+                  {fullName || contact.nickname || "Unnamed"}
                 </div>
-                {(contact.title || contact.firm) && (
+                {contact.nickname && fullName && (
+                  <div className="truncate text-xs text-text-3">“{contact.nickname}”</div>
+                )}
+                {(contact.title || contact.company) && (
                   <div className="truncate text-xs text-text-2">
-                    {[contact.title, contact.firm].filter(Boolean).join(" · ")}
+                    {[contact.title, contact.company].filter(Boolean).join(" · ")}
                   </div>
                 )}
               </div>
@@ -143,21 +185,103 @@ export function ContactDetail({
               </div>
             )}
 
-            {email && (
-              <a
-                href={`mailto:${email}`}
-                className="flex items-center gap-2 text-xs text-text-1 hover:text-text-0"
-              >
-                <Mail className="h-3.5 w-3.5 text-text-3" /> {email}
-              </a>
+            {/* Emails */}
+            {contact.emails.length > 0 && (
+              <Section label="Email">
+                {contact.emails.map((e, i) => (
+                  <a
+                    key={i}
+                    href={`mailto:${e.email}`}
+                    className="flex items-center gap-2 text-xs text-text-1 hover:text-text-0"
+                  >
+                    <Mail className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
+                    <span className="truncate">{e.email}</span>
+                    {e.label && <Tag>{e.label}</Tag>}
+                  </a>
+                ))}
+              </Section>
             )}
-            {phone && (
-              <a
-                href={`tel:${phone}`}
-                className="flex items-center gap-2 text-xs text-text-1 hover:text-text-0"
-              >
-                <Phone className="h-3.5 w-3.5 text-text-3" /> {phone}
-              </a>
+
+            {/* Phones */}
+            {contact.phones.length > 0 && (
+              <Section label="Phone">
+                {contact.phones.map((p, i) => (
+                  <a
+                    key={i}
+                    href={`tel:${p.phone}`}
+                    className="flex items-center gap-2 text-xs text-text-1 hover:text-text-0"
+                  >
+                    <Phone className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
+                    <span className="truncate">{p.phone}</span>
+                    {p.label && <Tag>{p.label}</Tag>}
+                  </a>
+                ))}
+              </Section>
+            )}
+
+            {/* Birthday */}
+            {contact.birthday && (
+              <Section label="Birthday">
+                <div className="flex items-center gap-2 text-xs text-text-1">
+                  <Cake className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
+                  {formatBirthday(contact.birthday)}
+                </div>
+              </Section>
+            )}
+
+            {/* Addresses */}
+            {contact.addresses.length > 0 && (
+              <Section label="Addresses">
+                {contact.addresses.map((a, i) => (
+                  <a
+                    key={i}
+                    href={mapsHref(a)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-2 text-xs text-text-1 hover:text-text-0"
+                  >
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-text-3" />
+                    <span className="min-w-0">
+                      {a.label && <Tag>{a.label}</Tag>}
+                      <span className="block whitespace-pre-wrap">{formatAddress(a)}</span>
+                    </span>
+                  </a>
+                ))}
+              </Section>
+            )}
+
+            {/* Family */}
+            {contact.family.length > 0 && (
+              <Section label="Family & relationships">
+                {contact.family.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-text-1">
+                    <Users className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
+                    <span className="truncate">{f.name}</span>
+                    {f.relation && <Tag>{f.relation}</Tag>}
+                  </div>
+                ))}
+              </Section>
+            )}
+
+            {/* Socials */}
+            {contact.socials.length > 0 && (
+              <Section label="Social & web">
+                {contact.socials.map((s, i) => (
+                  <a
+                    key={i}
+                    href={
+                      s.value.startsWith("http") ? s.value : `https://${s.value}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-xs text-text-1 hover:text-text-0"
+                  >
+                    <LinkIcon className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
+                    <span className="truncate">{s.value}</span>
+                    <Tag>{s.kind}</Tag>
+                  </a>
+                ))}
+              </Section>
             )}
 
             {contact.tags.length > 0 && (
@@ -176,17 +300,37 @@ export function ContactDetail({
               </p>
             )}
 
-            <div className="mt-2 flex gap-2 border-t border-border/40 pt-3">
+            <div className="mt-1 flex items-center gap-2 border-t border-border/40 pt-3">
               <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
                 <Pencil className="h-3 w-3" /> Edit
               </Button>
               <Button size="sm" variant="ghost" onClick={archive} disabled={busy}>
                 <Archive className="h-3 w-3" /> Archive
               </Button>
+              <span className="ml-auto text-2xs text-text-3">
+                Updated {timeAgo(contact.updated_at, Date.now())}
+              </span>
             </div>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className={sectionLabel}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function Tag({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="ml-1 rounded-sm bg-bg-3 px-1 py-px text-[9px] uppercase tracking-wide text-text-3">
+      {children}
+    </span>
   );
 }
