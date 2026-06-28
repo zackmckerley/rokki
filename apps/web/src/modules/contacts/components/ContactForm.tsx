@@ -42,10 +42,12 @@ const sectionLabel =
 interface EmailRow {
   label: string;
   email: string;
+  primary?: boolean;
 }
 interface PhoneRow {
   label: string;
   phone: string;
+  primary?: boolean;
 }
 
 interface FormState {
@@ -88,11 +90,11 @@ function fromContact(c?: Partial<ContactRow>): FormState {
     contact_types: c?.contact_types ?? [],
     tags: c?.tags ?? [],
     emails: seed(
-      c?.emails?.map((e) => ({ label: e.label ?? "", email: e.email })),
+      c?.emails?.map((e) => ({ label: e.label ?? "", email: e.email, primary: e.primary })),
       () => ({ label: "", email: "" }),
     ),
     phones: seed(
-      c?.phones?.map((p) => ({ label: p.label ?? "", phone: p.phone })),
+      c?.phones?.map((p) => ({ label: p.label ?? "", phone: p.phone, primary: p.primary })),
       () => ({ label: "", phone: "" }),
     ),
     addresses: c?.addresses ?? [],
@@ -182,22 +184,27 @@ export function ContactForm({
 
   // ── submit ────────────────────────────────────────────────────────
   function submit() {
-    const emails = v.emails
+    // Preserve whichever row is flagged primary (a contact imported via API/MCP
+    // may have its primary in a row other than the first). Only fall back to
+    // "first row wins" when no row carries the flag.
+    const emailRows = v.emails
       .map((e) => ({ ...e, email: e.email.trim() }))
-      .filter((e) => e.email)
-      .map((e, i) => ({
-        email: e.email,
-        label: e.label || undefined,
-        primary: i === 0,
-      }));
-    const phones = v.phones
+      .filter((e) => e.email);
+    const emailPrimary = emailRows.findIndex((e) => e.primary);
+    const emails = emailRows.map((e, i) => ({
+      email: e.email,
+      label: e.label || undefined,
+      primary: emailPrimary === -1 ? i === 0 : i === emailPrimary,
+    }));
+    const phoneRows = v.phones
       .map((p) => ({ ...p, phone: p.phone.trim() }))
-      .filter((p) => p.phone)
-      .map((p, i) => ({
-        phone: p.phone,
-        label: p.label || undefined,
-        primary: i === 0,
-      }));
+      .filter((p) => p.phone);
+    const phonePrimary = phoneRows.findIndex((p) => p.primary);
+    const phones = phoneRows.map((p, i) => ({
+      phone: p.phone,
+      label: p.label || undefined,
+      primary: phonePrimary === -1 ? i === 0 : i === phonePrimary,
+    }));
     const addresses = v.addresses.filter(
       (a) => a.line1 || a.city || a.state || a.postal,
     );
@@ -410,7 +417,7 @@ export function ContactForm({
               value={row.email}
               onChange={(e) => set("emails", patchAt(v.emails, i, { email: e.target.value }))}
             />
-            <RemoveBtn onClick={() => set("emails", seed(removeAt(v.emails, i), () => ({ label: "", email: "" })))} />
+            <RemoveBtn onClick={() => set("emails", removeAt(v.emails, i))} />
           </div>
         ))}
         <AddBtn label="Add email" onClick={() => set("emails", [...v.emails, { label: "", email: "" }])} />
@@ -438,7 +445,7 @@ export function ContactForm({
               value={row.phone}
               onChange={(e) => set("phones", patchAt(v.phones, i, { phone: e.target.value }))}
             />
-            <RemoveBtn onClick={() => set("phones", seed(removeAt(v.phones, i), () => ({ label: "", phone: "" })))} />
+            <RemoveBtn onClick={() => set("phones", removeAt(v.phones, i))} />
           </div>
         ))}
         <AddBtn label="Add phone" onClick={() => set("phones", [...v.phones, { label: "", phone: "" }])} />

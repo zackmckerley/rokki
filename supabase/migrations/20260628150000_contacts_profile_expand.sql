@@ -25,9 +25,19 @@ ALTER TABLE contacts ADD COLUMN family JSONB NOT NULL DEFAULT '[]'::jsonb;
 -- URL. Keys are `<userId>/<uuid>.<ext>` — unguessable + owner-prefixed, so the
 -- write policies below pin every mutation to its owner.
 -- ───────────────────────────────────────────────────────────────────
-INSERT INTO storage.buckets (id, name, public)
-VALUES ('contact-avatars', 'contact-avatars', true)
-ON CONFLICT (id) DO NOTHING;
+-- file_size_limit + allowed_mime_types enforce the ceiling and the image
+-- allowlist at the STORAGE layer, so a client can't bypass the API route by
+-- POSTing directly to its own avatar key. SVG is deliberately excluded (it's
+-- the stored-XSS vector for an <img>-hosted bucket).
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+  'contact-avatars', 'contact-avatars', true, 8388608,
+  ARRAY['image/jpeg','image/png','image/webp','image/gif','image/heic','image/heif']
+)
+ON CONFLICT (id) DO UPDATE SET
+  public = EXCLUDED.public,
+  file_size_limit = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 DROP POLICY IF EXISTS "contact_avatars_owner_write" ON storage.objects;
 CREATE POLICY "contact_avatars_owner_write" ON storage.objects
