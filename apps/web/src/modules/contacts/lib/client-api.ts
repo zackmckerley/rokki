@@ -91,6 +91,32 @@ export const updateContact = (id: string, patch: Partial<ContactRow>) =>
 export const archiveContact = (id: string) =>
   req<void>(`${B}/${encodeURIComponent(id)}`, { method: "DELETE" });
 
+export interface LinkSuggestion {
+  contact_id: string;
+  user_id: string;
+  name: string;
+  email: string | null;
+}
+
+/** Contacts whose email matches a Rokki account you don't share a space with. */
+export const getLinkSuggestions = () =>
+  req<{ suggestions: LinkSuggestion[] }>(`${B}/link-suggestions`).then(
+    (d) => d.suggestions,
+  );
+
+/** Link a contact to a Rokki account (server re-verifies the email match). */
+export const linkContact = (id: string, userId: string) =>
+  req<{ contact: ContactRow }>(`${B}/${encodeURIComponent(id)}/link`, {
+    method: "POST",
+    body: JSON.stringify({ user_id: userId }),
+  }).then((d) => d.contact);
+
+/** Remove a contact's Rokki-account link. */
+export const unlinkContact = (id: string) =>
+  req<{ contact: ContactRow }>(`${B}/${encodeURIComponent(id)}/link`, {
+    method: "DELETE",
+  }).then((d) => d.contact);
+
 /**
  * Upload a profile picture and get back its public URL. Multipart, so it
  * bypasses the JSON `req` helper. The caller saves the returned URL on the

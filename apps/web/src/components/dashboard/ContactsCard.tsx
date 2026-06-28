@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search, Users, X, Loader2, Archive } from "lucide-react";
+import { Plus, Search, Users, X, Loader2, Archive, Link2, Unlink } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DashboardCard } from "./DashboardCard";
 import type { ContactRow } from "@/lib/contacts/db";
@@ -11,8 +11,12 @@ import {
   updateContact,
   getContact,
   archiveContact,
+  getLinkSuggestions,
+  linkContact,
+  unlinkContact,
   type ContactListItem,
   type DuplicateHit,
+  type LinkSuggestion,
 } from "@/modules/contacts/lib/client-api";
 import { ContactForm } from "@/modules/contacts/components/ContactForm";
 
@@ -92,6 +96,44 @@ export function ContactsCard() {
   const [editBusy, setEditBusy] = useState(false);
   const [editErr, setEditErr] = useState<string | null>(null);
 
+  // Rokki-user link suggestions (email matches an account you don't share a space with).
+  const [suggestions, setSuggestions] = useState<LinkSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  function loadSuggestions() {
+    getLinkSuggestions()
+      .then(setSuggestions)
+      .catch(() => setSuggestions([]));
+  }
+  useEffect(() => {
+    loadSuggestions();
+  }, []);
+
+  async function acceptSuggestion(s: LinkSuggestion) {
+    try {
+      await linkContact(s.contact_id, s.user_id);
+      setSuggestions((prev) => prev.filter((x) => x.contact_id !== s.contact_id));
+      await refresh();
+    } catch {
+      /* leave the suggestion in place on failure */
+    }
+  }
+
+  async function unlink() {
+    if (!editId) return;
+    setEditBusy(true);
+    try {
+      const updated = await unlinkContact(editId);
+      setEditContact(updated);
+      await refresh();
+      loadSuggestions();
+    } catch (e) {
+      setEditErr(e instanceof Error ? e.message : "Could not unlink");
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
   // Debounced load on mount + search change.
   useEffect(() => {
     let alive = true;
@@ -138,6 +180,7 @@ export function ContactsCard() {
       }
       closeCreate();
       await refresh();
+      loadSuggestions();
     } catch (e) {
       setCreateErr(e instanceof Error ? e.message : "Could not create");
     } finally {
@@ -166,6 +209,7 @@ export function ContactsCard() {
       await updateContact(editId, patch);
       closeEdit();
       await refresh();
+      loadSuggestions();
     } catch (e) {
       setEditErr(e instanceof Error ? e.message : "Could not save");
     } finally {
@@ -224,6 +268,38 @@ export function ContactsCard() {
         </div>
       </div>
 
+      {/* Rokki-link suggestions */}
+      {suggestions.length > 0 && (
+        <div className="flex-shrink-0 border-b border-border/60 bg-bg-2/40">
+          <button
+            type="button"
+            onClick={() => setShowSuggestions((s) => !s)}
+            className="flex w-full items-center gap-1.5 px-3 py-1.5 text-2xs text-text-2 hover:text-text-0"
+          >
+            <Link2 className="h-3 w-3 text-accent" aria-hidden="true" />
+            {suggestions.length}{" "}
+            {suggestions.length === 1 ? "contact is" : "contacts are"} on Rokki
+            <span className="ml-auto text-text-3">
+              {showSuggestions ? "Hide" : "Review"}
+            </span>
+          </button>
+          {showSuggestions && (
+            <ul className="divide-y divide-border/20 pb-1">
+              {suggestions.map((s) => (
+                <li key={s.contact_id} className="flex items-center gap-2 px-3 py-1.5">
+                  <span className="min-w-0 flex-1 truncate text-xs text-text-1">
+                    {s.name}
+                  </span>
+                  <Button size="sm" variant="ghost" onClick={() => acceptSuggestion(s)}>
+                    <Link2 className="h-3 w-3" /> Link
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* List */}
       {loading ? (
         <div className="flex flex-1 items-center justify-center py-8 text-text-3">
@@ -265,6 +341,11 @@ export function ContactsCard() {
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-medium text-text-0">
                     {rowName(c)}
+                    {c.user_id && (
+                      <span className="ml-1 inline-block rounded-sm bg-accent/15 px-1 py-px align-middle text-[9px] font-semibold uppercase tracking-wide text-accent">
+                        Rokki
+                      </span>
+                    )}
                   </span>
                   {(c.company || c.title) && (
                     <span className="block truncate text-2xs text-text-3">
@@ -344,10 +425,24 @@ export function ContactsCard() {
                 onCancel={closeEdit}
                 onSubmit={saveEdit}
               />
-              <div className="flex justify-end border-t border-border/40 pt-2">
-                <Button size="sm" variant="ghost" onClick={archive} disabled={editBusy}>
-                  <Archive className="h-3 w-3" /> Archive
-                </Button>
+              <div className="flex items-center justify-between border-t border-border/40 pt-2">
+                {editContact.user_id ? (
+                  <span className="flex items-center gap-1 text-2xs text-accent">
+                    <Link2 className="h-3 w-3" /> Linked to Rokki
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <div className="flex gap-2">
+                  {editContact.user_id && (
+                    <Button size="sm" variant="ghost" onClick={unlink} disabled={editBusy}>
+                      <Unlink className="h-3 w-3" /> Unlink
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={archive} disabled={editBusy}>
+                    <Archive className="h-3 w-3" /> Archive
+                  </Button>
+                </div>
               </div>
             </div>
           )}
