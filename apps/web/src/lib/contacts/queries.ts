@@ -43,11 +43,15 @@ export interface ContactInput {
   user_id?: string | null;
 }
 
+// NOTE: `user_id` (the Rokki-account link) is intentionally NOT writable here —
+// it's set only via the verified link_contact_to_user / unlink RPCs (see
+// 20260628160000_contacts_user_linking.sql), so a client can't forge a link to
+// an arbitrary account.
 const WRITABLE: (keyof ContactInput)[] = [
   "first_name", "middle_name", "last_name", "prefix", "suffix", "nickname",
   "avatar_url", "contact_types", "tags", "title", "company", "license_no",
   "birthday", "strength", "source", "status", "do_not_contact", "notes",
-  "emails", "phones", "addresses", "socials", "family", "custom", "user_id",
+  "emails", "phones", "addresses", "socials", "family", "custom",
 ];
 
 /** Strip everything except the writable fields (never trust client owner_id/id). */
