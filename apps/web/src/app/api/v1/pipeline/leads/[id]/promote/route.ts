@@ -21,7 +21,7 @@ async function handlePost(_request: NextRequest, { params }: Props) {
   if (!user) return unauthorized();
   const { id } = await params;
   try {
-    const result = await promoteLead(supabase, id, user.id);
+    const result = await promoteLead(supabase, id);
     return ok(result, 201);
   } catch (e) {
     return badRequest(e instanceof Error ? e.message : "Could not promote lead");

@@ -68,11 +68,12 @@ async function personalSpaceOf(userId: string): Promise<string> {
 describe("RLS — pipeline (pl_*)", () => {
   let spaceA: string; // a space userA belongs to and userB does not
   let spaceB: string;
+  let userA: string;
   let clientA: SupabaseClient;
   let clientB: SupabaseClient;
 
   beforeAll(async () => {
-    const userA = await ensureUser("pl-rls-a@rokki.local");
+    userA = await ensureUser("pl-rls-a@rokki.local");
     const userB = await ensureUser("pl-rls-b@rokki.local");
     spaceA = await personalSpaceOf(userA);
     spaceB = await personalSpaceOf(userB);
@@ -82,6 +83,7 @@ describe("RLS — pipeline (pl_*)", () => {
 
   let pipelineId: string;
   let leadId: string;
+  let contactId: string;
 
   it("a member can create a pipeline in their space", async () => {
     const { data, error } = await clientA
@@ -139,5 +141,74 @@ describe("RLS — pipeline (pl_*)", () => {
       .insert({ pipeline_id: pipelineId, space_id: spaceA, name: "intruder" });
     expect(error).toBeTruthy();
     expect(spaceB).toBeTruthy();
+  });
+
+  it("a member can link a contact to a lead", async () => {
+    const { data: c } = await admin
+      .from("contacts")
+      .insert({
+        owner_id: userA,
+        first_name: "Linked",
+        primary_email: "linked-pl@rokki.local",
+        emails: [{ email: "linked-pl@rokki.local", primary: true }],
+      })
+      .select("id")
+      .single();
+    contactId = (c as { id: string }).id;
+    const { error } = await clientA
+      .from("pl_lead_contacts")
+      .insert({ lead_id: leadId, contact_id: contactId, role: "owner" });
+    expect(error).toBeNull();
+  });
+
+  it("promote_lead_to_terminal creates the terminal, carries contacts, converts the lead", async () => {
+    const { data, error } = await clientA.rpc("promote_lead_to_terminal", {
+      p_lead_id: leadId,
+      p_ticker: "DEALX1",
+    });
+    expect(error).toBeNull();
+    const rows = (data ?? []) as { terminal_id: string }[];
+    expect(rows.length).toBe(1);
+    const terminalId = rows[0].terminal_id;
+
+    // terminal created in the lead's space
+    const { data: term } = await admin
+      .from("terminals")
+      .select("id, space_id, ticker")
+      .eq("id", terminalId)
+      .single();
+    expect((term as { space_id: string }).space_id).toBe(spaceA);
+
+    // the linked contact was carried onto the terminal
+    const { data: tc } = await admin
+      .from("terminal_contacts")
+      .select("contact_id")
+      .eq("terminal_id", terminalId);
+    expect((tc as { contact_id: string }[]).map((r) => r.contact_id)).toContain(contactId);
+
+    // the lead is now converted + points at the terminal
+    const { data: lead } = await admin
+      .from("pl_leads")
+      .select("status, promoted_terminal_id")
+      .eq("id", leadId)
+      .single();
+    expect((lead as { status: string }).status).toBe("converted");
+    expect((lead as { promoted_terminal_id: string }).promoted_terminal_id).toBe(terminalId);
+  });
+
+  it("promote is idempotent — a second promote is rejected", async () => {
+    const { error } = await clientA.rpc("promote_lead_to_terminal", {
+      p_lead_id: leadId,
+      p_ticker: "DEALX2",
+    });
+    expect(error).toBeTruthy();
+  });
+
+  it("a non-member cannot promote another space's lead", async () => {
+    const { error } = await clientB.rpc("promote_lead_to_terminal", {
+      p_lead_id: leadId,
+      p_ticker: "DEALX3",
+    });
+    expect(error).toBeTruthy();
   });
 });
