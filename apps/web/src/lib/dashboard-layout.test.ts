@@ -12,7 +12,7 @@ describe("movePanel", () => {
     const out = movePanel(DEFAULT_DASH_LAYOUT, "messages", "center", 1);
     expect(out).toEqual({
       center: ["week", "messages", "tasks"],
-      right: ["markets", "goals"],
+      right: ["markets", "goals", "contacts"],
     });
   });
 
@@ -41,7 +41,7 @@ describe("movePanel", () => {
 describe("normalizeLayout", () => {
   it("returns the default-shaped layout when given nothing", () => {
     expect(normalizeLayout(null)).toEqual({
-      center: ["week", "tasks", "messages", "markets", "goals"],
+      center: ["week", "tasks", "messages", "markets", "goals", "contacts"],
       right: [],
     });
   });
@@ -56,7 +56,7 @@ describe("normalizeLayout", () => {
       right: ["messages", "tasks", "messages"],
     });
     expect(out).toEqual({
-      center: ["week", "markets", "goals"],
+      center: ["week", "markets", "goals", "contacts"],
       right: ["messages", "tasks"],
     });
   });
@@ -65,6 +65,7 @@ describe("normalizeLayout", () => {
     const out = normalizeLayout({ center: ["tasks"], right: ["messages"] });
     expect(out.center).toContain("week");
     expect(flattenLayout(out).sort()).toEqual([
+      "contacts",
       "goals",
       "markets",
       "messages",

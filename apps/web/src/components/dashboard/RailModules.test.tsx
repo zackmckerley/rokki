@@ -53,7 +53,7 @@ describe("RailModules", () => {
       </ModuleVisibilityProvider>,
     );
     const labels = screen.getAllByRole("button").map((b) => b.textContent);
-    expect(labels).toEqual(["Messages", "Tasks", "Schedule", "Markets", "Goals"]);
+    expect(labels).toEqual(["Messages", "Tasks", "Schedule", "Markets", "Goals", "Contacts"]);
   });
 
   it("does not render hidden modules", () => {
@@ -84,7 +84,7 @@ describe("RailModules", () => {
   });
 
   it("renders the all-hidden hint when every module is hidden", () => {
-    seed({ hidden: ["week", "tasks", "messages", "markets", "goals"] });
+    seed({ hidden: ["week", "tasks", "messages", "markets", "goals", "contacts"] });
     render(
       <ModuleVisibilityProvider>
         <RailModules />
