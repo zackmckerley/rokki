@@ -88,6 +88,7 @@ describe("contacts ↔ user linking", () => {
   let clientA: SupabaseClient;
   let contactForB: string; // A's contact whose email == B (will share a space)
   let contactForC: string; // A's contact whose email == C (no shared space)
+  let contactNoMatch: string; // A's contact whose email has no Rokki account
 
   beforeAll(async () => {
     userA = await ensureUser(EA);
@@ -97,6 +98,7 @@ describe("contacts ↔ user linking", () => {
 
     contactForB = await insertContact(userA, "Bee", EB);
     contactForC = await insertContact(userA, "Cee", EC);
+    contactNoMatch = await insertContact(userA, "Ghost", "ghost-noacct@rokki.local");
 
     // A shared (non-personal) space A + B both belong to. Fresh slug per run.
     const slug = `link-test-${Math.random().toString(36).slice(2, 8)}`;
@@ -121,34 +123,43 @@ describe("contacts ↔ user linking", () => {
     expect(await userIdOf(contactForC)).toBeNull();
   });
 
-  it("surfaces the unlinked email-match as a suggestion (only for the owner)", async () => {
+  it("suggests the unlinked email-match — contact id only, no account UUID leaked", async () => {
     const { data, error } = await clientA.rpc("contact_link_suggestions");
     expect(error).toBeNull();
-    const rows = (data ?? []) as { contact_id: string; user_id: string }[];
+    const rows = (data ?? []) as Record<string, unknown>[];
     const hitC = rows.find((r) => r.contact_id === contactForC);
-    expect(hitC?.user_id).toBe(userC);
+    expect(hitC).toBeDefined();
+    // The matched account id is never returned (no enumeration oracle).
+    expect(hitC && "user_id" in hitC).toBe(false);
     // The already-linked contactForB must not appear.
     expect(rows.find((r) => r.contact_id === contactForB)).toBeUndefined();
   });
 
-  it("refuses to link to an account whose email doesn't match (forge-block)", async () => {
-    const { data } = await clientA.rpc("link_contact_to_user", {
+  it("links a contact to its matching account by email, then unlinks", async () => {
+    const { data: linked } = await clientA.rpc("link_contact_by_email", {
       p_contact_id: contactForC,
-      p_user_id: userB, // wrong user — C's email != B's email
-    });
-    expect(data).toBe(false);
-    expect(await userIdOf(contactForC)).toBeNull();
-  });
-
-  it("links on a verified email match, then unlinks", async () => {
-    const { data: linked } = await clientA.rpc("link_contact_to_user", {
-      p_contact_id: contactForC,
-      p_user_id: userC,
     });
     expect(linked).toBe(true);
     expect(await userIdOf(contactForC)).toBe(userC);
 
     await clientA.rpc("unlink_contact", { p_contact_id: contactForC });
     expect(await userIdOf(contactForC)).toBeNull();
+  });
+
+  it("returns false when no Rokki account matches the contact's email", async () => {
+    const { data } = await clientA.rpc("link_contact_by_email", {
+      p_contact_id: contactNoMatch,
+    });
+    expect(data).toBe(false);
+    expect(await userIdOf(contactNoMatch)).toBeNull();
+  });
+
+  it("blocks a client from setting user_id directly (DB guard — not just app code)", async () => {
+    const { error } = await clientA
+      .from("contacts")
+      .update({ user_id: userB })
+      .eq("id", contactNoMatch);
+    expect(error).toBeTruthy(); // guard trigger raises for the authenticated role
+    expect(await userIdOf(contactNoMatch)).toBeNull();
   });
 });

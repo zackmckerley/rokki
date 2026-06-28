@@ -93,7 +93,6 @@ export const archiveContact = (id: string) =>
 
 export interface LinkSuggestion {
   contact_id: string;
-  user_id: string;
   name: string;
   email: string | null;
 }
@@ -104,11 +103,10 @@ export const getLinkSuggestions = () =>
     (d) => d.suggestions,
   );
 
-/** Link a contact to a Rokki account (server re-verifies the email match). */
-export const linkContact = (id: string, userId: string) =>
+/** Link a contact to the Rokki account its email resolves to (server-side). */
+export const linkContact = (id: string) =>
   req<{ contact: ContactRow }>(`${B}/${encodeURIComponent(id)}/link`, {
     method: "POST",
-    body: JSON.stringify({ user_id: userId }),
   }).then((d) => d.contact);
 
 /** Remove a contact's Rokki-account link. */

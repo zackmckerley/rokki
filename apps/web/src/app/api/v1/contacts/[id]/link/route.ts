@@ -1,20 +1,22 @@
 import { type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { withObservability } from "@/lib/observability";
-import { ok, unauthorized, badRequest } from "@/lib/contacts/api";
+import { ok, unauthorized, badRequest, errResponse } from "@/lib/contacts/api";
 import { getContact } from "@/lib/contacts/queries";
 import { contactsDb } from "@/lib/contacts/db";
+import { rateLimitCheck } from "@/lib/ratelimit";
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
 /**
- * POST /api/v1/contacts/:id/link  { user_id }
+ * POST /api/v1/contacts/:id/link
  *
- * Link a contact to a Rokki account. The DB function only succeeds when the
- * contact's primary_email actually matches the account's email, so a client
- * can't forge a link to an arbitrary user. Returns the updated contact.
+ * Link the caller's contact to whatever confirmed Rokki account its email
+ * resolves to. No body — the server picks the account by email, so the client
+ * never supplies or learns an account id (nothing to forge, no id oracle).
+ * Rate-limited to blunt bulk email-probing.
  */
 async function handlePost(request: NextRequest, { params }: Props) {
   const supabase = await createClient();
@@ -23,22 +25,21 @@ async function handlePost(request: NextRequest, { params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) return unauthorized();
 
-  const { id } = await params;
-  let body: { user_id?: string };
-  try {
-    body = (await request.json()) as { user_id?: string };
-  } catch {
-    return badRequest("Invalid JSON body");
-  }
-  if (!body.user_id) return badRequest("user_id is required");
+  const rl = await rateLimitCheck({
+    bucket: "contacts_link",
+    token: user.id,
+    max: 30,
+    windowSeconds: 60,
+  });
+  if (!rl.ok) return errResponse("rate_limited", "Too many link attempts", 429);
 
-  const { data, error } = await contactsDb(supabase).rpc("link_contact_to_user", {
+  const { id } = await params;
+  const { data, error } = await contactsDb(supabase).rpc("link_contact_by_email", {
     p_contact_id: id,
-    p_user_id: body.user_id,
   });
   if (error) return badRequest(error.message);
   if (data !== true) {
-    return badRequest("That account's email doesn't match this contact");
+    return badRequest("No Rokki account matches this contact's email");
   }
   const contact = await getContact(supabase, user.id, id);
   return ok({ contact });

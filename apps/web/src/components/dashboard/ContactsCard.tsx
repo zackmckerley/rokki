@@ -111,7 +111,7 @@ export function ContactsCard() {
 
   async function acceptSuggestion(s: LinkSuggestion) {
     try {
-      await linkContact(s.contact_id, s.user_id);
+      await linkContact(s.contact_id);
       setSuggestions((prev) => prev.filter((x) => x.contact_id !== s.contact_id));
       await refresh();
     } catch {
