@@ -79,3 +79,34 @@ export const updatePipeline = (
     method: "PATCH",
     body: JSON.stringify(patch),
   }).then((d) => d.pipeline);
+
+export interface LeadContact {
+  contact_id: string;
+  role: string | null;
+  name: string;
+  email: string | null;
+}
+
+const leadBase = (id: string) => `${B}/leads/${encodeURIComponent(id)}`;
+
+export const getLeadContacts = (id: string) =>
+  req<{ contacts: LeadContact[] }>(`${leadBase(id)}/contacts`).then((d) => d.contacts);
+
+export const addLeadContact = (id: string, contactId: string, role?: string | null) =>
+  req<{ contacts: LeadContact[] }>(`${leadBase(id)}/contacts`, {
+    method: "POST",
+    body: JSON.stringify({ contact_id: contactId, role: role ?? null }),
+  }).then((d) => d.contacts);
+
+export const removeLeadContact = (id: string, contactId: string) =>
+  req<void>(`${leadBase(id)}/contacts?contact_id=${encodeURIComponent(contactId)}`, {
+    method: "DELETE",
+  });
+
+export interface PromoteResult {
+  terminal: { id: string; ticker: string; name: string };
+  lead_id: string;
+}
+
+export const promoteLead = (id: string) =>
+  req<PromoteResult>(`${leadBase(id)}/promote`, { method: "POST" });
