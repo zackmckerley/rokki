@@ -42,6 +42,34 @@ import { LeadForm } from "./LeadForm";
 const sectionLabel = "text-[10px] font-semibold uppercase tracking-wide text-text-3";
 const ROLES = ["", "seller", "broker", "attorney", "title", "lender", "partner", "other"];
 
+/** Compact "3d ago" / "just now" relative time; falls back to a date past ~30d. */
+function relTime(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  const diff = Date.now() - t;
+  const mins = Math.round(diff / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 30) return `${days}d ago`;
+  return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+/** "Jun 12, 2026" — used for the static "added" date. */
+function fmtDay(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "";
+  return new Date(t).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 /** Drawer for one lead — edit, linked contacts, promote-to-Terminal, and the
  *  dead/reopen/delete actions. */
 export function LeadDetail({
@@ -285,6 +313,17 @@ export function LeadDetail({
           <p className="text-xs text-text-3">{error ?? "Not found."}</p>
         ) : (
           <div className="flex flex-col gap-3">
+            {/* Provenance — how fresh is this lead? */}
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-text-3">
+              {lead.created_at && <span>Added {fmtDay(lead.created_at)}</span>}
+              {lead.last_activity_at && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span>Last activity {relTime(lead.last_activity_at)}</span>
+                </>
+              )}
+            </div>
+
             {/* Promote banner */}
             {(canPromote || alreadyTerminal) && (
               <div className="rounded border border-border bg-bg-2 p-2">

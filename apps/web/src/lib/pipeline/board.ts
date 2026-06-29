@@ -3,10 +3,39 @@
  * "going cold" / "follow-up due" rules. DOM/IO-free so it's unit-tested; the
  * React board consumes these.
  */
-import type { LeadRow, PipelineStage } from "./db";
+import type { LeadRow, PipelineStage, PipelineField } from "./db";
 
 export function defaultStageKey(pipeline: { stages: PipelineStage[] }): string {
   return pipeline.stages[0]?.key ?? "";
+}
+
+/**
+ * The field the board sums per column for the "value in this stage" rollup —
+ * the first currency field on the pipeline (vertical-agnostic; a real-estate
+ * pipeline's "Asking" or "Price", a generic one's "Deal value"). Null if none.
+ */
+export function rollupField(fields: PipelineField[]): PipelineField | null {
+  return fields.find((f) => f.type === "currency") ?? null;
+}
+
+/** Sum a numeric attribute across leads, ignoring blanks / non-numbers. */
+export function sumAttr(leads: Pick<LeadRow, "attributes">[], key: string): number {
+  let total = 0;
+  for (const l of leads) {
+    const raw = (l.attributes as Record<string, unknown>)?.[key];
+    const n = typeof raw === "number" ? raw : parseFloat(String(raw ?? ""));
+    if (Number.isFinite(n)) total += n;
+  }
+  return total;
+}
+
+/** Compact money label for a column total: $1.2M / $850K / $1,200. */
+export function compactMoney(n: number): string {
+  if (!Number.isFinite(n) || n === 0) return "";
+  const abs = Math.abs(n);
+  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  if (abs >= 1_000) return `$${Math.round(n / 1_000)}K`;
+  return `$${Math.round(n)}`;
 }
 
 export interface StageColumn {
