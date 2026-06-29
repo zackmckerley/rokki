@@ -110,3 +110,40 @@ export interface PromoteResult {
 
 export const promoteLead = (id: string) =>
   req<PromoteResult>(`${leadBase(id)}/promote`, { method: "POST" });
+
+export interface LeadFile {
+  key: string;
+  name: string;
+  size: number;
+  type: string;
+  uploaded_at: string;
+}
+
+export const getLeadFiles = (id: string) =>
+  req<{ files: LeadFile[] }>(`${leadBase(id)}/files`).then((d) => d.files);
+
+export async function uploadLeadFile(id: string, file: File): Promise<LeadFile[]> {
+  const body = new FormData();
+  body.append("file", file);
+  const res = await fetch(`${leadBase(id)}/files`, { method: "POST", body });
+  const json = (await res.json().catch(() => ({}))) as {
+    data?: { files: LeadFile[] };
+    errors?: { code: string; message: string }[];
+  };
+  if (!res.ok || !json.data) {
+    throw new Error(json.errors?.[0]?.message ?? `Upload failed (${res.status})`);
+  }
+  return json.data.files;
+}
+
+export const deleteLeadFile = (id: string, key: string) =>
+  req<{ files: LeadFile[] }>(
+    `${leadBase(id)}/files?key=${encodeURIComponent(key)}`,
+    { method: "DELETE" },
+  ).then((d) => d.files);
+
+/** Get a short-lived signed download URL for an attachment. */
+export const signLeadFile = (id: string, key: string) =>
+  req<{ url: string }>(
+    `${leadBase(id)}/files/sign?key=${encodeURIComponent(key)}`,
+  ).then((d) => d.url);

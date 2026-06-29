@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   X,
   Loader2,
@@ -10,6 +10,8 @@ import {
   ArrowUpRight,
   Plus,
   Search,
+  Paperclip,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
@@ -22,8 +24,13 @@ import {
   addLeadContact,
   removeLeadContact,
   promoteLead,
+  getLeadFiles,
+  uploadLeadFile,
+  deleteLeadFile,
+  signLeadFile,
   type LeadInput,
   type LeadContact,
+  type LeadFile,
 } from "../lib/client-api";
 import { listContacts, type ContactListItem } from "@/modules/contacts/lib/client-api";
 import { LeadForm } from "./LeadForm";
@@ -56,14 +63,23 @@ export function LeadDetail({
 
   const [promoteMsg, setPromoteMsg] = useState<string | null>(null);
 
+  const [files, setFiles] = useState<LeadFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([getLead(leadId), getLeadContacts(leadId).catch(() => [])])
-      .then(([l, cs]) => {
+    Promise.all([
+      getLead(leadId),
+      getLeadContacts(leadId).catch(() => []),
+      getLeadFiles(leadId).catch(() => []),
+    ])
+      .then(([l, cs, fs]) => {
         if (!alive) return;
         setLead(l);
         setContacts(cs);
+        setFiles(fs);
       })
       .catch((e) => alive && setError(e instanceof Error ? e.message : "Failed"))
       .finally(() => alive && setLoading(false));
@@ -71,6 +87,39 @@ export function LeadDetail({
       alive = false;
     };
   }, [leadId]);
+
+  async function uploadFile(file: File | undefined | null) {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      setFiles(await uploadLeadFile(leadId, file));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+  async function removeFile(key: string) {
+    try {
+      setFiles(await deleteLeadFile(leadId, key));
+    } catch {
+      /* non-fatal */
+    }
+  }
+  async function openFile(key: string) {
+    try {
+      const url = await signLeadFile(leadId, key);
+      window.open(url, "_blank", "noopener");
+    } catch {
+      /* non-fatal */
+    }
+  }
+  function fmtSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  }
 
   // Debounced contact search for the picker.
   useEffect(() => {
@@ -306,6 +355,75 @@ export function LeadDetail({
                     )}
                   </ul>
                 </div>
+              )}
+            </div>
+
+            {/* Files */}
+            <div
+              className="flex flex-col gap-1.5 border-t border-border/40 pt-2"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                void uploadFile(e.dataTransfer.files?.[0]);
+              }}
+            >
+              <div className="flex items-center gap-2">
+                <span className={sectionLabel}>Files</span>
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  className="ml-auto flex items-center gap-0.5 text-2xs text-text-3 hover:text-text-1"
+                >
+                  {uploading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Plus className="h-3 w-3" />
+                  )}
+                  Upload
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  className="hidden"
+                  onChange={(e) => void uploadFile(e.target.files?.[0])}
+                />
+              </div>
+              {files.length === 0 ? (
+                <p className="text-2xs text-text-3">
+                  No files. Drag one here, or use Upload.
+                </p>
+              ) : (
+                files.map((f) => (
+                  <div key={f.key} className="flex items-center gap-2 text-xs text-text-1">
+                    <Paperclip className="h-3 w-3 flex-shrink-0 text-text-3" />
+                    <button
+                      type="button"
+                      onClick={() => openFile(f.key)}
+                      className="min-w-0 flex-1 truncate text-left hover:text-text-0"
+                      title={f.name}
+                    >
+                      {f.name}
+                    </button>
+                    <span className="flex-shrink-0 text-[9px] text-text-3">{fmtSize(f.size)}</span>
+                    <button
+                      type="button"
+                      onClick={() => openFile(f.key)}
+                      aria-label="Download"
+                      className="rounded-sm p-0.5 text-text-3 hover:text-text-0"
+                    >
+                      <Download className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeFile(f.key)}
+                      aria-label="Remove file"
+                      className="rounded-sm p-0.5 text-text-3 hover:text-danger"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))
               )}
             </div>
 
