@@ -30,6 +30,8 @@ export interface LeadContact {
   role: string | null;
   name: string;
   email: string | null;
+  phone: string | null;
+  company: string | null;
 }
 
 interface ContactEmbed {
@@ -37,6 +39,8 @@ interface ContactEmbed {
   last_name: string | null;
   nickname: string | null;
   primary_email: string | null;
+  primary_phone: string | null;
+  company: string | null;
 }
 
 export async function listLeadContacts(
@@ -46,7 +50,7 @@ export async function listLeadContacts(
   const { data, error } = await pipelineDb(client)
     .from("pl_lead_contacts")
     .select(
-      "contact_id, role, contacts:contact_id(first_name, last_name, nickname, primary_email)",
+      "contact_id, role, contacts:contact_id(first_name, last_name, nickname, primary_email, primary_phone, company)",
     )
     .eq("lead_id", leadId);
   if (error) throw new Error(error.message);
@@ -58,7 +62,14 @@ export async function listLeadContacts(
       [c?.first_name, c?.last_name].filter(Boolean).join(" ").trim() ||
       c?.primary_email ||
       "Contact";
-    return { contact_id: r.contact_id, role: r.role, name, email: c?.primary_email ?? null };
+    return {
+      contact_id: r.contact_id,
+      role: r.role,
+      name,
+      email: c?.primary_email ?? null,
+      phone: c?.primary_phone ?? null,
+      company: c?.company ?? null,
+    };
   });
 }
 

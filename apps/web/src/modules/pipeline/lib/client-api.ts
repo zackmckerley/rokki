@@ -85,6 +85,8 @@ export interface LeadContact {
   role: string | null;
   name: string;
   email: string | null;
+  phone: string | null;
+  company: string | null;
 }
 
 const leadBase = (id: string) => `${B}/leads/${encodeURIComponent(id)}`;

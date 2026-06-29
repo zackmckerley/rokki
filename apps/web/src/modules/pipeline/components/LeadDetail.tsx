@@ -32,7 +32,11 @@ import {
   type LeadContact,
   type LeadFile,
 } from "../lib/client-api";
-import { listContacts, type ContactListItem } from "@/modules/contacts/lib/client-api";
+import {
+  listContacts,
+  createContact,
+  type ContactListItem,
+} from "@/modules/contacts/lib/client-api";
 import { LeadForm } from "./LeadForm";
 
 const sectionLabel = "text-[10px] font-semibold uppercase tracking-wide text-text-3";
@@ -60,6 +64,10 @@ export function LeadDetail({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQ, setPickerQ] = useState("");
   const [pickerResults, setPickerResults] = useState<ContactListItem[]>([]);
+  // Inline "new contact" — creates a real Contact, then links it with a role.
+  const [newOpen, setNewOpen] = useState(false);
+  const [nc, setNc] = useState({ name: "", phone: "", email: "", role: "" });
+  const [ncBusy, setNcBusy] = useState(false);
 
   const [promoteMsg, setPromoteMsg] = useState<string | null>(null);
 
@@ -189,6 +197,34 @@ export function LeadDetail({
     }
   }
 
+  async function createAndLink() {
+    const name = nc.name.trim();
+    if (!name) return;
+    setNcBusy(true);
+    setError(null);
+    try {
+      const [first, ...rest] = name.split(" ");
+      const res = await createContact(
+        {
+          first_name: first,
+          last_name: rest.join(" ") || undefined,
+          emails: nc.email.trim() ? [{ email: nc.email.trim(), primary: true }] : [],
+          phones: nc.phone.trim() ? [{ phone: nc.phone.trim(), primary: true }] : [],
+        },
+        true, // skip the dedupe prompt — this is an explicit "new" person
+      );
+      if (res.contact) {
+        setContacts(await addLeadContact(leadId, res.contact.id, nc.role || null));
+      }
+      setNewOpen(false);
+      setNc({ name: "", phone: "", email: "", role: "" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create contact");
+    } finally {
+      setNcBusy(false);
+    }
+  }
+
   async function setRole(contactId: string, role: string) {
     // addLeadContact upserts, so re-linking with a new role just updates it.
     try {
@@ -279,29 +315,61 @@ export function LeadDetail({
               onSubmit={save}
             />
 
-            {/* Contacts */}
+            {/* People */}
             <div className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
               <div className="flex items-center gap-2">
-                <span className={sectionLabel}>Contacts</span>
+                <span className={sectionLabel}>People</span>
                 <button
                   type="button"
-                  onClick={() => setPickerOpen((o) => !o)}
+                  onClick={() => {
+                    setNewOpen((o) => !o);
+                    setPickerOpen(false);
+                  }}
                   className="ml-auto flex items-center gap-0.5 text-2xs text-text-3 hover:text-text-1"
                 >
-                  <Plus className="h-3 w-3" /> Link
+                  <Plus className="h-3 w-3" /> New
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPickerOpen((o) => !o);
+                    setNewOpen(false);
+                  }}
+                  className="flex items-center gap-0.5 text-2xs text-text-3 hover:text-text-1"
+                >
+                  <Search className="h-3 w-3" /> Link
                 </button>
               </div>
-              {contacts.length === 0 && !pickerOpen && (
-                <p className="text-2xs text-text-3">No contacts linked.</p>
+              {contacts.length === 0 && !pickerOpen && !newOpen && (
+                <p className="text-2xs text-text-3">No people on this deal yet.</p>
               )}
               {contacts.map((c) => (
-                <div key={c.contact_id} className="flex items-center gap-2 text-xs text-text-1">
-                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                <div key={c.contact_id} className="flex items-start gap-2 text-xs text-text-1">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">
+                      {c.name}
+                      {c.company && (
+                        <span className="ml-1 text-2xs font-normal text-text-3">{c.company}</span>
+                      )}
+                    </span>
+                    <span className="flex flex-wrap gap-x-2 text-2xs text-text-3">
+                      {c.phone && (
+                        <a href={`tel:${c.phone}`} className="hover:text-text-1">
+                          {c.phone}
+                        </a>
+                      )}
+                      {c.email && (
+                        <a href={`mailto:${c.email}`} className="truncate hover:text-text-1">
+                          {c.email}
+                        </a>
+                      )}
+                    </span>
+                  </span>
                   <select
                     value={c.role ?? ""}
                     onChange={(e) => setRole(c.contact_id, e.target.value)}
                     aria-label="Role"
-                    className="rounded border border-border bg-bg-2 px-1 py-0.5 text-[9px] uppercase tracking-wide text-text-3 outline-none focus:border-border-focus"
+                    className="mt-0.5 rounded border border-border bg-bg-2 px-1 py-0.5 text-[9px] uppercase tracking-wide text-text-3 outline-none focus:border-border-focus"
                   >
                     {ROLES.map((r) => (
                       <option key={r} value={r}>
@@ -313,12 +381,62 @@ export function LeadDetail({
                     type="button"
                     onClick={() => unlinkContact(c.contact_id)}
                     aria-label="Unlink"
-                    className="rounded-sm p-0.5 text-text-3 hover:text-danger"
+                    className="mt-0.5 rounded-sm p-0.5 text-text-3 hover:text-danger"
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </div>
               ))}
+              {newOpen && (
+                <div className="flex flex-col gap-1 rounded border border-border bg-bg-1 p-1.5">
+                  <input
+                    autoFocus
+                    className="rounded border border-border bg-bg-2 px-2 py-1 text-xs text-text-1 placeholder:text-text-3 outline-none focus:border-border-focus"
+                    placeholder="Name"
+                    value={nc.name}
+                    onChange={(e) => setNc((s) => ({ ...s, name: e.target.value }))}
+                  />
+                  <div className="flex gap-1">
+                    <input
+                      className="min-w-0 flex-1 rounded border border-border bg-bg-2 px-2 py-1 text-xs text-text-1 placeholder:text-text-3 outline-none focus:border-border-focus"
+                      placeholder="Phone"
+                      value={nc.phone}
+                      onChange={(e) => setNc((s) => ({ ...s, phone: e.target.value }))}
+                    />
+                    <input
+                      className="min-w-0 flex-1 rounded border border-border bg-bg-2 px-2 py-1 text-xs text-text-1 placeholder:text-text-3 outline-none focus:border-border-focus"
+                      placeholder="Email"
+                      value={nc.email}
+                      onChange={(e) => setNc((s) => ({ ...s, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <select
+                      value={nc.role}
+                      onChange={(e) => setNc((s) => ({ ...s, role: e.target.value }))}
+                      aria-label="Role"
+                      className="rounded border border-border bg-bg-2 px-1.5 py-1 text-2xs text-text-2 outline-none focus:border-border-focus"
+                    >
+                      {ROLES.map((r) => (
+                        <option key={r} value={r}>
+                          {r || "role"}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      className="ml-auto"
+                      onClick={createAndLink}
+                      disabled={ncBusy || !nc.name.trim()}
+                    >
+                      {ncBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null} Add
+                    </Button>
+                  </div>
+                  <p className="text-[9px] text-text-3">
+                    Saved to your Contacts and linked to this deal.
+                  </p>
+                </div>
+              )}
               {pickerOpen && (
                 <div className="rounded border border-border bg-bg-1 p-1.5">
                   <div className="flex items-center gap-1.5 rounded border border-border bg-bg-2 px-2 py-1 focus-within:border-border-focus">
