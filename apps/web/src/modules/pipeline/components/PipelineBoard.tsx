@@ -18,6 +18,7 @@ import {
 import { LeadCard } from "./LeadCard";
 import { LeadForm } from "./LeadForm";
 import { LeadDetail } from "./LeadDetail";
+import { useOverlay } from "../lib/use-overlay";
 
 const SPACE_KEY = "rokki:pipeline-space";
 const VIEW_KEY = "rokki:pipeline-view";
@@ -48,6 +49,10 @@ export function PipelineBoard() {
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
   const [fieldsOpen, setFieldsOpen] = useState(false);
+
+  // Esc closes whichever overlay is open (+ restores focus to the trigger).
+  useOverlay(createStage != null, () => setCreateStage(null));
+  useOverlay(selectedLead != null && createStage == null, () => setSelectedLead(null));
 
   // Spaces once.
   useEffect(() => {
@@ -262,6 +267,20 @@ export function PipelineBoard() {
           nowMs={nowMs}
           onSelect={(id) => setSelectedLead(id)}
         />
+      ) : leads.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <LayoutGrid className="h-8 w-8 text-text-3" aria-hidden="true" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-text-1">No leads yet</p>
+            <p className="text-xs text-text-3">
+              Track a property, owner, or assemblage from first contact through to a
+              Terminal.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => setCreateStage(pipeline.stages[0]?.key ?? null)}>
+            <Plus className="h-3 w-3" /> Add your first lead
+          </Button>
+        </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-2">
           {columns.map(({ stage, leads: colLeads }) => (
@@ -317,6 +336,9 @@ export function PipelineBoard() {
           onClick={() => setCreateStage(null)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="New lead"
             className="mt-6 flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-lg border border-border bg-bg-1 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
@@ -355,6 +377,9 @@ export function PipelineBoard() {
           onClick={() => setSelectedLead(null)}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Lead detail"
             className="h-full w-full max-w-[400px] border-l border-border bg-bg-1 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >

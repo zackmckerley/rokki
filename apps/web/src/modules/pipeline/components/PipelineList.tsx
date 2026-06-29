@@ -13,12 +13,18 @@ function attr(lead: LeadRow, key: string): string {
   const v = (lead.attributes as Record<string, unknown>)?.[key];
   return v == null ? "" : String(v);
 }
-function fmtDate(iso: string | null): string {
+function fmtDate(iso: string | null, nowMs: number): string {
   if (!iso) return "";
   const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ""
-    : d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  if (Number.isNaN(d.getTime())) return "";
+  // Show the year only when it differs from "now" so next-year follow-ups read
+  // unambiguously without cluttering this-year dates.
+  const sameYear = d.getFullYear() === new Date(nowMs).getFullYear();
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(sameYear ? {} : { year: "numeric" }),
+  });
 }
 
 /** Filterable table view of the pipeline — the list alternative to the board.
@@ -170,7 +176,7 @@ export function PipelineList({
                       {l.next_follow_up_at ? (
                         <span className={`flex items-center gap-1 ${due ? "text-accent" : "text-text-3"}`}>
                           {due && <Clock className="h-2.5 w-2.5" />}
-                          {fmtDate(l.next_follow_up_at)}
+                          {fmtDate(l.next_follow_up_at, nowMs)}
                         </span>
                       ) : (
                         <span className="text-text-3">—</span>

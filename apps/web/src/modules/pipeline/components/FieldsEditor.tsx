@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import type { PipelineRow, PipelineField, PipelineFieldType } from "@/lib/pipeline/db";
 import { slugifyKey, uniqueKey } from "@/lib/pipeline/fields";
 import { updatePipeline } from "../lib/client-api";
+import { useOverlay } from "../lib/use-overlay";
 
 const TYPES: { v: PipelineFieldType; label: string }[] = [
   { v: "text", label: "Text" },
@@ -53,6 +54,8 @@ export function FieldsEditor({
   const [rows, setRows] = useState<Row[]>(pipeline.fields.map(fromField));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useOverlay(true, onClose);
 
   function patch(i: number, p: Partial<Row>) {
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...p } : r)));
@@ -109,6 +112,9 @@ export function FieldsEditor({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Lead fields for ${pipeline.name}`}
         className="mt-6 flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-border bg-bg-1 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
