@@ -68,6 +68,30 @@ export function PipelineBoard() {
   useOverlay(createStage != null, () => setCreateStage(null));
   useOverlay(selectedLead != null && createStage == null, () => setSelectedLead(null));
 
+  // Board shortcuts: n = new lead, b = board view, l = list view. Ignored while
+  // typing or while an overlay is open (Esc handles those).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable)
+        return;
+      if (createStage != null || selectedLead != null || fieldsOpen) return;
+      if (e.key === "n") {
+        e.preventDefault();
+        if (pipeline) setCreateStage(pipeline.stages[0]?.key ?? null);
+      } else if (e.key === "b") {
+        selectView("board");
+      } else if (e.key === "l") {
+        selectView("list");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createStage, selectedLead, fieldsOpen, pipeline]);
+
   // Spaces once.
   useEffect(() => {
     let alive = true;

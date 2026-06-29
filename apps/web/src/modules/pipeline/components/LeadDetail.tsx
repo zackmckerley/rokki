@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
 import {
   X,
   Loader2,
@@ -98,6 +99,7 @@ export function LeadDetail({
   const [ncBusy, setNcBusy] = useState(false);
 
   const [promoteMsg, setPromoteMsg] = useState<string | null>(null);
+  const [promotedTicker, setPromotedTicker] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [files, setFiles] = useState<LeadFile[]>([]);
@@ -270,9 +272,9 @@ export function LeadDetail({
     try {
       const res = await promoteLead(leadId);
       setPromoteMsg(`Created terminal ${res.terminal.ticker}`);
+      setPromotedTicker(res.terminal.ticker);
       onChanged();
-      // Give the user a beat to see the ticker, then close.
-      setTimeout(onClose, 1200);
+      // Leave the drawer open so the "Open terminal" link is right there.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not promote");
       setBusy(false);
@@ -329,9 +331,19 @@ export function LeadDetail({
             {(canPromote || alreadyTerminal) && (
               <div className="rounded border border-border bg-bg-2 p-2">
                 {alreadyTerminal ? (
-                  <p className="text-2xs text-accent">
-                    {promoteMsg ?? "This lead is now a Terminal."}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="min-w-0 flex-1 text-2xs text-accent">
+                      {promoteMsg ?? "This lead is now a Terminal."}
+                    </p>
+                    {promotedTicker && (
+                      <Link
+                        href={`/p/${promotedTicker}`}
+                        className="flex items-center gap-0.5 whitespace-nowrap rounded border border-accent/40 px-1.5 py-0.5 text-2xs font-medium text-accent hover:bg-accent/10"
+                      >
+                        Open {promotedTicker} <ArrowUpRight className="h-3 w-3" />
+                      </Link>
+                    )}
+                  </div>
                 ) : (
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 text-2xs text-text-2">
