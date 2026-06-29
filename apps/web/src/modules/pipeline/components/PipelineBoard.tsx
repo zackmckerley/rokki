@@ -127,9 +127,11 @@ export function PipelineBoard() {
     setCreateBusy(true);
     setCreateErr(null);
     try {
-      await createLead({ ...patch, pipeline_id: pipeline.id, space_id: spaceId });
+      const lead = await createLead({ ...patch, pipeline_id: pipeline.id, space_id: spaceId });
       setCreateStage(null);
       await refresh();
+      // Open the new lead so people / parcels / files are right there.
+      setSelectedLead(lead.id);
     } catch (e) {
       setCreateErr(e instanceof Error ? e.message : "Could not create");
     } finally {

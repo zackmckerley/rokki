@@ -19,11 +19,11 @@ const PRIORITIES = [
   { v: 3, label: "High" },
 ];
 
-const QC_ROLES = ["", "seller", "broker", "attorney", "title", "lender", "partner", "other"];
-interface QuickContact {
-  name: string;
-  role?: string;
-  phone?: string;
+/** A parcel in an assemblage / portfolio deal (one of several addresses/owners). */
+interface Parcel {
+  address?: string;
+  folio?: string;
+  owner?: string;
 }
 
 function fieldInputType(t: PipelineField["type"]): string {
@@ -101,19 +101,19 @@ export function LeadForm({
     setAttrs((prev) => ({ ...prev, [key]: val }));
   }
 
-  const quickContacts = (attrs.quick_contacts as QuickContact[] | undefined) ?? [];
-  function setQuickContacts(next: QuickContact[]) {
-    setAttrs((prev) => ({ ...prev, quick_contacts: next }));
+  const parcels = (attrs.parcels as Parcel[] | undefined) ?? [];
+  function setParcels(next: Parcel[]) {
+    setAttrs((prev) => ({ ...prev, parcels: next }));
   }
-  function patchQC(i: number, p: Partial<QuickContact>) {
-    setQuickContacts(quickContacts.map((q, idx) => (idx === i ? { ...q, ...p } : q)));
+  function patchParcel(i: number, p: Partial<Parcel>) {
+    setParcels(parcels.map((q, idx) => (idx === i ? { ...q, ...p } : q)));
   }
 
   function submit() {
     const cleanAttrs = { ...attrs };
-    if (Array.isArray(cleanAttrs.quick_contacts)) {
-      cleanAttrs.quick_contacts = (cleanAttrs.quick_contacts as QuickContact[]).filter(
-        (q) => q.name?.trim(),
+    if (Array.isArray(cleanAttrs.parcels)) {
+      cleanAttrs.parcels = (cleanAttrs.parcels as Parcel[]).filter(
+        (p) => p.address?.trim() || p.folio?.trim() || p.owner?.trim(),
       );
     }
     const patch: LeadInput = {
@@ -258,52 +258,56 @@ export function LeadForm({
         );
       })}
 
-      {/* Quick contacts (free-text — for one-off names; link real Contacts in the drawer) */}
+      {/* Parcels — for an assemblage / portfolio: multiple addresses, folios, owners. */}
       <div className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-2">
-          People (quick)
-        </span>
-        {quickContacts.map((qc, i) => (
-          <div key={i} className="flex items-center gap-1">
-            <input
-              className={`${input} flex-1`}
-              placeholder="Name"
-              value={qc.name}
-              onChange={(e) => patchQC(i, { name: e.target.value })}
-            />
-            <select
-              className={select}
-              value={qc.role ?? ""}
-              onChange={(e) => patchQC(i, { role: e.target.value })}
-            >
-              {QC_ROLES.map((r) => (
-                <option key={r} value={r}>
-                  {r || "role"}
-                </option>
-              ))}
-            </select>
-            <input
-              className={`${input} max-w-[40%]`}
-              placeholder="Phone / email"
-              value={qc.phone ?? ""}
-              onChange={(e) => patchQC(i, { phone: e.target.value })}
-            />
-            <button
-              type="button"
-              onClick={() => setQuickContacts(quickContacts.filter((_, idx) => idx !== i))}
-              aria-label="Remove"
-              className="rounded-sm p-0.5 text-text-3 hover:text-danger"
-            >
-              <X className="h-3 w-3" />
-            </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-text-2">
+            Parcels {parcels.length > 1 ? "· assemblage" : ""}
+          </span>
+          <span className="text-2xs text-text-3">
+            Add a row per property when a deal spans multiple parcels/owners.
+          </span>
+        </div>
+        {parcels.map((pc, i) => (
+          <div key={i} className="flex flex-col gap-1 rounded border border-border/50 p-1.5">
+            <div className="flex items-center gap-1">
+              <input
+                className={`${input} flex-1`}
+                placeholder="Address"
+                value={pc.address ?? ""}
+                onChange={(e) => patchParcel(i, { address: e.target.value })}
+              />
+              <button
+                type="button"
+                onClick={() => setParcels(parcels.filter((_, idx) => idx !== i))}
+                aria-label="Remove parcel"
+                className="rounded-sm p-0.5 text-text-3 hover:text-danger"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="flex items-center gap-1">
+              <input
+                className={`${input} flex-1`}
+                placeholder="Folio / APN"
+                value={pc.folio ?? ""}
+                onChange={(e) => patchParcel(i, { folio: e.target.value })}
+              />
+              <input
+                className={`${input} flex-1`}
+                placeholder="Owner of record"
+                value={pc.owner ?? ""}
+                onChange={(e) => patchParcel(i, { owner: e.target.value })}
+              />
+            </div>
           </div>
         ))}
         <button
           type="button"
-          onClick={() => setQuickContacts([...quickContacts, { name: "" }])}
+          onClick={() => setParcels([...parcels, {}])}
           className="flex items-center gap-1 self-start text-2xs text-text-3 hover:text-text-1"
         >
-          <Plus className="h-3 w-3" /> Add person
+          <Plus className="h-3 w-3" /> Add parcel
         </button>
       </div>
 
