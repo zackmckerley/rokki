@@ -271,7 +271,7 @@ export function PipelineBoard() {
                 const id = e.dataTransfer.getData("text/plain");
                 if (id) void moveLead(id, stage.key);
               }}
-              className="flex w-56 flex-shrink-0 flex-col rounded border border-border/60 bg-bg-2/30"
+              className="flex min-w-[13rem] flex-1 flex-col rounded border border-border/60 bg-bg-2/30"
             >
               <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-border/50 px-2 py-1.5">
                 <span className="text-2xs font-semibold uppercase tracking-wide text-text-2">
