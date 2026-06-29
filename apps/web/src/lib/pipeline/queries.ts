@@ -4,7 +4,7 @@
  * these assemble the board and apply the writable whitelists.
  */
 import { pipelineDb, type PipelineRow, type LeadRow } from "./db";
-import { DEFAULT_PIPELINE } from "./templates";
+import { DEFAULT_PIPELINE, PIPELINE_TEMPLATES } from "./templates";
 import { defaultStageKey } from "./board";
 
 export interface SpaceLite {
@@ -43,7 +43,23 @@ export async function ensurePipelineForSpace(
     .limit(1);
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as PipelineRow[];
-  if (rows.length) return rows[0];
+  if (rows.length) {
+    const existing = rows[0];
+    // Until a field editor exists, keep a template-backed pipeline's fields in
+    // sync with its template — so new fields (City/Submarket/Links) appear on an
+    // already-created pipeline. No user field edits to preserve yet.
+    const tmpl = PIPELINE_TEMPLATES.find((t) => t.kind === existing.kind);
+    if (tmpl && JSON.stringify(existing.fields) !== JSON.stringify(tmpl.fields)) {
+      const { data: upd } = await db
+        .from("pl_pipelines")
+        .update({ fields: tmpl.fields })
+        .eq("id", existing.id)
+        .select("*")
+        .maybeSingle();
+      if (upd) return upd as PipelineRow;
+    }
+    return existing;
+  }
 
   const { data: created, error: insErr } = await db
     .from("pl_pipelines")

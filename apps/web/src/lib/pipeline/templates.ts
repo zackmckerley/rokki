@@ -13,14 +13,30 @@ export interface PipelineTemplate {
 }
 
 const RE_FIELDS: PipelineField[] = [
-  { key: "address", label: "Address", type: "address" },
-  { key: "folio", label: "Folio / APN", type: "text" },
-  { key: "parcel_size", label: "Parcel size", type: "text" },
-  { key: "zoning", label: "Zoning", type: "text" },
-  { key: "land_use", label: "Land use", type: "text" },
-  { key: "owner", label: "Owner of record", type: "text" },
-  { key: "asking", label: "Asking", type: "currency" },
-  { key: "product_type", label: "Product type", type: "text" },
+  // Location — the filterable fields (City / Submarket drive the list view).
+  { key: "address", label: "Street address", type: "text", group: "Location" },
+  { key: "city", label: "City", type: "text", group: "Location" },
+  { key: "submarket", label: "Submarket / Neighborhood", type: "text", group: "Location" },
+  {
+    key: "county",
+    label: "County",
+    type: "select",
+    options: ["Miami-Dade", "Broward", "Palm Beach", "Other"],
+    group: "Location",
+  },
+  { key: "zip", label: "ZIP", type: "text", group: "Location" },
+  { key: "folio", label: "Folio / APN", type: "text", group: "Location" },
+  // Property & terms — kept from the original template, collapsed by default.
+  { key: "parcel_size", label: "Parcel size", type: "text", group: "Property & terms" },
+  { key: "zoning", label: "Zoning", type: "text", group: "Property & terms" },
+  { key: "land_use", label: "Land use", type: "text", group: "Property & terms" },
+  { key: "product_type", label: "Product type", type: "text", group: "Property & terms" },
+  { key: "asking", label: "Asking", type: "currency", group: "Property & terms" },
+  { key: "owner", label: "Owner of record", type: "text", group: "Property & terms" },
+  // Links.
+  { key: "listing_url", label: "Listing URL", type: "url", group: "Links" },
+  { key: "county_url", label: "County record URL", type: "url", group: "Links" },
+  { key: "maps_url", label: "Google Maps", type: "url", group: "Links" },
 ];
 
 /** Zack's HELIOS deal flow (the default for a real-estate pipeline). */
