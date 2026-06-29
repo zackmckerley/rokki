@@ -24,16 +24,24 @@ export interface GoalsCategoryRow {
   archived_at: string | null;
 }
 
+/** How often a value is logged for a goal (and the window the target spans). */
+export type GoalPeriod = "daily" | "weekly" | "monthly";
+
 export interface GoalsGoalRow {
   id: string;
   category_id: string;
   name: string;
   unit: string;
+  period: GoalPeriod;
   display_order: number;
   source_type: "manual" | "auto";
   source_config: Record<string, unknown> | null;
   archived_at: string | null;
 }
+
+/** The select list for a goal row (kept in one place — it now includes period). */
+const GOAL_COLUMNS =
+  "id, category_id, name, unit, period, display_order, source_type, source_config, archived_at";
 
 export interface GoalsTargetRow {
   id: string;
@@ -102,9 +110,7 @@ export async function loadGoalsForCategories(
   if (categoryIds.length === 0) return [];
   const { data } = await supabase
     .from("goals_goals")
-    .select(
-      "id, category_id, name, unit, display_order, source_type, source_config, archived_at",
-    )
+    .select(GOAL_COLUMNS)
     .in("category_id", categoryIds)
     .is("archived_at", null)
     .order("display_order", { ascending: true });
@@ -124,9 +130,7 @@ export async function loadGoals(
   if (categories.length === 0) return [];
   const { data } = await supabase
     .from("goals_goals")
-    .select(
-      "id, category_id, name, unit, display_order, source_type, source_config, archived_at",
-    )
+    .select(GOAL_COLUMNS)
     .in(
       "category_id",
       categories.map((c) => c.id),
@@ -239,7 +243,7 @@ export async function createCategory(
 
 export async function createGoal(
   supabase: Db,
-  input: { category_id: string; name: string; unit: string },
+  input: { category_id: string; name: string; unit: string; period?: GoalPeriod },
 ): Promise<GoalsGoalRow> {
   const { data, error } = await supabase
     .from("goals_goals")
@@ -247,13 +251,93 @@ export async function createGoal(
       category_id: input.category_id,
       name: input.name.trim(),
       unit: input.unit.trim(),
+      period: input.period ?? "daily",
     } as never)
-    .select(
-      "id, category_id, name, unit, display_order, source_type, source_config, archived_at",
-    )
+    .select(GOAL_COLUMNS)
     .single();
   if (error) throw error;
   return data as GoalsGoalRow;
+}
+
+/** Rename / retype a goal (name, unit, period). RLS scopes the write. */
+export async function updateGoal(
+  supabase: Db,
+  goalId: string,
+  patch: { name?: string; unit?: string; period?: GoalPeriod },
+): Promise<void> {
+  const writable: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.name !== undefined) writable.name = patch.name.trim();
+  if (patch.unit !== undefined) writable.unit = patch.unit.trim();
+  if (patch.period !== undefined) writable.period = patch.period;
+  const { error } = await supabase.from("goals_goals").update(writable).eq("id", goalId);
+  if (error) throw error;
+}
+
+/** Rename / recolor a goal area. */
+export async function updateCategory(
+  supabase: Db,
+  categoryId: string,
+  patch: { name?: string; color?: string },
+): Promise<void> {
+  const writable: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (patch.name !== undefined) writable.name = patch.name.trim();
+  if (patch.color !== undefined) writable.color = patch.color;
+  const { error } = await supabase
+    .from("goals_categories")
+    .update(writable)
+    .eq("id", categoryId);
+  if (error) throw error;
+}
+
+/** Archive (soft-delete) or restore a goal — sets/clears archived_at. */
+export async function setGoalArchived(
+  supabase: Db,
+  goalId: string,
+  archived: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from("goals_goals")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("id", goalId);
+  if (error) throw error;
+}
+
+/** Archive or restore a goal area (and, by intent, hide its goals). */
+export async function setCategoryArchived(
+  supabase: Db,
+  categoryId: string,
+  archived: boolean,
+): Promise<void> {
+  const { error } = await supabase
+    .from("goals_categories")
+    .update({ archived_at: archived ? new Date().toISOString() : null })
+    .eq("id", categoryId);
+  if (error) throw error;
+}
+
+/** Archived categories the caller can see (for the Archived tab). */
+export async function loadArchivedCategories(supabase: Db): Promise<GoalsCategoryRow[]> {
+  const { data } = await supabase
+    .from("goals_categories")
+    .select("id, name, color, icon, display_order, archived_at")
+    .not("archived_at", "is", null)
+    .order("name", { ascending: true });
+  return (data ?? []) as GoalsCategoryRow[];
+}
+
+/** Archived goals under the given (non-archived) categories. */
+export async function loadArchivedGoals(
+  supabase: Db,
+  categoryIds: string[],
+): Promise<GoalsGoalRow[]> {
+  if (categoryIds.length === 0) return [];
+  const { data } = await supabase
+    .from("goals_goals")
+    .select(GOAL_COLUMNS)
+    .in("category_id", categoryIds)
+    .not("archived_at", "is", null)
+    .order("name", { ascending: true });
+  return (data ?? []) as GoalsGoalRow[];
 }
 
 export async function setWeeklyTarget(
