@@ -3,8 +3,45 @@ import {
   startOfWeek,
   endOfWeek,
   formatWeekLabel,
+  startOfMonth,
+  endOfMonth,
+  periodWindow,
   DEFAULT_WEEK_START_DOW,
 } from "./goals-week";
+
+describe("goals-week — month boundaries", () => {
+  it("startOfMonth is the 1st", () => {
+    expect(startOfMonth("2026-06-29")).toBe("2026-06-01");
+    expect(startOfMonth("2026-01-15")).toBe("2026-01-01");
+  });
+  it("endOfMonth is the last day, handling lengths + leap years", () => {
+    expect(endOfMonth("2026-06-10")).toBe("2026-06-30");
+    expect(endOfMonth("2026-02-10")).toBe("2026-02-28");
+    expect(endOfMonth("2024-02-10")).toBe("2024-02-29");
+    expect(endOfMonth("2026-12-01")).toBe("2026-12-31");
+  });
+});
+
+describe("goals-week — periodWindow", () => {
+  it("daily window is the single day", () => {
+    expect(periodWindow("daily", "2026-06-25")).toEqual({
+      start: "2026-06-25",
+      end: "2026-06-25",
+    });
+  });
+  it("weekly window is Mon–Sun", () => {
+    expect(periodWindow("weekly", "2026-06-25")).toEqual({
+      start: "2026-06-22",
+      end: "2026-06-28",
+    });
+  });
+  it("monthly window is the whole month", () => {
+    expect(periodWindow("monthly", "2026-06-25")).toEqual({
+      start: "2026-06-01",
+      end: "2026-06-30",
+    });
+  });
+});
 
 describe("goals-week — startOfWeek (Monday default)", () => {
   // Reference dates so we know what to expect.
