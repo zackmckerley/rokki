@@ -274,6 +274,26 @@ export async function setWeeklyTarget(
   if (error) throw error;
 }
 
+/**
+ * ADD `delta` to a goal's running total for `entryDate`, atomically (single
+ * INSERT…ON CONFLICT in the `goals_add_entry` RPC — no read-modify-write race).
+ * The total is clamped at 0. Use this for the dashboard "+N" quick-log; use
+ * {@link recordEntry} when SETTING an exact day value.
+ */
+export async function addEntryValue(
+  supabase: Db,
+  goalId: string,
+  entryDate: string,
+  delta: number,
+): Promise<void> {
+  const { error } = await supabase.rpc("goals_add_entry", {
+    p_goal_id: goalId,
+    p_entry_date: entryDate,
+    p_delta: delta,
+  });
+  if (error) throw error;
+}
+
 export async function recordEntry(
   supabase: Db,
   input: {

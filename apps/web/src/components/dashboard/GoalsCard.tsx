@@ -10,7 +10,7 @@ import {
   loadGoalsForCategories,
   loadCurrentTargets,
   sumWeekValues,
-  recordEntry,
+  addEntryValue,
   createCategory,
   createGoal,
   setWeeklyTarget,
@@ -76,7 +76,7 @@ export function GoalsCard() {
       targetsByGoal: Object.fromEntries(targets),
       weekTotalsByGoal: Object.fromEntries(weekSums),
       weekLabel: formatWeekLabel(start, end),
-      spaces: ((spacesRes.data ?? []) as SpaceLite[]) ?? [],
+      spaces: (spacesRes.data as SpaceLite[] | null) ?? [],
     });
     setLoading(false);
   }, []);
@@ -91,25 +91,13 @@ export function GoalsCard() {
     };
   }, [load]);
 
-  // Logging ADDS to today's running total (the "+N" affordance): read today's
-  // current value fresh, then write current + n. Fresh read avoids a stale
-  // closure and keeps two quick logs from clobbering each other.
+  // Logging ADDS to today's running total (the "+N" affordance). The add is
+  // atomic in the goals_add_entry RPC, so two quick logs accumulate instead of
+  // clobbering each other; the total is clamped at 0 server-side.
   const onLogValue = useCallback(
     async (goalId: string, n: number) => {
-      const supabase = createClient();
-      const today = todayIso();
-      const { data: row } = await supabase
-        .from("goals_entries")
-        .select("value")
-        .eq("goal_id", goalId)
-        .eq("entry_date", today)
-        .maybeSingle();
-      const current = row ? Number((row as { value: number }).value) : 0;
-      await recordEntry(supabase, {
-        goal_id: goalId,
-        entry_date: today,
-        value: current + n,
-      });
+      if (!Number.isFinite(n)) return;
+      await addEntryValue(createClient(), goalId, todayIso(), n);
       await load();
     },
     [load],
@@ -208,7 +196,13 @@ function NewAreaForm({
     }
   }
 
-  if (spaces.length === 0) return null;
+  if (spaces.length === 0) {
+    return (
+      <p className="text-[11px] text-text-3">
+        Join or create a space to add goal areas.
+      </p>
+    );
+  }
 
   if (!open) {
     return (
