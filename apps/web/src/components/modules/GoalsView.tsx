@@ -1,12 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   GoalsCategoryRow,
   GoalsGoalRow,
 } from "@/lib/modules/goals-queries";
+
+/** A new goal a user is adding to a category. */
+export interface NewGoalInput {
+  name: string;
+  unit: string;
+  target: number;
+}
 
 interface GoalsViewProps {
   categories: GoalsCategoryRow[];
@@ -20,6 +27,9 @@ interface GoalsViewProps {
    * disabled (read-only view).
    */
   onLogValue?: (goalId: string, value: number) => Promise<void>;
+  /** Adds a goal (+ its weekly target) under a category. When omitted, the
+   *  per-category "add goal" affordance is hidden. */
+  onAddGoal?: (categoryId: string, input: NewGoalInput) => Promise<void>;
 }
 
 /**
@@ -35,6 +45,7 @@ export function GoalsView({
   weekTotalsByGoal,
   weekLabel,
   onLogValue,
+  onAddGoal,
 }: GoalsViewProps) {
   const goalsByCategory = new Map<string, GoalsGoalRow[]>();
   for (const g of goals) {
@@ -103,6 +114,13 @@ export function GoalsView({
                   );
                 })
               )}
+              {onAddGoal && (
+                <li className="px-3 py-1.5">
+                  <AddGoalRow
+                    onAdd={(input) => onAddGoal(c.id, input)}
+                  />
+                </li>
+              )}
             </ul>
           </div>
         );
@@ -153,11 +171,97 @@ function LogValueInput({
         type="button"
         onClick={() => void submit()}
         disabled={!onLogValue || busy || value.trim() === ""}
-        aria-label="Save value"
+        aria-label="Add to today's total"
         className="rounded-sm border border-border bg-bg-2 p-0.5 text-text-2 hover:bg-bg-3 hover:text-text-0 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <Plus className="h-3 w-3" aria-hidden="true" />
       </button>
     </span>
+  );
+}
+
+/** Inline "add a goal to this area" form — name, unit, weekly target. */
+function AddGoalRow({ onAdd }: { onAdd: (input: NewGoalInput) => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [unit, setUnit] = useState("");
+  const [target, setTarget] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function reset() {
+    setName("");
+    setUnit("");
+    setTarget("");
+    setOpen(false);
+  }
+
+  async function submit() {
+    const t = Number(target);
+    if (!name.trim() || !unit.trim() || !Number.isFinite(t)) return;
+    setBusy(true);
+    try {
+      await onAdd({ name: name.trim(), unit: unit.trim(), target: t });
+      reset();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1 text-2xs text-text-3 hover:text-text-1"
+      >
+        <Plus className="h-3 w-3" aria-hidden="true" /> Add goal
+      </button>
+    );
+  }
+
+  const inp =
+    "rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 text-[11px] text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus";
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      <input
+        autoFocus
+        className={`${inp} min-w-0 flex-1`}
+        placeholder="Goal name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <input
+        className={`${inp} w-14`}
+        placeholder="unit"
+        value={unit}
+        onChange={(e) => setUnit(e.target.value)}
+      />
+      <input
+        type="number"
+        inputMode="numeric"
+        className={`${inp} w-16 text-right`}
+        placeholder="target/wk"
+        value={target}
+        onChange={(e) => setTarget(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") void submit();
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => void submit()}
+        disabled={busy || !name.trim() || !unit.trim() || target.trim() === ""}
+        className="rounded-sm border border-border bg-accent/15 px-1.5 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/25 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : "Add"}
+      </button>
+      <button
+        type="button"
+        onClick={reset}
+        className="rounded-sm px-1 py-0.5 text-[11px] text-text-3 hover:text-text-1"
+      >
+        Cancel
+      </button>
+    </div>
   );
 }
