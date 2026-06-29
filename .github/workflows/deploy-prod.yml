@@ -55,7 +55,7 @@ jobs:
     timeout-minutes: 10
     if: ${{ inputs.skip_migrations != 'true' }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: main
       - name: Install Supabase CLI
@@ -85,7 +85,7 @@ jobs:
       url: https://rokki.ai
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
