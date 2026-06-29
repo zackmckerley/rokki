@@ -105,7 +105,7 @@ export interface InteractionRow {
 /** Columns a contact card needs in a list (keeps payloads lean). */
 export const CONTACT_LIST_COLUMNS =
   "id, first_name, last_name, nickname, avatar_url, contact_types, tags, company, " +
-  "title, primary_email, primary_phone, status, strength, user_id, updated_at";
+  "title, primary_email, primary_phone, status, strength, user_id, source, updated_at";
 
 /**
  * Loosely-typed Supabase client for the contacts tables. Same `any`-boundary

@@ -294,7 +294,12 @@ export function ContactsCard() {
         </div>
       ) : (
         <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
-          {contacts.map((c) => {
+          {[...contacts]
+            .sort(
+              (a, b) =>
+                (b.source === "self" ? 1 : 0) - (a.source === "self" ? 1 : 0),
+            )
+            .map((c) => {
             const active = split && c.id === selectedId;
             return (
               <li key={c.id}>
@@ -321,10 +326,16 @@ export function ContactsCard() {
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-medium text-text-0">
                       {rowName(c)}
-                      {c.user_id && (
+                      {c.source === "self" ? (
                         <span className="ml-1 inline-block rounded-sm bg-accent/15 px-1 py-px align-middle text-[9px] font-semibold uppercase tracking-wide text-accent">
-                          Rokki
+                          You
                         </span>
+                      ) : (
+                        c.user_id && (
+                          <span className="ml-1 inline-block rounded-sm bg-accent/15 px-1 py-px align-middle text-[9px] font-semibold uppercase tracking-wide text-accent">
+                            Rokki
+                          </span>
+                        )
                       )}
                     </span>
                     {(c.company || c.title) && (

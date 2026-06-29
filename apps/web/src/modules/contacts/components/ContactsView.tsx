@@ -136,6 +136,12 @@ export function ContactsView({
   }
 
   const empty = useMemo(() => contacts.length === 0, [contacts]);
+  // Pin the viewer's own self-contact ("You") to the top, keep server order below.
+  const ordered = useMemo(() => {
+    const self = contacts.filter((c) => c.source === "self");
+    if (self.length === 0) return contacts;
+    return [...self, ...contacts.filter((c) => c.source !== "self")];
+  }, [contacts]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -174,7 +180,7 @@ export function ContactsView({
         </div>
       ) : (
         <ul className="min-h-0 flex-1 divide-y divide-border/30 overflow-y-auto">
-          {contacts.map((c) => (
+          {ordered.map((c) => (
             <li key={c.id}>
               <button
                 type="button"
@@ -194,8 +200,15 @@ export function ContactsView({
                   </span>
                 )}
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium text-text-0">
-                    {rowName(c)}
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-xs font-medium text-text-0">
+                      {rowName(c)}
+                    </span>
+                    {c.source === "self" && (
+                      <span className="flex-shrink-0 rounded-sm bg-accent/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-accent">
+                        You
+                      </span>
+                    )}
                   </span>
                   {(c.company || c.title) && (
                     <span className="block truncate text-2xs text-text-3">
