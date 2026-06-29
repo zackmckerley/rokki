@@ -2,14 +2,30 @@
 
 import { useState } from "react";
 import { Clock, Flame, Layers, StickyNote } from "lucide-react";
-import type { LeadRow, PipelineStage } from "@/lib/pipeline/db";
-import { isRotting, isFollowUpDue } from "@/lib/pipeline/board";
+import type { LeadRow, PipelineStage, PipelineField } from "@/lib/pipeline/db";
+import {
+  isRotting,
+  isFollowUpDue,
+  compactMoney,
+  CARD_FIELD_CAP,
+} from "@/lib/pipeline/board";
 
 const PRIORITY_DOT: Record<number, string> = {
   1: "bg-text-3",
   2: "bg-accent",
   3: "bg-danger",
 };
+
+/** A field's display value for a card chip (formatted by type); null if empty. */
+function cardFieldValue(lead: LeadRow, f: PipelineField): string | null {
+  const raw = (lead.attributes as Record<string, unknown>)?.[f.key];
+  if (raw == null || String(raw).trim() === "") return null;
+  if (f.type === "currency") {
+    const n = Number(raw);
+    return Number.isFinite(n) ? compactMoney(n) || String(raw) : String(raw);
+  }
+  return String(raw);
+}
 
 /** Count of non-empty parcels on a lead (an assemblage has >1). */
 function parcelCount(lead: LeadRow): number {
@@ -27,12 +43,15 @@ export function LeadCard({
   lead,
   stages,
   nowMs,
+  cardFields = [],
   onClick,
   onDragStart,
 }: {
   lead: LeadRow;
   stages: PipelineStage[];
   nowMs: number;
+  /** Pipeline fields flagged "show on card" (parent passes pipeline.fields). */
+  cardFields?: PipelineField[];
   onClick: () => void;
   onDragStart: (e: React.DragEvent) => void;
 }) {
@@ -42,6 +61,14 @@ export function LeadCard({
   const parcels = parcelCount(lead);
   const notes = hasNotes(lead);
   const [dragging, setDragging] = useState(false);
+
+  // Up to CARD_FIELD_CAP non-empty card fields, formatted. Keyed by the field's
+  // unique key (labels can collide).
+  const chips = cardFields
+    .filter((f) => f.card)
+    .map((f) => ({ key: f.key, label: f.label, value: cardFieldValue(lead, f) }))
+    .filter((c): c is { key: string; label: string; value: string } => c.value != null)
+    .slice(0, CARD_FIELD_CAP);
   return (
     <button
       type="button"
@@ -77,6 +104,19 @@ export function LeadCard({
       </div>
       {lead.subtitle && (
         <span className="truncate text-2xs text-text-3">{lead.subtitle}</span>
+      )}
+      {chips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1">
+          {chips.map((c) => (
+            <span
+              key={c.key}
+              title={c.label}
+              className="max-w-[8rem] truncate rounded-sm bg-bg-2 px-1 py-px font-mono text-[9px] text-text-2"
+            >
+              {c.value}
+            </span>
+          ))}
+        </div>
       )}
       {(lead.source || due || rotting || parcels > 1 || notes) && (
         <div className="flex flex-wrap items-center gap-1">

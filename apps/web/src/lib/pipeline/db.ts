@@ -32,6 +32,10 @@ export interface PipelineField {
   options?: string[];
   /** Section the field renders under in the lead form (e.g. "Location"). */
   group?: string;
+  /** Surface this field's value as a chip on the board card + list row. Kept
+   *  opt-in (and capped at render) so the card stays sparse no matter how many
+   *  custom fields exist. */
+  card?: boolean;
 }
 
 export interface PipelineRow {
