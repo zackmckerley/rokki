@@ -13,11 +13,6 @@ import {
 import { ContactForm } from "./ContactForm";
 import { ContactDetail } from "./ContactDetail";
 
-function initials(c: Pick<ContactListItem, "first_name" | "last_name" | "nickname">) {
-  const a = (c.first_name || c.nickname || "").trim()[0] ?? "";
-  const b = (c.last_name || "").trim()[0] ?? "";
-  return (a + b).toUpperCase() || "?";
-}
 function rowName(c: ContactListItem) {
   return (
     c.nickname?.trim() ||
@@ -187,17 +182,13 @@ export function ContactsView({
                 onClick={() => setSelectedId(c.id)}
                 className="flex w-full items-center gap-2.5 px-3 py-[var(--rk-row-py)] text-left hover:bg-bg-2"
               >
-                {c.avatar_url ? (
+                {c.avatar_url && (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={c.avatar_url}
                     alt=""
                     className="h-7 w-7 flex-shrink-0 rounded-full object-cover"
                   />
-                ) : (
-                  <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 font-mono text-2xs text-text-1">
-                    {initials(c)}
-                  </span>
                 )}
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
