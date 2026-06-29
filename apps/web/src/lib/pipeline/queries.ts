@@ -171,9 +171,18 @@ const LEAD_WRITABLE: (keyof LeadInput)[] = [
   "next_follow_up_at", "dead_reason", "lat", "lng", "attributes",
 ];
 
+/** Trim + collapse internal whitespace so " Broker  " and "Broker" don't become
+ *  two different sources fragmenting the board's source filter. Casing is left
+ *  alone (so "MLS" stays "MLS"); the UI dedupes the filter case-insensitively. */
+function normalizeSource(s: string): string | null {
+  const t = s.trim().replace(/\s+/g, " ");
+  return t || null;
+}
+
 function pickLead(input: LeadInput): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const k of LEAD_WRITABLE) if (input[k] !== undefined) out[k] = input[k];
+  if (typeof out.source === "string") out.source = normalizeSource(out.source);
   return out;
 }
 

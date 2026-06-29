@@ -98,6 +98,7 @@ export function LeadDetail({
   const [ncBusy, setNcBusy] = useState(false);
 
   const [promoteMsg, setPromoteMsg] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [files, setFiles] = useState<LeadFile[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -595,9 +596,31 @@ export function LeadDetail({
                   <Ban className="h-3 w-3" /> Mark dead
                 </Button>
               )}
-              <Button size="sm" variant="ghost" onClick={remove} disabled={busy}>
-                <Trash2 className="h-3 w-3" /> Delete
-              </Button>
+              {confirmDelete ? (
+                <div className="ml-auto flex items-center gap-1.5">
+                  <span className="text-2xs text-text-2">Delete for good?</span>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setConfirmDelete(false)}
+                    disabled={busy}
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" variant="destructive" onClick={remove} disabled={busy}>
+                    <Trash2 className="h-3 w-3" /> Delete
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setConfirmDelete(true)}
+                  disabled={busy}
+                >
+                  <Trash2 className="h-3 w-3" /> Delete
+                </Button>
+              )}
             </div>
           </div>
         )}
