@@ -13,7 +13,7 @@ import {
   compactMoney,
 } from "@/lib/pipeline/board";
 import { PipelineList } from "./PipelineList";
-import { FieldsEditor } from "./FieldsEditor";
+import { CustomizePanel } from "./CustomizePanel";
 import {
   getSpaces,
   getBoard,
@@ -61,7 +61,7 @@ export function PipelineBoard() {
   const [createStage, setCreateStage] = useState<string | null>(null);
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
-  const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
   // Esc closes whichever overlay is open (+ restores focus to the trigger).
@@ -77,7 +77,7 @@ export function PipelineBoard() {
       const tag = t?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable)
         return;
-      if (createStage != null || selectedLead != null || fieldsOpen) return;
+      if (createStage != null || selectedLead != null || customizeOpen) return;
       if (e.key === "n") {
         e.preventDefault();
         if (pipeline) setCreateStage(pipeline.stages[0]?.key ?? null);
@@ -90,7 +90,7 @@ export function PipelineBoard() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [createStage, selectedLead, fieldsOpen, pipeline]);
+  }, [createStage, selectedLead, customizeOpen, pipeline]);
 
   // Spaces once.
   useEffect(() => {
@@ -197,6 +197,7 @@ export function PipelineBoard() {
   const visibleLeads = attentionOnly ? activeLeads.filter(needsAttention) : activeLeads;
   const { columns, orphans } = groupByStage(visibleLeads, stages);
   const rollup = pipeline ? rollupField(pipeline.fields) : null;
+  const cardFields = pipeline ? pipeline.fields.filter((f) => f.card) : [];
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -243,9 +244,9 @@ export function PipelineBoard() {
         </div>
         <button
           type="button"
-          onClick={() => setFieldsOpen(true)}
-          aria-label="Edit fields"
-          title="Add or remove lead fields"
+          onClick={() => setCustomizeOpen(true)}
+          aria-label="Customize pipeline"
+          title="Customize stages & fields"
           disabled={!pipeline}
           className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0 disabled:opacity-40"
         >
@@ -349,6 +350,7 @@ export function PipelineBoard() {
                     lead={lead}
                     stages={stages}
                     nowMs={nowMs}
+                    cardFields={cardFields}
                     onClick={() => setSelectedLead(lead.id)}
                     onDragStart={(e) => e.dataTransfer.setData("text/plain", lead.id)}
                   />
@@ -415,6 +417,7 @@ export function PipelineBoard() {
                     lead={lead}
                     stages={pipeline.stages}
                     nowMs={nowMs}
+                    cardFields={cardFields}
                     onClick={() => setSelectedLead(lead.id)}
                     onDragStart={(e) => e.dataTransfer.setData("text/plain", lead.id)}
                   />
@@ -497,11 +500,11 @@ export function PipelineBoard() {
         </div>
       )}
 
-      {/* Fields editor */}
-      {fieldsOpen && pipeline && (
-        <FieldsEditor
+      {/* Customize (stages + fields) */}
+      {customizeOpen && pipeline && (
+        <CustomizePanel
           pipeline={pipeline}
-          onClose={() => setFieldsOpen(false)}
+          onClose={() => setCustomizeOpen(false)}
           onSaved={refresh}
         />
       )}
