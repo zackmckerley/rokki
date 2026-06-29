@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow, PipelineField } from "@/lib/pipeline/db";
 import type { LeadInput } from "../lib/client-api";
@@ -21,7 +22,23 @@ const PRIORITIES = [
 function fieldInputType(t: PipelineField["type"]): string {
   if (t === "currency" || t === "number") return "number";
   if (t === "date") return "date";
+  if (t === "url") return "url";
   return "text";
+}
+
+/** Group fields by their `group` (preserving first-seen order). */
+function groupFields(fields: PipelineField[]): { name: string; fields: PipelineField[] }[] {
+  const order: string[] = [];
+  const byGroup = new Map<string, PipelineField[]>();
+  for (const f of fields) {
+    const g = f.group ?? "Details";
+    if (!byGroup.has(g)) {
+      byGroup.set(g, []);
+      order.push(g);
+    }
+    byGroup.get(g)!.push(f);
+  }
+  return order.map((name) => ({ name, fields: byGroup.get(name)! }));
 }
 
 /** Shared create/edit form for a lead. Renders the core fields + the pipeline's
@@ -58,6 +75,20 @@ export function LeadForm({
   const [attrs, setAttrs] = useState<Record<string, unknown>>(
     (initial?.attributes as Record<string, unknown>) ?? {},
   );
+
+  const groups = groupFields(pipeline.fields);
+  // First group (Location) open; the rest collapsed so the form stays compact.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    () => new Set(groups.slice(0, 1).map((g) => g.name)),
+  );
+  function toggleGroup(name: string) {
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }
 
   function setAttr(key: string, val: string) {
     setAttrs((prev) => ({ ...prev, [key]: val }));
@@ -152,41 +183,59 @@ export function LeadForm({
         </div>
       </div>
 
-      {pipeline.fields.length > 0 && (
-        <div className="flex flex-col gap-2 border-t border-border/40 pt-2">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-text-2">
-            {pipeline.name} fields
-          </span>
-          <div className="grid grid-cols-2 gap-2">
-            {pipeline.fields.map((f) => (
-              <div key={f.key}>
-                <label className={label}>{f.label}</label>
-                {f.type === "select" ? (
-                  <select
-                    className={`${select} w-full`}
-                    value={String(attrs[f.key] ?? "")}
-                    onChange={(e) => setAttr(f.key, e.target.value)}
+      {groups.map((g) => {
+        const open = openGroups.has(g.name);
+        return (
+          <div key={g.name} className="border-t border-border/40 pt-2">
+            <button
+              type="button"
+              onClick={() => toggleGroup(g.name)}
+              aria-expanded={open}
+              className="flex w-full items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-text-2 hover:text-text-0"
+            >
+              {open ? (
+                <ChevronDown className="h-3 w-3" aria-hidden="true" />
+              ) : (
+                <ChevronRight className="h-3 w-3" aria-hidden="true" />
+              )}
+              {g.name}
+            </button>
+            {open && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {g.fields.map((f) => (
+                  <div
+                    key={f.key}
+                    className={f.type === "url" || f.type === "address" ? "col-span-2" : ""}
                   >
-                    <option value="" />
-                    {(f.options ?? []).map((o) => (
-                      <option key={o} value={o}>
-                        {o}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type={fieldInputType(f.type)}
-                    className={input}
-                    value={String(attrs[f.key] ?? "")}
-                    onChange={(e) => setAttr(f.key, e.target.value)}
-                  />
-                )}
+                    <label className={label}>{f.label}</label>
+                    {f.type === "select" ? (
+                      <select
+                        className={`${select} w-full`}
+                        value={String(attrs[f.key] ?? "")}
+                        onChange={(e) => setAttr(f.key, e.target.value)}
+                      >
+                        <option value="" />
+                        {(f.options ?? []).map((o) => (
+                          <option key={o} value={o}>
+                            {o}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={fieldInputType(f.type)}
+                        className={input}
+                        value={String(attrs[f.key] ?? "")}
+                        onChange={(e) => setAttr(f.key, e.target.value)}
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        );
+      })}
 
       {error ? <p className="text-xs text-danger">{error}</p> : null}
 

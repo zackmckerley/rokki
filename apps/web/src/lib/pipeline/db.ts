@@ -22,13 +22,16 @@ export type PipelineFieldType =
   | "currency"
   | "select"
   | "date"
-  | "address";
+  | "address"
+  | "url";
 
 export interface PipelineField {
   key: string;
   label: string;
   type: PipelineFieldType;
   options?: string[];
+  /** Section the field renders under in the lead form (e.g. "Location"). */
+  group?: string;
 }
 
 export interface PipelineRow {
