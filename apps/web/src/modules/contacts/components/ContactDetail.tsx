@@ -185,10 +185,16 @@ export function ContactDetail({
                   <span className="truncate text-sm font-semibold text-text-0">
                     {fullName || contact.nickname || "Unnamed"}
                   </span>
-                  {contact.user_id && (
+                  {contact.source === "self" ? (
                     <span className="flex-shrink-0 rounded-sm bg-accent/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-accent">
-                      Rokki
+                      You
                     </span>
+                  ) : (
+                    contact.user_id && (
+                      <span className="flex-shrink-0 rounded-sm bg-accent/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-accent">
+                        Rokki
+                      </span>
+                    )
                   )}
                 </div>
                 {contact.nickname && fullName && (

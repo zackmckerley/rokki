@@ -41,6 +41,7 @@ export type ContactListItem = Pick<
   | "status"
   | "strength"
   | "user_id"
+  | "source"
   | "updated_at"
 >;
 

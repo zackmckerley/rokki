@@ -21,6 +21,7 @@ const { items } = vi.hoisted(() => ({
       status: "active",
       strength: 0,
       user_id: null,
+      source: null,
       updated_at: "2026-06-24T00:00:00Z",
     },
   ],
