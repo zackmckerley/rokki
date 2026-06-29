@@ -1,15 +1,12 @@
 /**
  * Goals module manifest.
  *
- * Phase 0 stub. Phase 2 ports the standalone `Claude/rokki-goals/`
- * Next.js app into a first-class Rokki module: translate the JSON
- * store to Postgres tables with `space_id` / `terminal_id` columns,
- * mount routes at `/modules/goals`, `/s/[slug]/goals`, `/p/[ticker]/goals`,
- * and ship a one-off import script at
- * `Claude/rokki-goals/scripts/import-to-supabase.ts`.
- *
- * Not `enabled_by_default` in `modules_catalog` — Goals is an opt-in
- * module, installed via marketplace per scope.
+ * Goals is **dashboard-only**: the whole experience (every goal area, with the
+ * week's progress and daily logging) lives in the Goals panel on the dashboard,
+ * aggregated across all the scopes you can see. There is no per-scope detail
+ * page, so Goals is not a space/terminal pane module and claims no F-key. The
+ * sole `user` route points at `/modules/goals`, which redirects to the
+ * dashboard — kept only so old links don't 404.
  */
 import type { ModuleManifest } from "@rokki/sdk";
 
@@ -18,11 +15,8 @@ export const goalsManifest: ModuleManifest = {
   name: "Goals",
   description: "Weekly numeric targets with daily entries.",
   icon: "target",
-  scopes: ["user", "space", "terminal"],
+  scopes: ["user"],
   routes: {
     user: "/modules/goals",
-    space: "/s/[slug]/goals",
-    terminal: "/p/[ticker]/goals",
   },
-  fnKey: { label: "Goals", default: 5 },
 };
