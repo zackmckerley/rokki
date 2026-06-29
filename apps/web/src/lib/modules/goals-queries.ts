@@ -81,8 +81,9 @@ export async function loadCategories(
  * Every non-archived category the caller can see, across ALL scopes
  * (RLS does the scoping). Powers the dashboard Goals panel, which is
  * scope-agnostic — it shows everything you're tracking in one place.
+ * For a single scope use {@link loadCategories} instead.
  */
-export async function loadVisibleCategories(
+export async function loadAllVisibleCategories(
   supabase: Db,
 ): Promise<GoalsCategoryRow[]> {
   const { data } = await supabase

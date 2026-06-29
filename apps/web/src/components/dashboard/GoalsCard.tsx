@@ -6,7 +6,7 @@ import { DashboardCard } from "./DashboardCard";
 import { GoalsView } from "@/components/modules/GoalsView";
 import { createClient } from "@/lib/supabase/client";
 import {
-  loadVisibleCategories,
+  loadAllVisibleCategories,
   loadGoalsForCategories,
   loadCurrentTargets,
   sumWeekValues,
@@ -45,7 +45,7 @@ export function GoalsCard() {
     const today = todayIso();
     const start = startOfWeek(today);
     const end = endOfWeek(today);
-    const categories = await loadVisibleCategories(supabase);
+    const categories = await loadAllVisibleCategories(supabase);
     const goals = await loadGoalsForCategories(
       supabase,
       categories.map((c) => c.id),
