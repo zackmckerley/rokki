@@ -29,6 +29,7 @@ import { listContacts, type ContactListItem } from "@/modules/contacts/lib/clien
 import { LeadForm } from "./LeadForm";
 
 const sectionLabel = "text-[10px] font-semibold uppercase tracking-wide text-text-3";
+const ROLES = ["", "seller", "broker", "attorney", "title", "lender", "partner", "other"];
 
 /** Drawer for one lead — edit, linked contacts, promote-to-Terminal, and the
  *  dead/reopen/delete actions. */
@@ -139,6 +140,16 @@ export function LeadDetail({
     }
   }
 
+  async function setRole(contactId: string, role: string) {
+    // addLeadContact upserts, so re-linking with a new role just updates it.
+    try {
+      const next = await addLeadContact(leadId, contactId, role || null);
+      setContacts(next);
+    } catch {
+      /* non-fatal */
+    }
+  }
+
   async function promote() {
     setBusy(true);
     setError(null);
@@ -237,11 +248,18 @@ export function LeadDetail({
               {contacts.map((c) => (
                 <div key={c.contact_id} className="flex items-center gap-2 text-xs text-text-1">
                   <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                  {c.role && (
-                    <span className="rounded-sm bg-bg-3 px-1 py-px text-[9px] uppercase text-text-3">
-                      {c.role}
-                    </span>
-                  )}
+                  <select
+                    value={c.role ?? ""}
+                    onChange={(e) => setRole(c.contact_id, e.target.value)}
+                    aria-label="Role"
+                    className="rounded border border-border bg-bg-2 px-1 py-0.5 text-[9px] uppercase tracking-wide text-text-3 outline-none focus:border-border-focus"
+                  >
+                    {ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r || "role"}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     type="button"
                     onClick={() => unlinkContact(c.contact_id)}

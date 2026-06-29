@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, X, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow, PipelineField } from "@/lib/pipeline/db";
 import type { LeadInput } from "../lib/client-api";
@@ -18,6 +18,13 @@ const PRIORITIES = [
   { v: 2, label: "Med" },
   { v: 3, label: "High" },
 ];
+
+const QC_ROLES = ["", "seller", "broker", "attorney", "title", "lender", "partner", "other"];
+interface QuickContact {
+  name: string;
+  role?: string;
+  phone?: string;
+}
 
 function fieldInputType(t: PipelineField["type"]): string {
   if (t === "currency" || t === "number") return "number";
@@ -94,7 +101,21 @@ export function LeadForm({
     setAttrs((prev) => ({ ...prev, [key]: val }));
   }
 
+  const quickContacts = (attrs.quick_contacts as QuickContact[] | undefined) ?? [];
+  function setQuickContacts(next: QuickContact[]) {
+    setAttrs((prev) => ({ ...prev, quick_contacts: next }));
+  }
+  function patchQC(i: number, p: Partial<QuickContact>) {
+    setQuickContacts(quickContacts.map((q, idx) => (idx === i ? { ...q, ...p } : q)));
+  }
+
   function submit() {
+    const cleanAttrs = { ...attrs };
+    if (Array.isArray(cleanAttrs.quick_contacts)) {
+      cleanAttrs.quick_contacts = (cleanAttrs.quick_contacts as QuickContact[]).filter(
+        (q) => q.name?.trim(),
+      );
+    }
     const patch: LeadInput = {
       name: name.trim(),
       subtitle: subtitle.trim() || null,
@@ -102,7 +123,7 @@ export function LeadForm({
       priority,
       source: source.trim() || null,
       next_follow_up_at: followUp ? new Date(followUp).toISOString() : null,
-      attributes: attrs,
+      attributes: cleanAttrs,
     };
     onSubmit(patch);
   }
@@ -236,6 +257,65 @@ export function LeadForm({
           </div>
         );
       })}
+
+      {/* Quick contacts (free-text — for one-off names; link real Contacts in the drawer) */}
+      <div className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-2">
+          People (quick)
+        </span>
+        {quickContacts.map((qc, i) => (
+          <div key={i} className="flex items-center gap-1">
+            <input
+              className={`${input} flex-1`}
+              placeholder="Name"
+              value={qc.name}
+              onChange={(e) => patchQC(i, { name: e.target.value })}
+            />
+            <select
+              className={select}
+              value={qc.role ?? ""}
+              onChange={(e) => patchQC(i, { role: e.target.value })}
+            >
+              {QC_ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {r || "role"}
+                </option>
+              ))}
+            </select>
+            <input
+              className={`${input} max-w-[40%]`}
+              placeholder="Phone / email"
+              value={qc.phone ?? ""}
+              onChange={(e) => patchQC(i, { phone: e.target.value })}
+            />
+            <button
+              type="button"
+              onClick={() => setQuickContacts(quickContacts.filter((_, idx) => idx !== i))}
+              aria-label="Remove"
+              className="rounded-sm p-0.5 text-text-3 hover:text-danger"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() => setQuickContacts([...quickContacts, { name: "" }])}
+          className="flex items-center gap-1 self-start text-2xs text-text-3 hover:text-text-1"
+        >
+          <Plus className="h-3 w-3" /> Add person
+        </button>
+      </div>
+
+      {/* Notes */}
+      <div className="border-t border-border/40 pt-2">
+        <label className={label}>Notes</label>
+        <textarea
+          className={`${input} min-h-[60px] resize-y`}
+          value={String(attrs.notes ?? "")}
+          onChange={(e) => setAttr("notes", e.target.value)}
+        />
+      </div>
 
       {error ? <p className="text-xs text-danger">{error}</p> : null}
 
