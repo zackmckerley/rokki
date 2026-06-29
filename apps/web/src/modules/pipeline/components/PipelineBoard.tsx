@@ -164,7 +164,7 @@ export function PipelineBoard() {
     if (isRotting(l, stages, nowMs)) coldCount++;
   }
   const visibleLeads = attentionOnly ? activeLeads.filter(needsAttention) : activeLeads;
-  const { columns } = groupByStage(visibleLeads, stages);
+  const { columns, orphans } = groupByStage(visibleLeads, stages);
   const rollup = pipeline ? rollupField(pipeline.fields) : null;
 
   return (
@@ -291,6 +291,32 @@ export function PipelineBoard() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-2">
+          {/* Orphans — leads whose stage was removed from the pipeline. Surface
+              them in a holding column (drag into a real stage to re-home) rather
+              than silently dropping them off the board. */}
+          {orphans.length > 0 && (
+            <div className="flex min-w-[13rem] flex-1 flex-col rounded border border-danger/40 bg-danger/5">
+              <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-danger/30 px-2 py-1.5">
+                <span className="text-2xs font-semibold uppercase tracking-wide text-danger">
+                  Unassigned
+                </span>
+                <span className="font-mono text-2xs text-text-3">{orphans.length}</span>
+                <span className="ml-auto text-[9px] text-text-3">stage removed</span>
+              </div>
+              <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">
+                {orphans.map((lead) => (
+                  <LeadCard
+                    key={lead.id}
+                    lead={lead}
+                    stages={stages}
+                    nowMs={nowMs}
+                    onClick={() => setSelectedLead(lead.id)}
+                    onDragStart={(e) => e.dataTransfer.setData("text/plain", lead.id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
           {columns.map(({ stage, leads: colLeads }) => {
             const colValue = rollup ? sumAttr(colLeads, rollup.key) : 0;
             const coldInCol = colLeads.filter((l) => isRotting(l, stages, nowMs)).length;

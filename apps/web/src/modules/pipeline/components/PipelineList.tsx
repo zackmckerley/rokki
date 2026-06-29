@@ -1,13 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Clock } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Clock, X } from "lucide-react";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
 import { isFollowUpDue, isRotting } from "@/lib/pipeline/board";
 
 const PRIORITY_LABEL: Record<number, string> = { 0: "—", 1: "Low", 2: "Med", 3: "High" };
 const select =
   "rounded border border-border bg-bg-2 px-1.5 py-1 text-2xs text-text-2 outline-none focus:border-border-focus";
+
+const FILTERS_KEY = "rokki:pipeline-list-filters";
+const DEFAULT_FILTERS = { stage: "all", status: "active", source: "all", prio: "all" };
+
+/** Load persisted list filters (SSR-safe; falls back to defaults). */
+function loadFilters(): typeof DEFAULT_FILTERS {
+  if (typeof window === "undefined") return DEFAULT_FILTERS;
+  try {
+    const raw = window.localStorage.getItem(FILTERS_KEY);
+    if (!raw) return DEFAULT_FILTERS;
+    const p = JSON.parse(raw) as Partial<typeof DEFAULT_FILTERS>;
+    return {
+      stage: typeof p.stage === "string" ? p.stage : "all",
+      status: typeof p.status === "string" ? p.status : "active",
+      source: typeof p.source === "string" ? p.source : "all",
+      prio: typeof p.prio === "string" ? p.prio : "all",
+    };
+  } catch {
+    return DEFAULT_FILTERS;
+  }
+}
 
 function attr(lead: LeadRow, key: string): string {
   const v = (lead.attributes as Record<string, unknown>)?.[key];
@@ -40,20 +61,48 @@ export function PipelineList({
   nowMs: number;
   onSelect: (id: string) => void;
 }) {
-  const [stageF, setStageF] = useState("all");
-  const [statusF, setStatusF] = useState("active"); // active = open + won
-  const [sourceF, setSourceF] = useState("all");
-  const [prioF, setPrioF] = useState("all");
+  const [stageF, setStageF] = useState(() => loadFilters().stage);
+  const [statusF, setStatusF] = useState(() => loadFilters().status); // active = open + won
+  const [sourceF, setSourceF] = useState(() => loadFilters().source);
+  const [prioF, setPrioF] = useState(() => loadFilters().prio);
   const [q, setQ] = useState("");
+
+  // Persist the (non-search) filters so they survive a board⇆list toggle / reload.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      FILTERS_KEY,
+      JSON.stringify({ stage: stageF, status: statusF, source: sourceF, prio: prioF }),
+    );
+  }, [stageF, statusF, sourceF, prioF]);
+
+  function clearFilters() {
+    setStageF(DEFAULT_FILTERS.stage);
+    setStatusF(DEFAULT_FILTERS.status);
+    setSourceF(DEFAULT_FILTERS.source);
+    setPrioF(DEFAULT_FILTERS.prio);
+    setQ("");
+  }
+  const anyFilter =
+    stageF !== DEFAULT_FILTERS.stage ||
+    statusF !== DEFAULT_FILTERS.status ||
+    sourceF !== DEFAULT_FILTERS.source ||
+    prioF !== DEFAULT_FILTERS.prio ||
+    q.trim() !== "";
 
   const stageLabel = useMemo(
     () => new Map(pipeline.stages.map((s) => [s.key, s.label])),
     [pipeline.stages],
   );
-  const sources = useMemo(
-    () => Array.from(new Set(leads.map((l) => l.source).filter(Boolean))) as string[],
-    [leads],
-  );
+  // De-dupe sources case-insensitively, keeping the first-seen casing for display.
+  const sources = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const l of leads) {
+      const s = l.source?.trim();
+      if (s && !seen.has(s.toLowerCase())) seen.set(s.toLowerCase(), s);
+    }
+    return Array.from(seen.values());
+  }, [leads]);
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -63,7 +112,8 @@ export function PipelineList({
           return false;
         if (statusF !== "active" && statusF !== "all" && l.status !== statusF) return false;
         if (stageF !== "all" && l.stage !== stageF) return false;
-        if (sourceF !== "all" && l.source !== sourceF) return false;
+        if (sourceF !== "all" && (l.source ?? "").toLowerCase() !== sourceF.toLowerCase())
+          return false;
         if (prioF !== "all" && l.priority !== Number(prioF)) return false;
         if (needle) {
           const hay = [
@@ -126,6 +176,16 @@ export function PipelineList({
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
+        )}
+        {anyFilter && (
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="flex items-center gap-0.5 rounded border border-border px-1.5 py-1 text-2xs text-text-3 hover:text-text-1"
+            title="Clear all filters"
+          >
+            <X className="h-3 w-3" /> Clear
+          </button>
         )}
         <span className="font-mono text-2xs text-text-3">{rows.length}</span>
       </div>
