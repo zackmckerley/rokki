@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Loader2, X, Clock, Flame, LayoutGrid, List } from "lucide-react";
+import { Plus, Loader2, X, Clock, Flame, LayoutGrid, List, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
 import { groupByStage, isFollowUpDue, isRotting } from "@/lib/pipeline/board";
 import { PipelineList } from "./PipelineList";
+import { FieldsEditor } from "./FieldsEditor";
 import {
   getSpaces,
   getBoard,
@@ -46,6 +47,7 @@ export function PipelineBoard() {
   const [createStage, setCreateStage] = useState<string | null>(null);
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
+  const [fieldsOpen, setFieldsOpen] = useState(false);
 
   // Spaces once.
   useEffect(() => {
@@ -193,6 +195,16 @@ export function PipelineBoard() {
             <List className="h-3.5 w-3.5" />
           </button>
         </div>
+        <button
+          type="button"
+          onClick={() => setFieldsOpen(true)}
+          aria-label="Edit fields"
+          title="Add or remove lead fields"
+          disabled={!pipeline}
+          className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0 disabled:opacity-40"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+        </button>
         <Button
           size="sm"
           onClick={() => setCreateStage(pipeline?.stages[0]?.key ?? null)}
@@ -352,6 +364,15 @@ export function PipelineBoard() {
             />
           </div>
         </div>
+      )}
+
+      {/* Fields editor */}
+      {fieldsOpen && pipeline && (
+        <FieldsEditor
+          pipeline={pipeline}
+          onClose={() => setFieldsOpen(false)}
+          onSaved={refresh}
+        />
       )}
     </div>
   );

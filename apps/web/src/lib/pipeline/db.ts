@@ -41,6 +41,8 @@ export interface PipelineRow {
   kind: string;
   stages: PipelineStage[];
   fields: PipelineField[];
+  /** True once the user has edited `fields` — stops template field-sync. */
+  fields_customized: boolean;
   position: number;
   created_by: string | null;
   created_at: string;
