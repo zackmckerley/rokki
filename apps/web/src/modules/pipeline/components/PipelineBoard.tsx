@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Loader2, X, Clock, Flame } from "lucide-react";
+import { Plus, Loader2, X, Clock, Flame, LayoutGrid, List } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
 import { groupByStage, isFollowUpDue, isRotting } from "@/lib/pipeline/board";
+import { PipelineList } from "./PipelineList";
 import {
   getSpaces,
   getBoard,
@@ -18,6 +19,7 @@ import { LeadForm } from "./LeadForm";
 import { LeadDetail } from "./LeadDetail";
 
 const SPACE_KEY = "rokki:pipeline-space";
+const VIEW_KEY = "rokki:pipeline-view";
 
 export function PipelineBoard() {
   const [spaces, setSpaces] = useState<SpaceLite[]>([]);
@@ -27,7 +29,18 @@ export function PipelineBoard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
+  const [view, setView] = useState<"board" | "list">("board");
   const nowMs = Date.now();
+
+  useEffect(() => {
+    const saved =
+      typeof window !== "undefined" ? window.localStorage.getItem(VIEW_KEY) : null;
+    if (saved === "list" || saved === "board") setView(saved);
+  }, []);
+  function selectView(v: "board" | "list") {
+    setView(v);
+    if (typeof window !== "undefined") window.localStorage.setItem(VIEW_KEY, v);
+  }
 
   const [selectedLead, setSelectedLead] = useState<string | null>(null);
   const [createStage, setCreateStage] = useState<string | null>(null);
@@ -160,9 +173,28 @@ export function PipelineBoard() {
           </span>
         )}
         <span className="font-mono text-2xs text-text-3">{visibleLeads.length}</span>
+        <div className="ml-auto flex items-center gap-0.5 rounded border border-border p-0.5">
+          <button
+            type="button"
+            onClick={() => selectView("board")}
+            aria-label="Board view"
+            aria-pressed={view === "board"}
+            className={`rounded-sm p-1 ${view === "board" ? "bg-bg-3 text-text-0" : "text-text-3 hover:text-text-1"}`}
+          >
+            <LayoutGrid className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => selectView("list")}
+            aria-label="List view"
+            aria-pressed={view === "list"}
+            className={`rounded-sm p-1 ${view === "list" ? "bg-bg-3 text-text-0" : "text-text-3 hover:text-text-1"}`}
+          >
+            <List className="h-3.5 w-3.5" />
+          </button>
+        </div>
         <Button
           size="sm"
-          className="ml-auto"
           onClick={() => setCreateStage(pipeline?.stages[0]?.key ?? null)}
           disabled={!pipeline}
         >
@@ -170,8 +202,8 @@ export function PipelineBoard() {
         </Button>
       </div>
 
-      {/* Needs-attention strip — follow-ups due + going cold; click to focus */}
-      {(fuCount > 0 || coldCount > 0) && (
+      {/* Needs-attention strip — board view only */}
+      {view === "board" && (fuCount > 0 || coldCount > 0) && (
         <button
           type="button"
           onClick={() => setAttentionOnly((a) => !a)}
@@ -209,6 +241,13 @@ export function PipelineBoard() {
         <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-text-3">
           No space available. Create or join a space to start a pipeline.
         </div>
+      ) : view === "list" ? (
+        <PipelineList
+          leads={leads}
+          pipeline={pipeline}
+          nowMs={nowMs}
+          onSelect={(id) => setSelectedLead(id)}
+        />
       ) : (
         <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-2">
           {columns.map(({ stage, leads: colLeads }) => (
