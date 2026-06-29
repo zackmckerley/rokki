@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Loader2, X, Clock, Flame, LayoutGrid, List, SlidersHorizontal } from "lucide-react";
+import { Plus, X, Clock, Flame, LayoutGrid, List, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
 import {
@@ -289,9 +289,7 @@ export function PipelineBoard() {
 
       {/* Board */}
       {loading ? (
-        <div className="flex flex-1 items-center justify-center text-text-3">
-          <Loader2 className="h-5 w-5 animate-spin" aria-label="Loading" />
-        </div>
+        <BoardSkeleton view={view} />
       ) : error ? (
         <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-text-3">
           {error}
@@ -508,6 +506,52 @@ export function PipelineBoard() {
           onSaved={refresh}
         />
       )}
+    </div>
+  );
+}
+
+/** Ghost board/list that matches the real layout, so content doesn't jump in on
+ *  load. View-aware so the placeholder matches the view you'll land in. */
+function BoardSkeleton({ view }: { view: "board" | "list" }) {
+  if (view === "list") {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col" aria-hidden="true">
+        <div className="border-b border-border/60 px-3 py-1.5">
+          <span className="block h-5 w-40 animate-pulse rounded-sm bg-bg-2" />
+        </div>
+        {Array.from({ length: 8 }).map((_, r) => (
+          <div key={r} className="flex items-center gap-2.5 border-b border-border/30 px-3 py-2">
+            <span className="h-2.5 flex-1 animate-pulse rounded-sm bg-bg-3" />
+            <span className="h-2.5 w-16 animate-pulse rounded-sm bg-bg-3" />
+            <span className="hidden h-2.5 w-20 animate-pulse rounded-sm bg-bg-3 sm:block" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-h-0 flex-1 gap-2 overflow-hidden p-2" aria-hidden="true">
+      {Array.from({ length: 4 }).map((_, c) => (
+        <div
+          key={c}
+          className="flex min-w-[13rem] flex-1 flex-col rounded border border-border/60 bg-bg-2/30"
+        >
+          <div className="flex items-center gap-1.5 border-b border-border/50 px-2 py-1.5">
+            <span className="h-2.5 w-16 animate-pulse rounded-sm bg-bg-3" />
+          </div>
+          <div className="flex flex-col gap-1.5 p-1.5">
+            {Array.from({ length: 3 - (c % 2) }).map((__, k) => (
+              <div
+                key={k}
+                className="flex flex-col gap-1.5 rounded border border-border bg-bg-1 px-2 py-2"
+              >
+                <span className="h-2.5 w-3/4 animate-pulse rounded-sm bg-bg-3" />
+                <span className="h-2 w-1/2 animate-pulse rounded-sm bg-bg-3" />
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
