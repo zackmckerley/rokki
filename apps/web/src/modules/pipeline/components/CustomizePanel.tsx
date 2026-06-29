@@ -10,6 +10,7 @@ import type {
   PipelineStage,
 } from "@/lib/pipeline/db";
 import { slugifyKey, uniqueKey } from "@/lib/pipeline/fields";
+import { CARD_FIELD_CAP } from "@/lib/pipeline/board";
 import { updatePipeline } from "../lib/client-api";
 import { useOverlay } from "../lib/use-overlay";
 
@@ -54,10 +55,6 @@ interface FieldRow {
   optionsText: string;
   card: boolean;
 }
-
-/** How many "show on card" fields actually render on a card before the rest are
- *  dropped — keeps the card sparse no matter how many are flagged. */
-const CARD_FIELD_CAP = 3;
 interface StageRow {
   key: string; // "" for a new stage; assigned on save (existing keys are kept)
   label: string;
@@ -201,10 +198,35 @@ export function CustomizePanel({
       setError("A pipeline needs at least one stage.");
       return;
     }
+    // A go-hard gate is structural — promotion to a Terminal depends on it.
+    if (!nextStages.some((s) => s.is_terminal_gate)) {
+      setTab("stages");
+      setError("Mark one stage as the gate (the go-hard stage that promotes to a Terminal).");
+      return;
+    }
+    // Cold thresholds must be positive day counts (the input can be coaxed
+    // negative; don't silently drop it).
+    const badCold = stages.find(
+      (r) => r.label.trim() && r.rottingDays.trim() && !(Number(r.rottingDays) > 0),
+    );
+    if (badCold) {
+      setTab("stages");
+      setError("Cold thresholds must be a positive number of days.");
+      return;
+    }
+
+    // Only send `fields` when they actually changed — otherwise a stage-only
+    // edit would needlessly flip fields_customized and stop template field-sync.
+    const nextFields = buildFields();
+    const patch: Parameters<typeof updatePipeline>[1] = { stages: nextStages };
+    if (JSON.stringify(nextFields) !== JSON.stringify(pipeline.fields)) {
+      patch.fields = nextFields;
+    }
+
     setBusy(true);
     setError(null);
     try {
-      await updatePipeline(pipeline.id, { stages: nextStages, fields: buildFields() });
+      await updatePipeline(pipeline.id, patch);
       onSaved();
       onClose();
     } catch (e) {

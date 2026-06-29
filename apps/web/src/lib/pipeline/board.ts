@@ -5,6 +5,11 @@
  */
 import type { LeadRow, PipelineStage, PipelineField } from "./db";
 
+/** Max "show on card" fields rendered on a board card before the rest are
+ *  dropped — keeps the card sparse no matter how many fields are flagged.
+ *  Shared by the card renderer and the Customize panel's hint. */
+export const CARD_FIELD_CAP = 3;
+
 export function defaultStageKey(pipeline: { stages: PipelineStage[] }): string {
   return pipeline.stages[0]?.key ?? "";
 }

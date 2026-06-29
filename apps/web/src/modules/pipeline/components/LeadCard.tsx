@@ -3,17 +3,18 @@
 import { useState } from "react";
 import { Clock, Flame, Layers, StickyNote } from "lucide-react";
 import type { LeadRow, PipelineStage, PipelineField } from "@/lib/pipeline/db";
-import { isRotting, isFollowUpDue, compactMoney } from "@/lib/pipeline/board";
+import {
+  isRotting,
+  isFollowUpDue,
+  compactMoney,
+  CARD_FIELD_CAP,
+} from "@/lib/pipeline/board";
 
 const PRIORITY_DOT: Record<number, string> = {
   1: "bg-text-3",
   2: "bg-accent",
   3: "bg-danger",
 };
-
-/** How many "show on card" fields render before the rest are dropped — keeps
- *  the card sparse no matter how many fields are flagged. */
-const CARD_FIELD_CAP = 3;
 
 /** A field's display value for a card chip (formatted by type); null if empty. */
 function cardFieldValue(lead: LeadRow, f: PipelineField): string | null {
@@ -61,11 +62,12 @@ export function LeadCard({
   const notes = hasNotes(lead);
   const [dragging, setDragging] = useState(false);
 
-  // Up to CARD_FIELD_CAP non-empty card fields, formatted.
+  // Up to CARD_FIELD_CAP non-empty card fields, formatted. Keyed by the field's
+  // unique key (labels can collide).
   const chips = cardFields
     .filter((f) => f.card)
-    .map((f) => ({ label: f.label, value: cardFieldValue(lead, f) }))
-    .filter((c): c is { label: string; value: string } => c.value != null)
+    .map((f) => ({ key: f.key, label: f.label, value: cardFieldValue(lead, f) }))
+    .filter((c): c is { key: string; label: string; value: string } => c.value != null)
     .slice(0, CARD_FIELD_CAP);
   return (
     <button
@@ -107,7 +109,7 @@ export function LeadCard({
         <div className="flex flex-wrap items-center gap-1">
           {chips.map((c) => (
             <span
-              key={c.label}
+              key={c.key}
               title={c.label}
               className="max-w-[8rem] truncate rounded-sm bg-bg-2 px-1 py-px font-mono text-[9px] text-text-2"
             >
