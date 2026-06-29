@@ -39,7 +39,13 @@ export function PipelineBoard() {
   const [error, setError] = useState<string | null>(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [view, setView] = useState<"board" | "list">("board");
-  const nowMs = Date.now();
+  // One "now" for the whole tree, ticking each minute so "cold" / "follow-up
+  // due" refresh on their own without a reload.
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNowMs(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     const saved =
@@ -56,10 +62,35 @@ export function PipelineBoard() {
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState<string | null>(null);
   const [fieldsOpen, setFieldsOpen] = useState(false);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
   // Esc closes whichever overlay is open (+ restores focus to the trigger).
   useOverlay(createStage != null, () => setCreateStage(null));
   useOverlay(selectedLead != null && createStage == null, () => setSelectedLead(null));
+
+  // Board shortcuts: n = new lead, b = board view, l = list view. Ignored while
+  // typing or while an overlay is open (Esc handles those).
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable)
+        return;
+      if (createStage != null || selectedLead != null || fieldsOpen) return;
+      if (e.key === "n") {
+        e.preventDefault();
+        if (pipeline) setCreateStage(pipeline.stages[0]?.key ?? null);
+      } else if (e.key === "b") {
+        selectView("board");
+      } else if (e.key === "l") {
+        selectView("list");
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [createStage, selectedLead, fieldsOpen, pipeline]);
 
   // Spaces once.
   useEffect(() => {
@@ -290,7 +321,15 @@ export function PipelineBoard() {
           </Button>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-2">
+        <div
+          className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-2"
+          onDragLeave={(e) => {
+            // Clear the column highlight only when the cursor leaves the board.
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              setDragOverStage(null);
+            }
+          }}
+        >
           {/* Orphans — leads whose stage was removed from the pipeline. Surface
               them in a holding column (drag into a real stage to re-home) rather
               than silently dropping them off the board. */}
@@ -323,13 +362,21 @@ export function PipelineBoard() {
             return (
             <div
               key={stage.key}
-              onDragOver={(e) => e.preventDefault()}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (dragOverStage !== stage.key) setDragOverStage(stage.key);
+              }}
               onDrop={(e) => {
                 e.preventDefault();
+                setDragOverStage(null);
                 const id = e.dataTransfer.getData("text/plain");
                 if (id) void moveLead(id, stage.key);
               }}
-              className="flex min-w-[13rem] flex-1 flex-col rounded border border-border/60 bg-bg-2/30"
+              className={`flex min-w-[13rem] flex-1 flex-col rounded border bg-bg-2/30 ${
+                dragOverStage === stage.key
+                  ? "border-border-focus bg-accent/5"
+                  : "border-border/60"
+              }`}
             >
               <div className="flex flex-shrink-0 items-center gap-1.5 border-b border-border/50 px-2 py-1.5">
                 <span className="text-2xs font-semibold uppercase tracking-wide text-text-2">

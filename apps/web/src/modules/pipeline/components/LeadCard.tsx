@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Clock, Flame, Layers, StickyNote } from "lucide-react";
 import type { LeadRow, PipelineStage } from "@/lib/pipeline/db";
 import { isRotting, isFollowUpDue } from "@/lib/pipeline/board";
@@ -40,13 +41,20 @@ export function LeadCard({
   const converted = lead.status === "converted";
   const parcels = parcelCount(lead);
   const notes = hasNotes(lead);
+  const [dragging, setDragging] = useState(false);
   return (
     <button
       type="button"
       draggable
-      onDragStart={onDragStart}
+      onDragStart={(e) => {
+        setDragging(true);
+        onDragStart(e);
+      }}
+      onDragEnd={() => setDragging(false)}
       onClick={onClick}
-      className="flex w-full flex-col gap-1 rounded border border-border bg-bg-1 px-2 py-1.5 text-left hover:border-border-focus"
+      className={`flex w-full flex-col gap-1 rounded border border-border bg-bg-1 px-2 py-1.5 text-left hover:border-border-focus ${
+        dragging ? "opacity-50 ring-1 ring-border-focus" : ""
+      }`}
     >
       <div className="flex items-center gap-1.5">
         {lead.priority > 0 && PRIORITY_DOT[lead.priority] && (

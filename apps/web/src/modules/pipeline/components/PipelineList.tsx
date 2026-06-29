@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, X } from "lucide-react";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
 import { isFollowUpDue, isRotting } from "@/lib/pipeline/board";
@@ -76,6 +76,22 @@ export function PipelineList({
     );
   }, [stageF, statusF, sourceF, prioF]);
 
+  // "/" focuses the search (the list view is mounted, so this is list-scoped).
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || t?.isContentEditable)
+        return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function clearFilters() {
     setStageF(DEFAULT_FILTERS.stage);
     setStatusF(DEFAULT_FILTERS.status);
@@ -143,9 +159,10 @@ export function PipelineList({
       {/* Filters */}
       <div className="flex flex-shrink-0 flex-wrap items-center gap-1.5 border-b border-border/60 px-3 py-1.5">
         <input
+          ref={searchRef}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Search name, address, city…"
+          placeholder="Search name, address, city…  ( / )"
           aria-label="Search leads"
           className="min-w-[8rem] flex-1 rounded border border-border bg-bg-2 px-2 py-1 text-2xs text-text-1 placeholder:text-text-3 outline-none focus:border-border-focus"
         />
