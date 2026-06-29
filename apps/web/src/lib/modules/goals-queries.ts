@@ -78,6 +78,39 @@ export async function loadCategories(
 }
 
 /**
+ * Every non-archived category the caller can see, across ALL scopes
+ * (RLS does the scoping). Powers the dashboard Goals panel, which is
+ * scope-agnostic — it shows everything you're tracking in one place.
+ */
+export async function loadVisibleCategories(
+  supabase: Db,
+): Promise<GoalsCategoryRow[]> {
+  const { data } = await supabase
+    .from("goals_categories")
+    .select("id, name, color, icon, display_order, archived_at")
+    .is("archived_at", null)
+    .order("display_order", { ascending: true });
+  return (data ?? []) as GoalsCategoryRow[];
+}
+
+/** Non-archived goals under the given category ids (scope-agnostic). */
+export async function loadGoalsForCategories(
+  supabase: Db,
+  categoryIds: string[],
+): Promise<GoalsGoalRow[]> {
+  if (categoryIds.length === 0) return [];
+  const { data } = await supabase
+    .from("goals_goals")
+    .select(
+      "id, category_id, name, unit, display_order, source_type, source_config, archived_at",
+    )
+    .in("category_id", categoryIds)
+    .is("archived_at", null)
+    .order("display_order", { ascending: true });
+  return (data ?? []) as GoalsGoalRow[];
+}
+
+/**
  * Load every non-archived goal under a scope's categories. Joins are
  * done in two passes (cheap for goal counts in the dozens; rewrite as
  * a single query if we ever cross 1000 goals at one scope).
