@@ -49,7 +49,11 @@ export async function ensurePipelineForSpace(
     // sync with its template — so new fields (City/Submarket/Links) appear on an
     // already-created pipeline. No user field edits to preserve yet.
     const tmpl = PIPELINE_TEMPLATES.find((t) => t.kind === existing.kind);
-    if (tmpl && JSON.stringify(existing.fields) !== JSON.stringify(tmpl.fields)) {
+    if (
+      tmpl &&
+      !existing.fields_customized &&
+      JSON.stringify(existing.fields) !== JSON.stringify(tmpl.fields)
+    ) {
       const { data: upd } = await db
         .from("pl_pipelines")
         .update({ fields: tmpl.fields })
@@ -104,7 +108,11 @@ export async function updatePipeline(
   const writable: Record<string, unknown> = {};
   if (patch.name !== undefined) writable.name = patch.name;
   if (patch.stages !== undefined) writable.stages = patch.stages;
-  if (patch.fields !== undefined) writable.fields = patch.fields;
+  if (patch.fields !== undefined) {
+    writable.fields = patch.fields;
+    // Any field edit opts the pipeline out of template field-sync.
+    writable.fields_customized = true;
+  }
   if (Object.keys(writable).length === 0) return getPipeline(client, id);
   const { data, error } = await pipelineDb(client)
     .from("pl_pipelines")
