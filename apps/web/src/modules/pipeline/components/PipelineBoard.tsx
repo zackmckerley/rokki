@@ -4,7 +4,14 @@ import { useEffect, useState } from "react";
 import { Plus, Loader2, X, Clock, Flame, LayoutGrid, List, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
-import { groupByStage, isFollowUpDue, isRotting } from "@/lib/pipeline/board";
+import {
+  groupByStage,
+  isFollowUpDue,
+  isRotting,
+  rollupField,
+  sumAttr,
+  compactMoney,
+} from "@/lib/pipeline/board";
 import { PipelineList } from "./PipelineList";
 import { FieldsEditor } from "./FieldsEditor";
 import {
@@ -158,6 +165,7 @@ export function PipelineBoard() {
   }
   const visibleLeads = attentionOnly ? activeLeads.filter(needsAttention) : activeLeads;
   const { columns } = groupByStage(visibleLeads, stages);
+  const rollup = pipeline ? rollupField(pipeline.fields) : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -283,7 +291,10 @@ export function PipelineBoard() {
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-2 overflow-x-auto p-2">
-          {columns.map(({ stage, leads: colLeads }) => (
+          {columns.map(({ stage, leads: colLeads }) => {
+            const colValue = rollup ? sumAttr(colLeads, rollup.key) : 0;
+            const coldInCol = colLeads.filter((l) => isRotting(l, stages, nowMs)).length;
+            return (
             <div
               key={stage.key}
               onDragOver={(e) => e.preventDefault()}
@@ -299,11 +310,30 @@ export function PipelineBoard() {
                   {stage.label}
                 </span>
                 <span className="font-mono text-2xs text-text-3">{colLeads.length}</span>
-                {stage.is_terminal_gate && (
-                  <span className="ml-auto text-[9px] uppercase tracking-wide text-accent">
-                    gate
-                  </span>
-                )}
+                <div className="ml-auto flex items-center gap-1.5">
+                  {colValue > 0 && (
+                    <span
+                      className="font-mono text-2xs text-text-3"
+                      title={`${rollup?.label ?? "Value"} in ${stage.label}`}
+                    >
+                      {compactMoney(colValue)}
+                    </span>
+                  )}
+                  {coldInCol > 0 && (
+                    <span
+                      className="flex items-center gap-0.5 text-[9px] text-danger"
+                      title={`${coldInCol} going cold`}
+                    >
+                      <Flame className="h-2.5 w-2.5" />
+                      {coldInCol}
+                    </span>
+                  )}
+                  {stage.is_terminal_gate && (
+                    <span className="text-[9px] uppercase tracking-wide text-accent">
+                      gate
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">
                 {colLeads.map((lead) => (
@@ -325,7 +355,8 @@ export function PipelineBoard() {
                 <Plus className="h-3 w-3" /> Add
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

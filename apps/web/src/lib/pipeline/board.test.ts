@@ -1,7 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { groupByStage, isRotting, isFollowUpDue, defaultStageKey } from "./board";
+import {
+  groupByStage,
+  isRotting,
+  isFollowUpDue,
+  defaultStageKey,
+  rollupField,
+  sumAttr,
+  compactMoney,
+} from "./board";
 import { HELIOS_PIPELINE } from "./templates";
-import type { LeadRow } from "./db";
+import type { LeadRow, PipelineField } from "./db";
 
 const stages = HELIOS_PIPELINE.stages;
 
@@ -85,5 +93,55 @@ describe("isFollowUpDue", () => {
   it("not due without a date or when not open", () => {
     expect(isFollowUpDue(lead({ next_follow_up_at: null }), now)).toBe(false);
     expect(isFollowUpDue(lead({ status: "dead", next_follow_up_at: "2026-06-27T00:00:00Z" }), now)).toBe(false);
+  });
+});
+
+describe("rollupField", () => {
+  const f = (over: Partial<PipelineField>): PipelineField => ({
+    key: "k",
+    label: "L",
+    type: "text",
+    ...over,
+  });
+  it("returns the first currency field", () => {
+    const fields = [
+      f({ key: "addr", type: "text" }),
+      f({ key: "ask", label: "Asking", type: "currency" }),
+      f({ key: "noi", label: "NOI", type: "currency" }),
+    ];
+    expect(rollupField(fields)?.key).toBe("ask");
+  });
+  it("is null when there's no currency field", () => {
+    expect(rollupField([f({ type: "text" }), f({ type: "number" })])).toBeNull();
+  });
+});
+
+describe("sumAttr", () => {
+  it("sums numeric attribute values, ignoring blanks and non-numbers", () => {
+    const rows = [
+      { attributes: { ask: 1_000_000 } },
+      { attributes: { ask: "500000" } },
+      { attributes: { ask: "" } },
+      { attributes: { ask: "n/a" } },
+      { attributes: {} },
+    ];
+    expect(sumAttr(rows, "ask")).toBe(1_500_000);
+  });
+  it("is 0 when no lead has the key", () => {
+    expect(sumAttr([{ attributes: {} }], "ask")).toBe(0);
+  });
+});
+
+describe("compactMoney", () => {
+  it("formats millions, thousands, and small values", () => {
+    expect(compactMoney(1_200_000)).toBe("$1.2M");
+    expect(compactMoney(12_000_000)).toBe("$12M");
+    expect(compactMoney(850_000)).toBe("$850K");
+    expect(compactMoney(1_200)).toBe("$1K");
+    expect(compactMoney(750)).toBe("$750");
+  });
+  it("is empty for zero / non-finite", () => {
+    expect(compactMoney(0)).toBe("");
+    expect(compactMoney(NaN)).toBe("");
   });
 });

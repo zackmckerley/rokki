@@ -158,7 +158,9 @@ export function PipelineList({
                     className="cursor-pointer border-b border-border/30 hover:bg-bg-2"
                   >
                     <td className="px-3 py-1.5">
-                      <span className="block truncate font-medium text-text-0">{l.name}</span>
+                      <span className="block truncate font-medium text-text-0" title={l.name}>
+                        {l.name}
+                      </span>
                       {l.subtitle && (
                         <span className="block truncate text-2xs text-text-3">{l.subtitle}</span>
                       )}

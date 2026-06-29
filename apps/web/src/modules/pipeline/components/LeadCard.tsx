@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock, Flame } from "lucide-react";
+import { Clock, Flame, Layers, StickyNote } from "lucide-react";
 import type { LeadRow, PipelineStage } from "@/lib/pipeline/db";
 import { isRotting, isFollowUpDue } from "@/lib/pipeline/board";
 
@@ -9,6 +9,17 @@ const PRIORITY_DOT: Record<number, string> = {
   2: "bg-accent",
   3: "bg-danger",
 };
+
+/** Count of non-empty parcels on a lead (an assemblage has >1). */
+function parcelCount(lead: LeadRow): number {
+  const p = (lead.attributes as Record<string, unknown>)?.parcels;
+  return Array.isArray(p) ? p.length : 0;
+}
+/** Whether the lead has any notes text. */
+function hasNotes(lead: LeadRow): boolean {
+  const n = (lead.attributes as Record<string, unknown>)?.notes;
+  return typeof n === "string" && n.trim().length > 0;
+}
 
 /** A draggable lead card in a board column. */
 export function LeadCard({
@@ -27,6 +38,8 @@ export function LeadCard({
   const rotting = isRotting(lead, stages, nowMs);
   const due = isFollowUpDue(lead, nowMs);
   const converted = lead.status === "converted";
+  const parcels = parcelCount(lead);
+  const notes = hasNotes(lead);
   return (
     <button
       type="button"
@@ -42,7 +55,10 @@ export function LeadCard({
             aria-hidden="true"
           />
         )}
-        <span className="min-w-0 flex-1 truncate text-xs font-medium text-text-0">
+        <span
+          className="min-w-0 flex-1 truncate text-xs font-medium text-text-0"
+          title={lead.name}
+        >
           {lead.name}
         </span>
         {converted && (
@@ -54,12 +70,23 @@ export function LeadCard({
       {lead.subtitle && (
         <span className="truncate text-2xs text-text-3">{lead.subtitle}</span>
       )}
-      {(lead.source || due || rotting) && (
+      {(lead.source || due || rotting || parcels > 1 || notes) && (
         <div className="flex flex-wrap items-center gap-1">
           {lead.source && (
             <span className="rounded-sm bg-bg-3 px-1 py-px text-[9px] uppercase tracking-wide text-text-3">
               {lead.source}
             </span>
+          )}
+          {parcels > 1 && (
+            <span
+              className="flex items-center gap-0.5 text-[9px] text-text-3"
+              title={`Assemblage — ${parcels} parcels`}
+            >
+              <Layers className="h-2.5 w-2.5" /> {parcels}
+            </span>
+          )}
+          {notes && (
+            <StickyNote className="h-2.5 w-2.5 text-text-3" aria-label="Has notes" />
           )}
           {due && (
             <span className="flex items-center gap-0.5 text-[9px] font-medium text-accent">
