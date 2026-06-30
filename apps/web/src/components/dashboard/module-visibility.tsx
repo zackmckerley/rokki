@@ -54,6 +54,10 @@ import {
  */
 export interface ModulePrefsContextValue {
   prefs: ModulePrefs;
+  /** False until the persisted prefs have been read from localStorage. Consumers
+   *  should hold off rendering the module layout until this is true, so the
+   *  default all-modules layout never flashes before the saved one. */
+  ready: boolean;
 
   /* visibility — back-compat surface used by RailModules + DashboardPanels */
   minimized: Set<string>;
@@ -175,6 +179,7 @@ export function ModulePrefsProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ModulePrefsContextValue>(
     () => ({
       prefs,
+      ready: hydrated,
       minimized,
       isMinimized: (id) => minimized.has(id),
       toggle,
@@ -190,7 +195,7 @@ export function ModulePrefsProvider({ children }: { children: ReactNode }) {
       visibleModules: orderedVisibleModules(prefs),
       hiddenModules: selectHiddenModules(prefs),
     }),
-    [prefs, minimized, toggle],
+    [prefs, hydrated, minimized, toggle],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
