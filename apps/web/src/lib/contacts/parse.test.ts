@@ -249,6 +249,15 @@ describe("parseContact — adversarial edge cases", () => {
     const r = parseContact("Notes: contract signed 2026-06-30\njoe@x.com");
     expect(r.phones).toHaveLength(0);
   });
+  it("classifies socials by host, not substring (CodeQL: incomplete URL check)", () => {
+    const fb = parseContact("Web: https://facebook.com/acme");
+    expect(fb.socials.find((s) => s.kind === "facebook")?.value).toContain("facebook.com");
+    // A host that merely contains "fb.com" in its path must NOT be facebook.
+    const evil = parseContact("Web: https://evil.com/fb.com/phish");
+    expect(evil.socials.some((s) => s.kind === "facebook")).toBe(false);
+    expect(evil.socials.some((s) => s.kind === "website")).toBe(true);
+    expect(parseContact("https://x.com/jack").socials[0].kind).toBe("x");
+  });
   it("does not crash on punctuation-only / unicode input", () => {
     expect(() => parseContact("———\n••• \n☃️")).not.toThrow();
     expect(() => parseContact("José Niño-García\njose@x.com")).not.toThrow();

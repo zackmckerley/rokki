@@ -116,15 +116,33 @@ function emailLabel(context: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Extract the host from a URL-ish string ("https://x.com/u", "www.x.com/u",
+ * "x.com/u" → "x.com"). Returns "" when there's no host part. Matching socials
+ * on the parsed host (not a substring) avoids the "fb.com anywhere in the
+ * string" false-positive that a naive `.includes()` would accept.
+ */
+function hostOf(v: string): string {
+  return v
+    .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
+    .replace(/^www\./i, "")
+    .split(/[/?#]/)[0]
+    .toLowerCase();
+}
+/** Host equals the domain or is a subdomain of it. */
+function hostIs(host: string, domain: string): boolean {
+  return host === domain || host.endsWith("." + domain);
+}
+
 function classifySocial(raw: string): ContactSocial | null {
   const v = raw.trim().replace(/^@/, "");
   if (!v) return null;
-  const low = v.toLowerCase();
-  if (low.includes("linkedin.")) return { kind: "linkedin", value: v };
-  if (low.includes("instagram.")) return { kind: "instagram", value: v };
-  if (low.includes("facebook.") || low.includes("fb.com"))
+  const host = hostOf(v);
+  if (hostIs(host, "linkedin.com")) return { kind: "linkedin", value: v };
+  if (hostIs(host, "instagram.com")) return { kind: "instagram", value: v };
+  if (hostIs(host, "facebook.com") || hostIs(host, "fb.com"))
     return { kind: "facebook", value: v };
-  if (low.includes("twitter.") || /(^|\/)x\.com/.test(low))
+  if (hostIs(host, "twitter.com") || hostIs(host, "x.com"))
     return { kind: "x", value: v };
   // bare domain or http(s) → website
   if (/^(https?:\/\/|www\.)/i.test(v) || /\.[a-z]{2,}(\/|$)/i.test(v))
