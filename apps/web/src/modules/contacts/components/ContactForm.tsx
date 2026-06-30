@@ -10,6 +10,13 @@ import type {
   ContactFamilyMember,
 } from "@/lib/contacts/db";
 import { parseContact, type ParsedContact } from "@/lib/contacts/parse";
+import {
+  mergeEmails,
+  mergePhones,
+  mergeAddresses,
+  mergeSocials,
+  parseSummary,
+} from "@/lib/contacts/merge";
 import { uploadAvatar } from "../lib/client-api";
 
 const PRESET_TYPES = [
@@ -158,7 +165,11 @@ export function ContactForm({
       next.phones = mergePhones(prev.phones, p.phones);
       next.addresses = mergeAddresses(prev.addresses, p.addresses);
       next.socials = mergeSocials(prev.socials, p.socials);
-      if (p.notes) next.notes = prev.notes ? `${prev.notes}\n${p.notes}` : p.notes;
+      // Append notes, but idempotently — re-running a paste (or clicking "Fill
+      // fields" twice) must not duplicate the same note text.
+      if (p.notes && !(prev.notes ?? "").includes(p.notes)) {
+        next.notes = prev.notes ? `${prev.notes}\n${p.notes}` : p.notes;
+      }
       return next;
     });
   }
@@ -686,74 +697,6 @@ export function ContactForm({
   );
 }
 
-// ── smart-paste merge helpers ────────────────────────────────────────────────
-function mergeEmails(existing: EmailRow[], incoming: ParsedContact["emails"]): EmailRow[] {
-  const real = existing.filter((e) => e.email.trim());
-  const seen = new Set(real.map((e) => e.email.trim().toLowerCase()));
-  for (const e of incoming) {
-    const key = e.email.trim().toLowerCase();
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      real.push({ label: e.label ?? "", email: e.email });
-    }
-  }
-  return real.length ? real : [{ label: "", email: "" }];
-}
-function mergePhones(existing: PhoneRow[], incoming: ParsedContact["phones"]): PhoneRow[] {
-  const digits = (s: string) => s.replace(/\D/g, "");
-  const real = existing.filter((p) => p.phone.trim());
-  const seen = new Set(real.map((p) => digits(p.phone)));
-  for (const p of incoming) {
-    const key = digits(p.phone);
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      real.push({ label: p.label ?? "", phone: p.phone });
-    }
-  }
-  return real.length ? real : [{ label: "", phone: "" }];
-}
-function addrKey(a: ContactAddress): string {
-  return [a.line1, a.city, a.state, a.postal].map((s) => (s ?? "").trim().toLowerCase()).join("|");
-}
-function mergeAddresses(existing: ContactAddress[], incoming: ContactAddress[]): ContactAddress[] {
-  const seen = new Set(existing.map(addrKey));
-  const out = [...existing];
-  for (const a of incoming) {
-    const key = addrKey(a);
-    if (key !== "|||" && !seen.has(key)) {
-      seen.add(key);
-      out.push(a);
-    }
-  }
-  return out;
-}
-function mergeSocials(existing: ContactSocial[], incoming: ContactSocial[]): ContactSocial[] {
-  const seen = new Set(existing.map((s) => s.value.trim().toLowerCase()));
-  const out = [...existing];
-  for (const s of incoming) {
-    const key = s.value.trim().toLowerCase();
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      out.push(s);
-    }
-  }
-  return out;
-}
-
-/** Human summary of what a parse filled, e.g. "name · 2 emails · 1 phone". */
-function parseSummary(p: ParsedContact): string {
-  const bits: string[] = [];
-  if (p.first_name || p.last_name) bits.push("name");
-  if (p.company) bits.push("company");
-  if (p.title) bits.push("title");
-  if (p.emails.length) bits.push(`${p.emails.length} email${p.emails.length > 1 ? "s" : ""}`);
-  if (p.phones.length) bits.push(`${p.phones.length} phone${p.phones.length > 1 ? "s" : ""}`);
-  if (p.addresses.length) bits.push(`${p.addresses.length} address${p.addresses.length > 1 ? "es" : ""}`);
-  if (p.socials.length) bits.push(`${p.socials.length} link${p.socials.length > 1 ? "s" : ""}`);
-  if (p.birthday) bits.push("birthday");
-  return bits.join(" · ");
-}
-
 /**
  * Paste/drop a contact blob (email signature, vCard, Apple contact-card copy,
  * or labeled lines) → it's parsed deterministically (no LLM) and the fields
@@ -824,10 +767,13 @@ function SmartPasteBox({ onParsed }: { onParsed: (p: ParsedContact) => void }) {
         }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => {
+          // Always preventDefault: otherwise a file (or non-text) dropped on
+          // this large top-of-form target makes the browser navigate to it and
+          // discards the unsaved form.
+          e.preventDefault();
+          setDragOver(false);
           const dropped = e.dataTransfer.getData("text");
           if (dropped.trim()) {
-            e.preventDefault();
-            setDragOver(false);
             setText(dropped);
             run(dropped);
           }

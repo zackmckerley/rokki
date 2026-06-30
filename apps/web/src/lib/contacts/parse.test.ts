@@ -227,3 +227,32 @@ describe("parseContact — dedupe + robustness", () => {
     expect(r.unmatched.length).toBeGreaterThan(0);
   });
 });
+
+describe("parseContact — adversarial edge cases", () => {
+  it("company-only blob does not invent a person name", () => {
+    const r = parseContact("Brickell Capital Partners LLC\ninfo@brickellcap.com");
+    expect(r.first_name).toBeUndefined();
+    expect(r.last_name).toBeUndefined();
+    expect(r.company).toMatch(/Brickell Capital Partners/);
+    expect(r.emails[0].email).toBe("info@brickellcap.com");
+  });
+  it('"Last, First" on the name line of a signature', () => {
+    const r = parseContact("Mendez, Carlos\nBroker\ncarlos@x.com");
+    expect(r.first_name).toBe("Carlos");
+    expect(r.last_name).toBe("Mendez");
+  });
+  it("two phones on a single line are both captured", () => {
+    const r = parseContact("Pat Gomez\nO: (305) 555-1000  C: (305) 555-2000");
+    expect(r.phones).toHaveLength(2);
+  });
+  it("an ISO date in the text is not mistaken for a phone", () => {
+    const r = parseContact("Notes: contract signed 2026-06-30\njoe@x.com");
+    expect(r.phones).toHaveLength(0);
+  });
+  it("does not crash on punctuation-only / unicode input", () => {
+    expect(() => parseContact("———\n••• \n☃️")).not.toThrow();
+    expect(() => parseContact("José Niño-García\njose@x.com")).not.toThrow();
+    const r = parseContact("José Niño\njose@x.com");
+    expect(r.first_name).toBe("José");
+  });
+});

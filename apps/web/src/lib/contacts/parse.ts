@@ -14,6 +14,7 @@ import type {
   ContactPhone,
   ContactSocial,
 } from "./db";
+import { phoneDedupeKey } from "./normalize";
 
 export interface ParsedContact {
   prefix?: string;
@@ -180,8 +181,16 @@ function looksLikeName(line: string): boolean {
   if (TITLE_RE.test(t)) return false;
   const words = t.split(/\s+/);
   if (words.length < 1 || words.length > 5) return false;
-  // Mostly alphabetic words, each starting upper (allow O'Brien, Jean-Luc, accents).
-  return words.every((w) => /^[\p{Lu}][\p{L}'’.-]*$/u.test(w) || PREFIXES.has(cleanWord(w)) || SUFFIXES.has(cleanWord(w)));
+  // Mostly alphabetic words, each starting upper (allow O'Brien, Jean-Luc,
+  // accents, and a trailing comma as in "Mendez, Carlos").
+  return words.every((w) => {
+    const c = w.replace(/,$/, "");
+    return (
+      /^[\p{Lu}][\p{L}'’.-]*$/u.test(c) ||
+      PREFIXES.has(cleanWord(c)) ||
+      SUFFIXES.has(cleanWord(c))
+    );
+  });
 }
 
 const US_STATE =
@@ -237,9 +246,9 @@ function pushEmail(out: ParsedContact, email: string, label?: string) {
 function pushPhone(out: ParsedContact, phone: string, label?: string) {
   const norm = phone.trim();
   if (!norm) return;
-  const digits = norm.replace(/\D/g, "");
-  if (digits.length < 7) return;
-  if (out.phones.some((p) => p.phone.replace(/\D/g, "") === digits)) return;
+  if (norm.replace(/\D/g, "").length < 7) return;
+  const key = phoneDedupeKey(norm);
+  if (out.phones.some((p) => phoneDedupeKey(p.phone) === key)) return;
   out.phones.push(label ? { phone: norm, label } : { phone: norm });
 }
 function pushSocial(out: ParsedContact, social: ContactSocial | null) {

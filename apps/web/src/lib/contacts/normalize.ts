@@ -17,6 +17,20 @@ export function normalizePhone(phone: string): string {
   return plus + p.replace(/\D/g, "");
 }
 
+/**
+ * A key for deciding whether two phone strings are the *same* number, robust to
+ * formatting: strips an extension (x123 / ext.) and a leading US country code so
+ * "(305) 555-0100", "+1 305-555-0100" and "305-555-0100 x12" all collapse to
+ * one key. Non-US 11-digit numbers (not starting with 1) are kept intact so two
+ * different ones never falsely merge.
+ */
+export function phoneDedupeKey(raw: string): string {
+  const noExt = raw.replace(/\s*(?:x|ext\.?|extension)\s*\d+\s*$/i, "");
+  let d = noExt.replace(/\D/g, "");
+  if (d.length === 11 && d.startsWith("1")) d = d.slice(1);
+  return d;
+}
+
 /** The primary email: the one flagged `primary`, else the first, else null. */
 export function primaryEmail(emails: ContactEmail[] | undefined): string | null {
   if (!Array.isArray(emails) || emails.length === 0) return null;
