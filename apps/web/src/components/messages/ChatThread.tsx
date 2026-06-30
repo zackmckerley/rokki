@@ -206,8 +206,9 @@ export function ChatMessageList({
                             key={`v${k}`}
                             src={a.url}
                             controls
+                            playsInline
                             preload="metadata"
-                            className="block max-h-60 max-w-[260px]"
+                            className="block max-h-60 max-w-[260px] rounded-[5px] bg-black"
                           />
                         ) : null,
                       )}
@@ -481,11 +482,20 @@ export function linkify(text: string, mine: boolean): ReactNode[] {
   return out;
 }
 
+/** Extension fallback — Signal media often arrives with a missing or generic
+ *  content_type, so a .mp4 would otherwise render as a download link. */
+function extOf(att: ChatAttachment): string {
+  const m = /\.([a-z0-9]+)$/i.exec(att.filename ?? "");
+  return m ? m[1].toLowerCase() : "";
+}
+const IMAGE_EXT = new Set(["jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "bmp", "avif"]);
+const VIDEO_EXT = new Set(["mp4", "mov", "m4v", "webm", "mkv", "avi", "3gp", "ogv"]);
+
 function isImage(att: ChatAttachment): boolean {
-  return (att.content_type ?? "").startsWith("image/");
+  return (att.content_type ?? "").startsWith("image/") || IMAGE_EXT.has(extOf(att));
 }
 function isVideo(att: ChatAttachment): boolean {
-  return (att.content_type ?? "").startsWith("video/");
+  return (att.content_type ?? "").startsWith("video/") || VIDEO_EXT.has(extOf(att));
 }
 
 /** Two messages are in the same "run" when from the same side within 5 min. */
