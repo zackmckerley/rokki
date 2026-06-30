@@ -156,9 +156,8 @@ export function TasksCard({
   const [sortMode, setSortMode] = useState<"auto" | "manual">("auto");
   void sortMode;
   const [query, setQuery] = useState("");
-  // Done tasks aren't fetched for the dashboard, so this hides nothing
-  // today — but the control is wired identically to the terminal so
-  // the interface matches, and it works the moment done tasks appear.
+  // Done tasks ARE fetched now; this toggle (hidden by default so the list
+  // stays focused on open work) reveals completed tasks via "Show done".
   const [hideDone, setHideDone] = useState(true);
   // Starred-only filter — shows just the tasks pinned with a star.
   // Persisted globally so the choice sticks across reloads.

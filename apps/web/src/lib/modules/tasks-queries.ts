@@ -3,7 +3,8 @@
  *
  *   user      → tasks assigned to me + I delegated, across every terminal I see
  *   space     → every task in any terminal under this space
- *   terminal  → every task in this terminal (status != done)
+ *   terminal  → every task in this terminal (done included; the UI's
+ *               "Show done" toggle, hidden by default, filters client-side)
  *
  * Reuses the same `tasks` table the existing UI already queries — no
  * new schema. RLS handles permission scoping.
@@ -52,7 +53,6 @@ export async function loadTasksForSpace(
       "terminal_id",
       tx.map((t) => t.id),
     )
-    .neq("status", "done")
     .order("priority", { ascending: true, nullsFirst: false })
     .order("due_date", { ascending: true, nullsFirst: false })
     .limit(200);
@@ -96,7 +96,6 @@ export async function loadTasksForTerminal(
     .from("tasks")
     .select("id, title, status, priority, due_date, terminal_id, ticker_seq")
     .eq("terminal_id", terminalId)
-    .neq("status", "done")
     .order("priority", { ascending: true, nullsFirst: false })
     .order("due_date", { ascending: true, nullsFirst: false });
   type TaskRow = {

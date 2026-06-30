@@ -190,10 +190,11 @@ export async function loadAssignedTasks(
           starred: boolean;
         } | null;
       };
+      // Keep done tasks — the dashboard's "Show done" toggle (hidden by
+      // default) needs them available to reveal completed work.
       const rows = ((data ?? []) as unknown as Row[])
         .map((r) => r.tasks)
-        .filter((t): t is NonNullable<Row["tasks"]> => !!t)
-        .filter((t) => t.status !== "done");
+        .filter((t): t is NonNullable<Row["tasks"]> => !!t);
       // Sort: priority asc with NULL = "no priority" sinking to the
       // bottom, then due_date asc. Matches the server ORDER BY
       // semantics with NULLS LAST.
@@ -217,13 +218,13 @@ export async function loadDelegatedTasks(
     { name: "db.dashboard.delegated_tasks", op: "db.query", attributes: { table: "tasks" } },
     async () => {
       // Tasks this user created that are assigned to *someone other than* them.
+      // Done tasks are kept so the "Show done" toggle can reveal them.
       const { data } = await supabase
         .from("tasks")
         .select(
           "id, title, status, priority, due_date, terminal_id, ticker_seq, starred, task_assignees!task_assignees_task_id_fkey(user_id)",
         )
-        .eq("created_by", userId)
-        .neq("status", "done");
+        .eq("created_by", userId);
       type Row = {
         id: string;
         title: string;
