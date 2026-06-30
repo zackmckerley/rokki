@@ -61,6 +61,15 @@ export function endOfMonth(iso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** The 7 dates (YYYY-MM-DD) of the week beginning at `weekStartIso`, in order. */
+export function eachDayOfWeek(weekStartIso: string): string[] {
+  const [y, m, d] = weekStartIso.split("-").map(Number);
+  return Array.from({ length: 7 }, (_, i) => {
+    const date = new Date(Date.UTC(y, (m ?? 1) - 1, (d ?? 1) + i));
+    return date.toISOString().slice(0, 10);
+  });
+}
+
 export type GoalPeriodKind = "daily" | "weekly" | "monthly";
 
 /**
