@@ -586,12 +586,17 @@ function MediaGallery({
   onOpenImage: (url: string) => void;
   onBack: () => void;
 }) {
-  const images = items.filter((x) =>
-    (x.att.content_type ?? "").startsWith("image/"),
-  );
-  const files = items.filter(
-    (x) => !(x.att.content_type ?? "").startsWith("image/"),
-  );
+  // Detect by content_type OR filename extension — Signal media often arrives
+  // with a missing/generic type, which would otherwise dump videos into Files.
+  const isImg = (x: MediaEntry) =>
+    (x.att.content_type ?? "").startsWith("image/") ||
+    /\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(x.att.filename ?? "");
+  const isVid = (x: MediaEntry) =>
+    (x.att.content_type ?? "").startsWith("video/") ||
+    /\.(mp4|mov|m4v|webm|mkv|avi|3gp|ogv)$/i.test(x.att.filename ?? "");
+  const images = items.filter(isImg);
+  const videos = items.filter((x) => !isImg(x) && isVid(x));
+  const files = items.filter((x) => !isImg(x) && !isVid(x));
   return (
     <div className="flex-1 overflow-y-auto px-3 py-2 text-xs">
       <button
@@ -628,6 +633,27 @@ function MediaGallery({
                         className="h-full w-full cursor-zoom-in object-cover transition-transform hover:scale-105"
                       />
                     </button>
+                  ) : null,
+                )}
+              </div>
+            </section>
+          ) : null}
+          {videos.length > 0 ? (
+            <section className="mb-4">
+              <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+                Videos · {videos.length}
+              </h3>
+              <div className="grid grid-cols-2 gap-1.5">
+                {videos.map((x, i) =>
+                  x.att.url ? (
+                    <video
+                      key={x.att.url ?? x.att.filename ?? i}
+                      src={x.att.url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="aspect-video w-full rounded-sm bg-black object-cover"
+                    />
                   ) : null,
                 )}
               </div>
