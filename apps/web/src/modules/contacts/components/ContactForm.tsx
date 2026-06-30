@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Plus, X, Upload, Loader2 } from "lucide-react";
+import { Plus, X, Upload, Loader2, ClipboardPaste } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type {
   ContactRow,
@@ -9,6 +9,7 @@ import type {
   ContactSocial,
   ContactFamilyMember,
 } from "@/lib/contacts/db";
+import { parseContact, type ParsedContact } from "@/lib/contacts/parse";
 import { uploadAvatar } from "../lib/client-api";
 
 const PRESET_TYPES = [
@@ -131,6 +132,37 @@ export function ContactForm({
     setV((prev) => ({ ...prev, [k]: val }));
   }
 
+  /**
+   * Merge a parsed contact blob into the form. Scalars only fill when empty
+   * (never clobber what the user typed); multi-value rows are appended +
+   * deduped against existing entries.
+   */
+  function applyParsed(p: ParsedContact) {
+    setV((prev) => {
+      const next = { ...prev };
+      const fillScalar = (k: keyof FormState, val: string | undefined) => {
+        if (val && !String(prev[k] ?? "").trim()) {
+          (next as Record<string, unknown>)[k] = val;
+        }
+      };
+      fillScalar("prefix", p.prefix);
+      fillScalar("first_name", p.first_name);
+      fillScalar("middle_name", p.middle_name);
+      fillScalar("last_name", p.last_name);
+      fillScalar("suffix", p.suffix);
+      fillScalar("nickname", p.nickname);
+      fillScalar("company", p.company);
+      fillScalar("title", p.title);
+      fillScalar("birthday", p.birthday);
+      next.emails = mergeEmails(prev.emails, p.emails);
+      next.phones = mergePhones(prev.phones, p.phones);
+      next.addresses = mergeAddresses(prev.addresses, p.addresses);
+      next.socials = mergeSocials(prev.socials, p.socials);
+      if (p.notes) next.notes = prev.notes ? `${prev.notes}\n${p.notes}` : p.notes;
+      return next;
+    });
+  }
+
   // ── avatar ────────────────────────────────────────────────────────
   async function handleFile(file: File | undefined | null) {
     if (!file) return;
@@ -245,6 +277,9 @@ export function ContactForm({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Smart paste — drop/paste a blob, fields auto-fill (no LLM) */}
+      <SmartPasteBox onParsed={applyParsed} />
+
       {/* Avatar + identity */}
       <div className="flex gap-3">
         <div
@@ -647,6 +682,188 @@ export function ContactForm({
           {busy ? "Saving…" : submitLabel}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ── smart-paste merge helpers ────────────────────────────────────────────────
+function mergeEmails(existing: EmailRow[], incoming: ParsedContact["emails"]): EmailRow[] {
+  const real = existing.filter((e) => e.email.trim());
+  const seen = new Set(real.map((e) => e.email.trim().toLowerCase()));
+  for (const e of incoming) {
+    const key = e.email.trim().toLowerCase();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      real.push({ label: e.label ?? "", email: e.email });
+    }
+  }
+  return real.length ? real : [{ label: "", email: "" }];
+}
+function mergePhones(existing: PhoneRow[], incoming: ParsedContact["phones"]): PhoneRow[] {
+  const digits = (s: string) => s.replace(/\D/g, "");
+  const real = existing.filter((p) => p.phone.trim());
+  const seen = new Set(real.map((p) => digits(p.phone)));
+  for (const p of incoming) {
+    const key = digits(p.phone);
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      real.push({ label: p.label ?? "", phone: p.phone });
+    }
+  }
+  return real.length ? real : [{ label: "", phone: "" }];
+}
+function addrKey(a: ContactAddress): string {
+  return [a.line1, a.city, a.state, a.postal].map((s) => (s ?? "").trim().toLowerCase()).join("|");
+}
+function mergeAddresses(existing: ContactAddress[], incoming: ContactAddress[]): ContactAddress[] {
+  const seen = new Set(existing.map(addrKey));
+  const out = [...existing];
+  for (const a of incoming) {
+    const key = addrKey(a);
+    if (key !== "|||" && !seen.has(key)) {
+      seen.add(key);
+      out.push(a);
+    }
+  }
+  return out;
+}
+function mergeSocials(existing: ContactSocial[], incoming: ContactSocial[]): ContactSocial[] {
+  const seen = new Set(existing.map((s) => s.value.trim().toLowerCase()));
+  const out = [...existing];
+  for (const s of incoming) {
+    const key = s.value.trim().toLowerCase();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+/** Human summary of what a parse filled, e.g. "name · 2 emails · 1 phone". */
+function parseSummary(p: ParsedContact): string {
+  const bits: string[] = [];
+  if (p.first_name || p.last_name) bits.push("name");
+  if (p.company) bits.push("company");
+  if (p.title) bits.push("title");
+  if (p.emails.length) bits.push(`${p.emails.length} email${p.emails.length > 1 ? "s" : ""}`);
+  if (p.phones.length) bits.push(`${p.phones.length} phone${p.phones.length > 1 ? "s" : ""}`);
+  if (p.addresses.length) bits.push(`${p.addresses.length} address${p.addresses.length > 1 ? "es" : ""}`);
+  if (p.socials.length) bits.push(`${p.socials.length} link${p.socials.length > 1 ? "s" : ""}`);
+  if (p.birthday) bits.push("birthday");
+  return bits.join(" · ");
+}
+
+/**
+ * Paste/drop a contact blob (email signature, vCard, Apple contact-card copy,
+ * or labeled lines) → it's parsed deterministically (no LLM) and the fields
+ * below are auto-filled. Parses on paste/drop; a button covers typed/edited text.
+ */
+function SmartPasteBox({ onParsed }: { onParsed: (p: ParsedContact) => void }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [result, setResult] = useState<{ summary: string; unmatched: string[] } | null>(null);
+
+  function run(raw: string) {
+    const trimmed = raw.trim();
+    if (!trimmed) return;
+    const parsed = parseContact(trimmed);
+    const summary = parseSummary(parsed);
+    setResult({ summary: summary || "nothing recognized", unmatched: parsed.unmatched });
+    if (summary) onParsed(parsed);
+  }
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 self-start rounded border border-dashed border-border px-2 py-1 text-2xs font-medium text-text-2 hover:border-border-focus hover:text-text-0"
+      >
+        <ClipboardPaste className="h-3 w-3" /> Paste contact info to auto-fill
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded border border-border bg-bg-2 p-2">
+      <div className="flex items-center gap-1.5">
+        <ClipboardPaste className="h-3 w-3 text-text-3" />
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+          Smart paste
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setText("");
+            setResult(null);
+          }}
+          aria-label="Close smart paste"
+          className="ml-auto rounded-sm p-0.5 text-text-3 hover:text-text-0"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+      <textarea
+        autoFocus
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onPaste={(e) => {
+          const pasted = e.clipboardData.getData("text");
+          if (pasted.trim()) {
+            e.preventDefault();
+            setText(pasted);
+            run(pasted);
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          const dropped = e.dataTransfer.getData("text");
+          if (dropped.trim()) {
+            e.preventDefault();
+            setDragOver(false);
+            setText(dropped);
+            run(dropped);
+          }
+        }}
+        placeholder="Paste or drag a contact — an email signature, a vCard, or a copied contact card. Fields fill automatically."
+        className={`min-h-[68px] w-full resize-y rounded border bg-bg-1 px-2 py-1 text-xs text-text-1 placeholder:text-text-3 outline-none ${
+          dragOver ? "border-accent" : "border-border focus:border-border-focus"
+        }`}
+      />
+      <div className="flex items-center gap-2">
+        <Button size="sm" variant="ghost" onClick={() => run(text)} disabled={!text.trim()}>
+          Fill fields
+        </Button>
+        {text && (
+          <button
+            type="button"
+            onClick={() => {
+              setText("");
+              setResult(null);
+            }}
+            className="text-2xs text-text-3 hover:text-text-1"
+          >
+            Clear
+          </button>
+        )}
+        {result?.summary && (
+          <span className="ml-auto truncate text-2xs text-text-2">
+            Filled: {result.summary}
+          </span>
+        )}
+      </div>
+      {result && result.unmatched.length > 0 && (
+        <p className="text-2xs text-text-3">
+          Couldn&apos;t place: {result.unmatched.join(" · ")}
+        </p>
+      )}
     </div>
   );
 }
