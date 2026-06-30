@@ -487,6 +487,32 @@ export function DashboardPanels({
     !maximizedId &&
     (forceTwo || (visLayout.center.length > 0 && visLayout.right.length > 0));
 
+  // Hold the panels back until BOTH the saved arrangement (this component) and
+  // the module prefs (which modules are visible/ordered) have hydrated from
+  // localStorage — otherwise the default all-modules layout flashes for a frame
+  // before collapsing to the user's saved one.
+  const prefsReady = hydrated && (mods?.ready ?? true);
+  if (!prefsReady) {
+    return (
+      <div className="flex min-h-0 flex-col gap-2 p-2 sm:p-3 lg:h-full" aria-hidden="true">
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-[1.6fr_9px_1fr] lg:gap-0">
+          <div className="flex flex-col gap-2">
+            {[0, 1].map((k) => (
+              <div
+                key={k}
+                className="h-40 animate-pulse rounded-lg border border-border/60 bg-bg-2/40"
+              />
+            ))}
+          </div>
+          <div className="hidden lg:block" />
+          <div className="hidden flex-col gap-2 lg:flex">
+            <div className="h-40 animate-pulse rounded-lg border border-border/60 bg-bg-2/40" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
