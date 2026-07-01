@@ -273,10 +273,20 @@ export function LeadDetail({
       const res = await promoteLead(leadId);
       setPromoteMsg(`Created terminal ${res.terminal.ticker}`);
       setPromotedTicker(res.terminal.ticker);
+      // Reflect the promotion locally so `alreadyTerminal` flips true: the
+      // success banner + "Open terminal" link render and the (now-inert)
+      // Promote button is replaced. Without this the button stayed disabled
+      // forever and no confirmation showed until the drawer was reopened.
+      setLead((prev) =>
+        prev
+          ? { ...prev, status: "converted", promoted_terminal_id: res.terminal.id }
+          : prev,
+      );
       onChanged();
       // Leave the drawer open so the "Open terminal" link is right there.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not promote");
+    } finally {
       setBusy(false);
     }
   }
