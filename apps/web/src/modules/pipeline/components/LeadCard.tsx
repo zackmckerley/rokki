@@ -7,6 +7,7 @@ import {
   isRotting,
   isFollowUpDue,
   compactMoney,
+  daysSince,
   CARD_FIELD_CAP,
 } from "@/lib/pipeline/board";
 
@@ -60,6 +61,11 @@ export function LeadCard({
   const converted = lead.status === "converted";
   const parcels = parcelCount(lead);
   const notes = hasNotes(lead);
+  // Days since last activity — a lightweight "aging" cue on every card. Hidden
+  // when the lead is already flagged Cold (that flame says the same thing) or
+  // when it's fresh (< 1 day).
+  const age = daysSince(lead.last_activity_at, nowMs);
+  const showAge = age >= 1 && !rotting;
   const [dragging, setDragging] = useState(false);
 
   // Up to CARD_FIELD_CAP non-empty card fields, formatted. Keyed by the field's
@@ -118,11 +124,19 @@ export function LeadCard({
           ))}
         </div>
       )}
-      {(lead.source || due || rotting || parcels > 1 || notes) && (
+      {(lead.source || due || rotting || parcels > 1 || notes || showAge) && (
         <div className="flex flex-wrap items-center gap-1">
           {lead.source && (
             <span className="rounded-sm bg-bg-3 px-1 py-px text-[9px] uppercase tracking-wide text-text-3">
               {lead.source}
+            </span>
+          )}
+          {showAge && (
+            <span
+              className="flex items-center gap-0.5 text-[9px] text-text-3"
+              title={`${age} day${age === 1 ? "" : "s"} since last activity`}
+            >
+              <Clock className="h-2.5 w-2.5" /> {age}d
             </span>
           )}
           {parcels > 1 && (
