@@ -117,8 +117,34 @@ export function GoalsCard() {
   // ── mutations ──────────────────────────────────────────────────────
   const onLog = useCallback(
     async (goalId: string, entryDate: string, value: number) => {
-      await recordEntry(createClient(), { goal_id: goalId, entry_date: entryDate, value });
-      await load();
+      // Optimistic: set the entry locally so the cell + progress bar update
+      // instantly, with NO full ~10-month refetch. Reconcile from the server
+      // only if the write fails.
+      setData((d) => {
+        if (!d) return d;
+        const list = d.entriesByGoal[goalId] ?? [];
+        const idx = list.findIndex((e) => e.entry_date === entryDate);
+        const nextList =
+          idx >= 0
+            ? list.map((e, i) => (i === idx ? { ...e, value } : e))
+            : [
+                ...list,
+                {
+                  id: `opt-${goalId}-${entryDate}`,
+                  goal_id: goalId,
+                  entry_date: entryDate,
+                  value,
+                  source: "manual",
+                  notes: null,
+                },
+              ];
+        return { ...d, entriesByGoal: { ...d.entriesByGoal, [goalId]: nextList } };
+      });
+      try {
+        await recordEntry(createClient(), { goal_id: goalId, entry_date: entryDate, value });
+      } catch {
+        await load(); // reconcile on failure
+      }
     },
     [load],
   );
@@ -153,41 +179,100 @@ export function GoalsCard() {
       },
     ) => {
       const supabase = createClient();
-      await updateGoal(supabase, goalId, {
-        name: patch.name,
-        unit: patch.unit,
-        period: patch.period,
-        target_period: patch.target_period,
-      });
-      if (patch.target !== undefined) {
-        await setWeeklyTarget(supabase, {
-          goal_id: goalId,
-          weekly_target: patch.target,
-          valid_from: startOfWeek(todayIso()),
+      // Optimistic patch of the single goal (+ its target) — no full refetch.
+      setData((d) =>
+        d
+          ? {
+              ...d,
+              goals: d.goals.map((g) =>
+                g.id === goalId
+                  ? {
+                      ...g,
+                      ...(patch.name !== undefined ? { name: patch.name } : {}),
+                      ...(patch.unit !== undefined ? { unit: patch.unit } : {}),
+                      ...(patch.period !== undefined ? { period: patch.period } : {}),
+                      ...(patch.target_period !== undefined
+                        ? { target_period: patch.target_period }
+                        : {}),
+                    }
+                  : g,
+              ),
+              targetsByGoal:
+                patch.target !== undefined
+                  ? { ...d.targetsByGoal, [goalId]: patch.target }
+                  : d.targetsByGoal,
+            }
+          : d,
+      );
+      try {
+        await updateGoal(supabase, goalId, {
+          name: patch.name,
+          unit: patch.unit,
+          period: patch.period,
+          target_period: patch.target_period,
         });
+        if (patch.target !== undefined) {
+          await setWeeklyTarget(supabase, {
+            goal_id: goalId,
+            weekly_target: patch.target,
+            valid_from: startOfWeek(todayIso()),
+          });
+        }
+      } catch {
+        await load();
       }
-      await load();
     },
     [load],
   );
   const onArchiveGoal = useCallback(
     async (goalId: string) => {
-      await setGoalArchived(createClient(), goalId, true);
-      await load();
+      // Optimistic: drop the goal from view immediately.
+      setData((d) => (d ? { ...d, goals: d.goals.filter((g) => g.id !== goalId) } : d));
+      try {
+        await setGoalArchived(createClient(), goalId, true);
+      } catch {
+        await load();
+      }
     },
     [load],
   );
   const onUpdateCategory = useCallback(
     async (categoryId: string, patch: { name?: string; color?: string }) => {
-      await updateCategory(createClient(), categoryId, patch);
-      await load();
+      setData((d) =>
+        d
+          ? {
+              ...d,
+              categories: d.categories.map((c) =>
+                c.id === categoryId ? { ...c, ...patch } : c,
+              ),
+            }
+          : d,
+      );
+      try {
+        await updateCategory(createClient(), categoryId, patch);
+      } catch {
+        await load();
+      }
     },
     [load],
   );
   const onArchiveCategory = useCallback(
     async (categoryId: string) => {
-      await setCategoryArchived(createClient(), categoryId, true);
-      await load();
+      // Optimistic: drop the area and its goals from view.
+      setData((d) =>
+        d
+          ? {
+              ...d,
+              categories: d.categories.filter((c) => c.id !== categoryId),
+              goals: d.goals.filter((g) => g.category_id !== categoryId),
+            }
+          : d,
+      );
+      try {
+        await setCategoryArchived(createClient(), categoryId, true);
+      } catch {
+        await load();
+      }
     },
     [load],
   );
@@ -210,8 +295,12 @@ export function GoalsCard() {
         const categories = [...d.categories].sort((a, b) => at(a.id) - at(b.id));
         return { ...d, categories };
       });
-      await reorderCategories(createClient(), orderedIds);
-      await load();
+      // Local reorder is authoritative; the write only sets display_order.
+      try {
+        await reorderCategories(createClient(), orderedIds);
+      } catch {
+        await load();
+      }
     },
     [load],
   );
@@ -231,8 +320,11 @@ export function GoalsCard() {
         );
         return { ...d, goals };
       });
-      await reorderGoals(createClient(), orderedIds);
-      await load();
+      try {
+        await reorderGoals(createClient(), orderedIds);
+      } catch {
+        await load();
+      }
     },
     [load],
   );
