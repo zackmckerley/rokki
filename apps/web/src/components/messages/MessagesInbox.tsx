@@ -82,6 +82,7 @@ export function MessagesInbox() {
   const [draft, setDraft] = usePersistedDraft(activeId ?? "none");
   const [query, setQuery] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [meId, setMeId] = useState<string | null>(null);
   /**
    * Maps message_id → in-progress draft for the "Reply with status"
@@ -157,10 +158,10 @@ export function MessagesInbox() {
     const r = await fetch(`/api/v1/messages/threads/${threadId}`, {
       credentials: "include",
     });
-    if (!r.ok) {
-      setMessages([]);
-      return;
-    }
+    // A transient 4xx/5xx/network blip (this also runs from the realtime
+    // handler) must NOT blank the open conversation to a false "empty" state —
+    // keep what we have. A genuinely empty thread returns 200 with data:[].
+    if (!r.ok) return;
     const body = (await r.json()) as { data?: Message[] };
     setMessages(body.data ?? []);
     requestAnimationFrame(() => {
@@ -204,6 +205,7 @@ export function MessagesInbox() {
     const text = draft.trim();
     if (!text || !activeId || sending) return;
     setSending(true);
+    setSendError(null);
     try {
       const r = await fetch(`/api/v1/messages/threads/${activeId}`, {
         method: "POST",
@@ -214,7 +216,15 @@ export function MessagesInbox() {
       if (r.ok) {
         setDraft("");
         await loadMessages(activeId);
+      } else {
+        const b = (await r.json().catch(() => ({}))) as {
+          errors?: { message: string }[];
+        };
+        // Keep the draft so nothing the user typed is lost.
+        setSendError(b.errors?.[0]?.message ?? "Couldn’t send. Try again.");
       }
+    } catch {
+      setSendError("Couldn’t send — check your connection and try again.");
     } finally {
       setSending(false);
     }
@@ -589,12 +599,21 @@ export function MessagesInbox() {
         {active ? (
           <form
             onSubmit={submit}
-            className="flex gap-2 border-t border-border bg-bg-1 p-2"
+            className="flex flex-col gap-1 border-t border-border bg-bg-1 p-2"
           >
+            {sendError ? (
+              <p className="px-0.5 text-2xs text-danger" role="alert">
+                {sendError}
+              </p>
+            ) : null}
+            <div className="flex gap-2">
             <textarea
               ref={composerRef}
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value);
+                if (sendError) setSendError(null);
+              }}
               onKeyDown={(e) => composerKeyDown(e, () => void submit())}
               rows={1}
               placeholder={`Message ${active.label}`}
@@ -608,6 +627,7 @@ export function MessagesInbox() {
             >
               <Send className="h-3 w-3" /> Send
             </button>
+            </div>
           </form>
         ) : null}
           </>
