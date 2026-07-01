@@ -160,13 +160,26 @@ export function SignalThreadView({
     return () => clearTimeout(t);
   }, [threadId, signalKind]);
 
-  useRealtimeTable<{ id: string; thread_id: string }>(
+  useRealtimeTable<{ id: string; thread_id: string; status?: SignalStatus }>(
     {
       table: "signal_messages",
       filter: `thread_id=eq.${threadId}`,
       channelKey: `sig:${threadId}`,
     },
-    { onInsert: () => void load(), onUpdate: () => void load() },
+    {
+      // A new message needs the server to mint signed attachment URLs, so pull
+      // the thread. But an UPDATE is almost always a delivery/read receipt —
+      // patch just that row's status in place. Re-pulling on every receipt
+      // re-signs every attachment, churning each media src and flickering the
+      // whole conversation, which was the main source of messenger lag.
+      onInsert: () => void load(),
+      onUpdate: (row) =>
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === row.id && row.status ? { ...m, status: row.status } : m,
+          ),
+        ),
+    },
   );
 
   // Stage files (from the paperclip picker OR a drag-and-drop) as pending
@@ -347,39 +360,47 @@ export function SignalThreadView({
     }
   }
 
-  async function deleteMessage(id: string) {
-    // Optimistic — drop it immediately and guard against a racing reload, then
-    // persist.
-    deletedRef.current.add(id);
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-    const r = await fetch(`/api/v1/signal/messages/${id}`, {
-      method: "DELETE",
-      credentials: "include",
-    });
-    if (!r.ok) {
-      deletedRef.current.delete(id);
-      void load(); // restore on failure
-      setError("Couldn’t delete that message.");
-    }
-  }
+  // Stable identity (useCallback) so the memoized ChatMessageList isn't
+  // re-rendered on every composer keystroke.
+  const deleteMessage = useCallback(
+    async (id: string) => {
+      // Optimistic — drop it immediately and guard against a racing reload,
+      // then persist.
+      deletedRef.current.add(id);
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+      const r = await fetch(`/api/v1/signal/messages/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        deletedRef.current.delete(id);
+        void load(); // restore on failure
+        setError("Couldn’t delete that message.");
+      }
+    },
+    [load],
+  );
 
   // Delete for EVERYONE on Signal (remote delete) — only your own messages.
-  async function deleteForEveryone(id: string) {
-    deletedRef.current.add(id);
-    setMessages((prev) => prev.filter((m) => m.id !== id));
-    const r = await fetch(`/api/v1/signal/messages/${id}/remote-delete`, {
-      method: "POST",
-      credentials: "include",
-    });
-    if (!r.ok) {
-      deletedRef.current.delete(id);
-      void load();
-      const b = (await r.json().catch(() => ({}))) as {
-        errors?: { message: string }[];
-      };
-      setError(b.errors?.[0]?.message ?? "Couldn’t delete for everyone.");
-    }
-  }
+  const deleteForEveryone = useCallback(
+    async (id: string) => {
+      deletedRef.current.add(id);
+      setMessages((prev) => prev.filter((m) => m.id !== id));
+      const r = await fetch(`/api/v1/signal/messages/${id}/remote-delete`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!r.ok) {
+        deletedRef.current.delete(id);
+        void load();
+        const b = (await r.json().catch(() => ({}))) as {
+          errors?: { message: string }[];
+        };
+        setError(b.errors?.[0]?.message ?? "Couldn’t delete for everyone.");
+      }
+    },
+    [load],
+  );
 
   // All attachments with a usable URL, flattened across messages — powers the
   // media gallery + lightbox. Memoized so it isn't recomputed on every render
@@ -398,10 +419,32 @@ export function SignalThreadView({
       mediaItems.filter((x) => (x.att.content_type ?? "").startsWith("image/")),
     [mediaItems],
   );
-  const openLightbox = (url: string) => {
-    const idx = imageItems.findIndex((x) => x.att.url === url);
-    if (idx >= 0) setLightbox(idx);
-  };
+  // Map to the ChatMessageList shape once per messages change — NOT on every
+  // keystroke (composer draft lives in this component's state). Combined with
+  // ChatMessageList being memo'd, typing no longer re-runs linkify / Segmenter
+  // / date-parse work for the whole thread.
+  const chatMessages = useMemo(
+    () =>
+      messages.map((m) => ({
+        id: m.id,
+        mine: m.direction === "out",
+        sender: m.sender,
+        body: m.body ?? "",
+        at: m.sent_at,
+        status: m.status,
+        attachments: m.attachments ?? [],
+      })),
+    [messages],
+  );
+  const openLightbox = useCallback(
+    (url: string) => {
+      const idx = imageItems.findIndex((x) => x.att.url === url);
+      if (idx >= 0) setLightbox(idx);
+    },
+    [imageItems],
+  );
+  // Stable header element so the memoized ChatMessageList doesn't re-render.
+  const listHeader = useMemo(() => <HistoryNotice />, []);
 
   return (
     <div
@@ -456,21 +499,13 @@ export function SignalThreadView({
         <>
       <div ref={scrollerRef} className="flex-1 overflow-y-auto px-3 py-2 text-xs">
         <ChatMessageList
-          header={<HistoryNotice />}
+          header={listHeader}
           emptyText="No messages yet in this Signal chat."
           showSender={signalKind === "group"}
           onDeleteForMe={deleteMessage}
           onDeleteForEveryone={deleteForEveryone}
           onOpenImage={openLightbox}
-          messages={messages.map((m) => ({
-            id: m.id,
-            mine: m.direction === "out",
-            sender: m.sender,
-            body: m.body ?? "",
-            at: m.sent_at,
-            status: m.status,
-            attachments: m.attachments ?? [],
-          }))}
+          messages={chatMessages}
         />
       </div>
       <form
