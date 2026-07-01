@@ -130,6 +130,28 @@ export function MessagesInbox() {
     void loadThreads();
   }, [loadThreads]);
 
+  // Deep-link `?to=<phone>` (from a contact's Call/Message action): once threads
+  // load, open the matching Signal conversation, or the contact picker to start
+  // one. Read from window.location (client-only) so no Suspense boundary is
+  // needed at every render site. Matched on the last 10 digits.
+  const appliedToRef = useRef<boolean>(false);
+  useEffect(() => {
+    if (appliedToRef.current || threads.length === 0) return;
+    if (typeof window === "undefined") return;
+    const toParam = new URLSearchParams(window.location.search).get("to");
+    if (!toParam) return;
+    const want = toParam.replace(/\D/g, "").slice(-10);
+    if (want.length !== 10) return;
+    appliedToRef.current = true;
+    const match = threads.find(
+      (t) =>
+        t.source === "signal" &&
+        (t.signal_id ?? "").replace(/\D/g, "").slice(-10) === want,
+    );
+    if (match) setActiveId(match.id);
+    else setPicking(true);
+  }, [threads]);
+
   // Load messages for active thread.
   const loadMessages = useCallback(async (threadId: string) => {
     const r = await fetch(`/api/v1/messages/threads/${threadId}`, {

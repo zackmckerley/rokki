@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { timeAgo, formatBirthday } from "./format";
+import { timeAgo, formatBirthday, formatPhone } from "./format";
 
 describe("timeAgo", () => {
   const now = Date.parse("2026-06-28T12:00:00Z");
@@ -26,5 +26,22 @@ describe("formatBirthday", () => {
     expect(formatBirthday(null)).toBe("");
     expect(formatBirthday("1985/03/09")).toBe("");
     expect(formatBirthday("1985-13-40")).toBe("");
+  });
+});
+
+describe("formatPhone", () => {
+  it("formats a 10-digit NANP number", () => {
+    expect(formatPhone("4109253814")).toBe("(410) 925-3814");
+    expect(formatPhone("(410) 925-3814")).toBe("(410) 925-3814");
+  });
+  it("formats an 11-digit +1 number", () => {
+    expect(formatPhone("14109253814")).toBe("+1 (410) 925-3814");
+    expect(formatPhone("+1 410-925-3814")).toBe("+1 (410) 925-3814");
+  });
+  it("leaves non-NANP input as typed", () => {
+    expect(formatPhone("+44 20 7946 0958")).toBe("+44 20 7946 0958");
+    expect(formatPhone("611")).toBe("611");
+    expect(formatPhone("")).toBe("");
+    expect(formatPhone(null)).toBe("");
   });
 });

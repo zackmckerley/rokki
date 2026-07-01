@@ -5,11 +5,9 @@ import {
   Mail,
   Phone,
   MapPin,
-  Cake,
   Users,
   Link as LinkIcon,
   MessageSquare,
-  Send,
   Pencil,
   Archive,
   Unlink,
@@ -18,7 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { ContactRow, ContactAddress } from "@/lib/contacts/db";
-import { timeAgo, formatBirthday } from "@/lib/contacts/format";
+import { timeAgo, formatBirthday, formatPhone } from "@/lib/contacts/format";
 import {
   getContact,
   updateContact,
@@ -51,10 +49,12 @@ function mapsHref(a: ContactAddress): string {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 
-const sectionLabel =
-  "text-[10px] font-semibold uppercase tracking-wide text-text-3";
+/** Deep-link to the Signal conversation with this number (see MessagesInbox). */
+function signalHref(phone: string): string {
+  return `/messages?to=${encodeURIComponent(phone)}`;
+}
 
-/** Detail drawer for one contact — full read view with inline edit + archive. */
+/** Detail drawer for one contact — Option C: dense, terminal-style read view. */
 export function ContactDetail({
   contactId,
   onClose,
@@ -148,39 +148,41 @@ export function ContactDetail({
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center py-8 text-text-3">
             <Loader2 className="h-5 w-5 animate-spin" aria-label="Loading" />
           </div>
         ) : !contact ? (
-          <p className="text-xs text-text-3">{error ?? "Not found."}</p>
+          <p className="p-3 text-xs text-text-3">{error ?? "Not found."}</p>
         ) : editing ? (
-          <ContactForm
-            initial={contact}
-            busy={busy}
-            error={error}
-            submitLabel="Save"
-            onCancel={() => setEditing(false)}
-            onSubmit={save}
-          />
+          <div className="p-3">
+            <ContactForm
+              initial={contact}
+              busy={busy}
+              error={error}
+              submitLabel="Save"
+              onCancel={() => setEditing(false)}
+              onSubmit={save}
+            />
+          </div>
         ) : (
-          <div className="flex flex-col gap-3">
-            {/* Header */}
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col">
+            {/* Identity + Signal / email actions */}
+            <div className="flex items-center gap-2.5 px-3 py-3">
               {contact.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={contact.avatar_url}
                   alt=""
-                  className="h-14 w-14 flex-shrink-0 rounded-full object-cover"
+                  className="h-9 w-9 flex-shrink-0 rounded-md object-cover"
                 />
               ) : (
-                <span className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-bg-3 font-mono text-sm text-text-1">
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-accent/15 font-mono text-xs font-medium text-accent">
                   {initials(contact)}
                 </span>
               )}
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-semibold text-text-0">
                     {fullName || contact.nickname || "Unnamed"}
@@ -189,27 +191,42 @@ export function ContactDetail({
                     <span className="flex-shrink-0 rounded-sm bg-accent/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-accent">
                       You
                     </span>
-                  ) : (
-                    contact.user_id && (
-                      <span className="flex-shrink-0 rounded-sm bg-accent/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-accent">
-                        Rokki
-                      </span>
-                    )
-                  )}
+                  ) : contact.user_id ? (
+                    <span className="flex-shrink-0 rounded-sm bg-accent/15 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-accent">
+                      Rokki
+                    </span>
+                  ) : null}
                 </div>
-                {contact.nickname && fullName && (
-                  <div className="truncate text-xs text-text-3">“{contact.nickname}”</div>
-                )}
                 {(contact.title || contact.company) && (
                   <div className="truncate text-xs text-text-2">
                     {[contact.title, contact.company].filter(Boolean).join(" · ")}
                   </div>
                 )}
+                {!contact.title && !contact.company && contact.nickname && fullName && (
+                  <div className="truncate text-xs text-text-3">“{contact.nickname}”</div>
+                )}
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-1">
+                {phone && (
+                  <ActionIcon href={signalHref(phone)} label="Call via Signal">
+                    <Phone className="h-4 w-4" />
+                  </ActionIcon>
+                )}
+                {phone && (
+                  <ActionIcon href={signalHref(phone)} label="Message via Signal">
+                    <MessageSquare className="h-4 w-4" />
+                  </ActionIcon>
+                )}
+                {email && (
+                  <ActionIcon href={`mailto:${email}`} label="Email" external>
+                    <Mail className="h-4 w-4" />
+                  </ActionIcon>
+                )}
               </div>
             </div>
 
             {contact.contact_types.length > 0 && (
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-1 px-3 pb-2.5">
                 {contact.contact_types.map((t) => (
                   <span
                     key={t}
@@ -221,149 +238,62 @@ export function ContactDetail({
               </div>
             )}
 
-            {/* Quick actions */}
-            {(phone || email || contact.user_id) && (
-              <div className="grid grid-cols-4 gap-1">
-                <ActionButton
-                  icon={<Phone className="h-4 w-4" />}
-                  label="Call"
-                  href={phone ? `tel:${phone}` : undefined}
-                />
-                <ActionButton
-                  icon={<MessageSquare className="h-4 w-4" />}
-                  label="Text"
-                  href={phone ? `sms:${phone}` : undefined}
-                />
-                <ActionButton
-                  icon={<Mail className="h-4 w-4" />}
-                  label="Email"
-                  href={email ? `mailto:${email}` : undefined}
-                />
-                <ActionButton
-                  icon={<Send className="h-4 w-4" />}
-                  label="Message"
-                  href={contact.user_id ? "/messages" : undefined}
-                  title={contact.user_id ? "Message in Rokki" : "Not a Rokki user"}
-                />
-              </div>
-            )}
-
-            {/* Emails */}
-            {contact.emails.length > 0 && (
-              <Section label="Email">
-                {contact.emails.map((e, i) => (
-                  <a
-                    key={i}
-                    href={`mailto:${e.email}`}
-                    className="flex items-center gap-2 text-xs text-text-1 hover:text-text-0"
-                  >
-                    <Mail className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
-                    <span className="truncate">{e.email}</span>
-                    {e.label && <Tag>{e.label}</Tag>}
-                  </a>
-                ))}
-              </Section>
-            )}
-
-            {/* Phones */}
-            {contact.phones.length > 0 && (
-              <Section label="Phone">
-                {contact.phones.map((p, i) => (
-                  <a
-                    key={i}
-                    href={`tel:${p.phone}`}
-                    className="flex items-center gap-2 text-xs text-text-1 hover:text-text-0"
-                  >
-                    <Phone className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
-                    <span className="truncate">{p.phone}</span>
-                    {p.label && <Tag>{p.label}</Tag>}
-                  </a>
-                ))}
-              </Section>
-            )}
-
-            {/* Birthday */}
-            {contact.birthday && (
-              <Section label="Birthday">
-                <div className="flex items-center gap-2 text-xs text-text-1">
-                  <Cake className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
-                  {formatBirthday(contact.birthday)}
-                </div>
-              </Section>
-            )}
-
-            {/* Addresses */}
-            {contact.addresses.length > 0 && (
-              <Section label="Addresses">
-                {contact.addresses.map((a, i) => (
-                  <a
-                    key={i}
-                    href={mapsHref(a)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-2 text-xs text-text-1 hover:text-text-0"
-                  >
-                    <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-text-3" />
-                    <span className="min-w-0">
-                      {a.label && <Tag>{a.label}</Tag>}
-                      <span className="block whitespace-pre-wrap">{formatAddress(a)}</span>
-                    </span>
-                  </a>
-                ))}
-              </Section>
-            )}
-
-            {/* Family */}
-            {contact.family.length > 0 && (
-              <Section label="Family & relationships">
-                {contact.family.map((f, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs text-text-1">
-                    <Users className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
-                    <span className="truncate">{f.name}</span>
-                    {f.relation && <Tag>{f.relation}</Tag>}
-                  </div>
-                ))}
-              </Section>
-            )}
-
-            {/* Socials */}
-            {contact.socials.length > 0 && (
-              <Section label="Social & web">
-                {contact.socials.map((s, i) => (
-                  <a
-                    key={i}
-                    href={
-                      s.value.startsWith("http") ? s.value : `https://${s.value}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-xs text-text-1 hover:text-text-0"
-                  >
-                    <LinkIcon className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
-                    <span className="truncate">{s.value}</span>
-                    <Tag>{s.kind}</Tag>
-                  </a>
-                ))}
-              </Section>
-            )}
+            {/* Fields — dense mono rows with a fixed label column */}
+            <div className="border-t border-border/60 font-mono text-xs">
+              {contact.emails.map((e, i) => (
+                <FieldRow key={`e${i}`} label={i === 0 ? "Email" : ""} chip={e.label} href={`mailto:${e.email}`}>
+                  <span className="truncate">{e.email}</span>
+                </FieldRow>
+              ))}
+              {contact.phones.map((p, i) => (
+                <FieldRow key={`p${i}`} label={i === 0 ? "Phone" : ""} chip={p.label} href={signalHref(p.phone)}>
+                  <span className="truncate">{formatPhone(p.phone)}</span>
+                </FieldRow>
+              ))}
+              {contact.birthday && (
+                <FieldRow label="Born">
+                  <span>{formatBirthday(contact.birthday)}</span>
+                </FieldRow>
+              )}
+              {contact.addresses.map((a, i) => (
+                <FieldRow key={`a${i}`} label={i === 0 ? "Address" : ""} chip={a.label} href={mapsHref(a)} external>
+                  <span className="whitespace-pre-wrap leading-tight">{formatAddress(a)}</span>
+                </FieldRow>
+              ))}
+              {contact.family.map((f, i) => (
+                <FieldRow key={`f${i}`} label={i === 0 ? "Family" : ""} chip={f.relation}>
+                  <span className="truncate">{f.name}</span>
+                </FieldRow>
+              ))}
+              {contact.socials.map((s, i) => (
+                <FieldRow
+                  key={`s${i}`}
+                  label={i === 0 ? "Web" : ""}
+                  chip={s.kind}
+                  href={s.value.startsWith("http") ? s.value : `https://${s.value}`}
+                  external
+                >
+                  <span className="truncate">{s.value}</span>
+                </FieldRow>
+              ))}
+            </div>
 
             {contact.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1">
+              <div className="flex flex-wrap gap-x-2 gap-y-1 px-3 py-2">
                 {contact.tags.map((t) => (
-                  <span key={t} className="text-2xs text-text-3">
-                    #{t}
-                  </span>
+                  <span key={t} className="text-2xs text-text-3">#{t}</span>
                 ))}
               </div>
             )}
 
             {contact.notes && (
-              <p className="whitespace-pre-wrap border-t border-border/40 pt-2 text-xs text-text-2">
+              <p className="whitespace-pre-wrap border-t border-border/40 px-3 py-2.5 text-xs leading-relaxed text-text-2">
                 {contact.notes}
               </p>
             )}
 
-            <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
+            {/* Footer toolbar */}
+            <div className="flex items-center gap-1 border-t border-border/60 px-3 py-2.5">
               <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
                 <Pencil className="h-3 w-3" /> Edit
               </Button>
@@ -379,6 +309,8 @@ export function ContactDetail({
                 Updated {timeAgo(contact.updated_at, Date.now())}
               </span>
             </div>
+
+            {error && <p className="px-3 pb-3 text-xs text-danger">{error}</p>}
           </div>
         )}
       </div>
@@ -386,60 +318,70 @@ export function ContactDetail({
   );
 }
 
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1">
-      <span className={sectionLabel}>{label}</span>
-      {children}
-    </div>
-  );
-}
-
-function Tag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="ml-1 rounded-sm bg-bg-3 px-1 py-px text-[9px] uppercase tracking-wide text-text-3">
-      {children}
-    </span>
-  );
-}
-
-/** A quick-action tile (Call / Text / Email / Message). Disabled when the
- *  contact has no value for it (e.g. no phone → Call/Text are inert). */
-function ActionButton({
-  icon,
+/** One dense field row: fixed label column, value, and an optional label chip.
+ *  The whole row links when `href` is set. A blank `label` continues a group
+ *  (e.g. a second email) without repeating the heading. */
+function FieldRow({
   label,
+  chip,
   href,
-  title,
+  external,
+  children,
 }: {
-  icon: React.ReactNode;
   label: string;
+  chip?: string;
   href?: string;
-  title?: string;
+  external?: boolean;
+  children: React.ReactNode;
 }) {
-  const base =
-    "flex flex-col items-center justify-center gap-1 rounded border py-2 text-2xs";
-  if (!href) {
-    return (
-      <span
-        className={`${base} border-border/50 text-text-3 opacity-50`}
-        title={title ?? `No ${label.toLowerCase()}`}
-        aria-disabled="true"
-      >
-        {icon}
+  const inner = (
+    <>
+      <span className="w-14 flex-shrink-0 pt-px text-[10px] uppercase tracking-wide text-text-3">
         {label}
       </span>
-    );
-  }
-  const external = href.startsWith("/");
+      <span className="min-w-0 flex-1 text-text-1">{children}</span>
+      {chip && (
+        <span className="flex-shrink-0 rounded-sm bg-accent/10 px-1.5 py-px text-[9px] uppercase tracking-wide text-accent">
+          {chip}
+        </span>
+      )}
+    </>
+  );
+  const cls =
+    "flex items-start gap-2 border-b border-border/40 px-3 py-2 last:border-b-0";
+  if (!href) return <div className={cls}>{inner}</div>;
   return (
     <a
       href={href}
-      title={title ?? label}
-      {...(external ? {} : { rel: "noopener noreferrer" })}
-      className={`${base} border-border bg-bg-2 text-text-1 hover:border-border-focus hover:text-text-0`}
+      className={`${cls} hover:bg-bg-2`}
+      {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
     >
-      {icon}
-      {label}
+      {inner}
+    </a>
+  );
+}
+
+/** A compact 32px icon action button (Signal call / message, email). */
+function ActionIcon({
+  href,
+  label,
+  external,
+  children,
+}: {
+  href: string;
+  label: string;
+  external?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <a
+      href={href}
+      title={label}
+      aria-label={label}
+      {...(external ? { rel: "noopener noreferrer" } : {})}
+      className="flex h-8 w-8 items-center justify-center rounded border border-border bg-bg-2 text-text-2 hover:border-border-focus hover:text-text-0"
+    >
+      {children}
     </a>
   );
 }
