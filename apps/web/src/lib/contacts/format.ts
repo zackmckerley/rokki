@@ -41,3 +41,19 @@ export function formatBirthday(date: string | null | undefined): string {
   const base = `${MONTHS[month - 1]} ${day}`;
   return y === "0000" ? base : `${base}, ${y}`;
 }
+
+/**
+ * Pretty-print a phone number for display. US/NANP 10-digit → "(410) 925-3814",
+ * 11-digit "1XXXXXXXXXX" → "+1 (410) 925-3814". Anything that isn't a clean
+ * NANP number (short codes, international, extensions) is returned as typed.
+ */
+export function formatPhone(raw: string | null | undefined): string {
+  if (!raw) return "";
+  const s = raw.trim();
+  const digits = s.replace(/\D/g, "");
+  const has1 = digits.length === 11 && digits.startsWith("1");
+  const core = has1 ? digits.slice(1) : digits;
+  if (core.length !== 10) return s; // not NANP — leave as-is
+  const pretty = `(${core.slice(0, 3)}) ${core.slice(3, 6)}-${core.slice(6)}`;
+  return has1 ? `+1 ${pretty}` : pretty;
+}
