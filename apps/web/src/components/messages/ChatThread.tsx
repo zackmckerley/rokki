@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  memo,
   useEffect,
   useState,
   type ReactNode,
@@ -55,8 +56,11 @@ export interface ChatMessage {
 
 /** Render a thread's messages as grouped, iMessage/WhatsApp-style bubbles.
  *  The caller owns the scroll container; this renders the optional header and
- *  the message list (or an empty state). */
-export function ChatMessageList({
+ *  the message list (or an empty state). Memoized so a parent re-render (e.g.
+ *  the composer's draft state changing on every keystroke) doesn't re-run the
+ *  per-message linkify / grapheme-segmentation work — provided the caller keeps
+ *  `messages` and the callback props referentially stable. */
+function ChatMessageListImpl({
   messages,
   showSender = false,
   onDeleteForMe,
@@ -295,6 +299,8 @@ export function ChatMessageList({
     </>
   );
 }
+
+export const ChatMessageList = memo(ChatMessageListImpl);
 
 /** Image attachment(s) rendered flush inside the bubble — a single image fills
  *  the bubble (image *is* the bubble); multiple become a 2-up collage with a
