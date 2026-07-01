@@ -29,10 +29,10 @@ describe("goals-week — periodWindow", () => {
       end: "2026-06-25",
     });
   });
-  it("weekly window is Mon–Sun", () => {
+  it("weekly window is Sun–Sat", () => {
     expect(periodWindow("weekly", "2026-06-25")).toEqual({
-      start: "2026-06-22",
-      end: "2026-06-28",
+      start: "2026-06-21",
+      end: "2026-06-27",
     });
   });
   it("monthly window is the whole month", () => {
@@ -43,15 +43,15 @@ describe("goals-week — periodWindow", () => {
   });
 });
 
-describe("goals-week — startOfWeek (Monday default)", () => {
+describe("goals-week — startOfWeek (Sunday default)", () => {
   // Reference dates so we know what to expect.
   const cases: Array<{ in: string; out: string; note: string }> = [
-    { in: "2026-05-12", out: "2026-05-11", note: "Tue → previous Mon" },
-    { in: "2026-05-11", out: "2026-05-11", note: "Mon → itself" },
-    { in: "2026-05-10", out: "2026-05-04", note: "Sun → previous Mon" },
-    { in: "2026-05-17", out: "2026-05-11", note: "Sun later → previous Mon" },
-    { in: "2026-01-01", out: "2025-12-29", note: "year boundary" },
-    { in: "2024-02-29", out: "2024-02-26", note: "leap day" },
+    { in: "2026-05-12", out: "2026-05-10", note: "Tue → previous Sun" },
+    { in: "2026-05-11", out: "2026-05-10", note: "Mon → previous Sun" },
+    { in: "2026-05-10", out: "2026-05-10", note: "Sun → itself" },
+    { in: "2026-05-17", out: "2026-05-17", note: "Sun → itself" },
+    { in: "2026-01-01", out: "2025-12-28", note: "year boundary (Thu → prev Sun)" },
+    { in: "2024-02-29", out: "2024-02-25", note: "leap day (Thu → prev Sun)" },
   ];
   for (const c of cases) {
     it(`${c.in} → ${c.out} (${c.note})`, () => {
@@ -60,15 +60,15 @@ describe("goals-week — startOfWeek (Monday default)", () => {
   }
 });
 
-describe("goals-week — endOfWeek (Sunday default)", () => {
-  it("Mon → following Sun", () => {
-    expect(endOfWeek("2026-05-11")).toBe("2026-05-17");
+describe("goals-week — endOfWeek (Saturday default)", () => {
+  it("Sun → following Sat", () => {
+    expect(endOfWeek("2026-05-10")).toBe("2026-05-16");
   });
-  it("Sun → itself", () => {
-    expect(endOfWeek("2026-05-17")).toBe("2026-05-17");
+  it("Sat → itself", () => {
+    expect(endOfWeek("2026-05-16")).toBe("2026-05-16");
   });
   it("crosses month boundary", () => {
-    expect(endOfWeek("2026-04-30")).toBe("2026-05-03");
+    expect(endOfWeek("2026-04-30")).toBe("2026-05-02");
   });
 });
 
@@ -93,7 +93,7 @@ describe("goals-week — formatWeekLabel", () => {
 
 describe("goals-week — property: 200 random dates land on the same week", () => {
   // Pick 200 random dates and verify their startOfWeek answers
-  // are all the same Monday (week-start invariant).
+  // are all the same Sunday (week-start invariant).
   it("invariants hold across 200 random dates", () => {
     function rng(seed: number): () => number {
       let s = seed;
@@ -123,8 +123,8 @@ describe("goals-week — property: 200 random dates land on the same week", () =
       const endD = new Date(Date.UTC(ey, em - 1, ed));
       const diff = (endD.getTime() - startD.getTime()) / 86_400_000;
       expect(diff).toBe(6);
-      // Invariant 3: start lands on Monday (UTC getDay === 1)
-      expect(startD.getUTCDay()).toBe(1);
+      // Invariant 3: start lands on Sunday (UTC getDay === 0)
+      expect(startD.getUTCDay()).toBe(0);
     }
   });
 });

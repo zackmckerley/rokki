@@ -5,14 +5,13 @@
  * strings so they slot directly into Postgres DATE columns and
  * SQL inequalities (`.gte("entry_date", weekStart)`).
  *
- * Week starts on Monday by convention; that matches both the
- * standalone Goals app and `MODULE_PLAN.md §1.3`. Settings can
- * override later (`goals_settings.week_start_dow`); the per-scope
- * loader will inject the right value when that becomes wired.
+ * Week starts on Sunday (Sun–Sat). Settings can override later
+ * (`goals_settings.week_start_dow`); the per-scope loader will inject
+ * the right value when that becomes wired.
  */
 
-/** Default week start — Monday. 0 = Sunday, 1 = Monday, …, 6 = Saturday. */
-export const DEFAULT_WEEK_START_DOW = 1;
+/** Default week start — Sunday. 0 = Sunday, 1 = Monday, …, 6 = Saturday. */
+export const DEFAULT_WEEK_START_DOW = 0;
 
 /**
  * First date (inclusive) of the week containing `iso`. Returns

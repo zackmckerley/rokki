@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { Loader2, Plus, Target, RotateCcw } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { GoalsTrack, type NewGoal } from "@/components/modules/GoalsTrack";
@@ -18,12 +18,15 @@ import {
   setWeeklyTarget,
   setGoalArchived,
   setCategoryArchived,
+  reorderGoals,
+  reorderCategories,
   loadArchivedCategories,
   loadArchivedGoals,
   type GoalsCategoryRow,
   type GoalsGoalRow,
   type GoalsEntryRow,
   type GoalPeriod,
+  type TargetPeriod,
 } from "@/lib/modules/goals-queries";
 import { startOfWeek, periodWindow } from "@/lib/modules/goals-week";
 
@@ -127,6 +130,7 @@ export function GoalsCard() {
         name: input.name,
         unit: input.unit,
         period: input.period,
+        target_period: input.target_period,
       });
       await setWeeklyTarget(supabase, {
         goal_id: goal.id,
@@ -140,13 +144,20 @@ export function GoalsCard() {
   const onUpdateGoal = useCallback(
     async (
       goalId: string,
-      patch: { name?: string; unit?: string; period?: GoalPeriod; target?: number },
+      patch: {
+        name?: string;
+        unit?: string;
+        period?: GoalPeriod;
+        target_period?: TargetPeriod;
+        target?: number;
+      },
     ) => {
       const supabase = createClient();
       await updateGoal(supabase, goalId, {
         name: patch.name,
         unit: patch.unit,
         period: patch.period,
+        target_period: patch.target_period,
       });
       if (patch.target !== undefined) {
         await setWeeklyTarget(supabase, {
@@ -187,22 +198,62 @@ export function GoalsCard() {
     },
     [load],
   );
+  // Drag-reorder: optimistically reorder locally, persist display_order, reload.
+  const onReorderAreas = useCallback(
+    async (orderedIds: string[]) => {
+      setData((d) => {
+        if (!d) return d;
+        const rank = new Map(orderedIds.map((id, i) => [id, i]));
+        // Unranked ids (e.g. one added concurrently) sort to the end, not the
+        // front; self-heals on the reload below regardless.
+        const at = (id: string) => rank.get(id) ?? Number.MAX_SAFE_INTEGER;
+        const categories = [...d.categories].sort((a, b) => at(a.id) - at(b.id));
+        return { ...d, categories };
+      });
+      await reorderCategories(createClient(), orderedIds);
+      await load();
+    },
+    [load],
+  );
+  const onReorderGoals = useCallback(
+    async (categoryId: string, orderedIds: string[]) => {
+      setData((d) => {
+        if (!d) return d;
+        const rank = new Map(orderedIds.map((id, i) => [id, i]));
+        const at = (id: string) => rank.get(id) ?? Number.MAX_SAFE_INTEGER;
+        const reordered = d.goals
+          .filter((g) => g.category_id === categoryId)
+          .sort((a, b) => at(a.id) - at(b.id));
+        let k = 0;
+        // Slot the reordered subset back into the category's original positions.
+        const goals = d.goals.map((g) =>
+          g.category_id === categoryId ? reordered[k++] : g,
+        );
+        return { ...d, goals };
+      });
+      await reorderGoals(createClient(), orderedIds);
+      await load();
+    },
+    [load],
+  );
 
   const count = data?.categories.length;
   const tabBar = (
-    <div className="flex items-center gap-0.5 rounded border border-border p-0.5">
-      {TABS.map((t) => (
-        <button
-          key={t.v}
-          type="button"
-          onClick={() => setTab(t.v)}
-          aria-pressed={tab === t.v}
-          className={`rounded-sm px-1.5 py-0.5 text-2xs ${
-            tab === t.v ? "bg-bg-3 text-text-0" : "text-text-3 hover:text-text-1"
-          }`}
-        >
-          {t.label}
-        </button>
+    <div className="flex items-center overflow-hidden rounded border border-border">
+      {TABS.map((t, i) => (
+        <Fragment key={t.v}>
+          {i > 0 ? <span aria-hidden="true" className="h-4 w-px bg-border" /> : null}
+          <button
+            type="button"
+            onClick={() => setTab(t.v)}
+            aria-pressed={tab === t.v}
+            className={`px-2 py-0.5 text-2xs ${
+              tab === t.v ? "bg-bg-3 text-text-0" : "text-text-3 hover:text-text-1"
+            }`}
+          >
+            {t.label}
+          </button>
+        </Fragment>
       ))}
     </div>
   );
@@ -238,6 +289,8 @@ export function GoalsCard() {
             onArchiveGoal={onArchiveGoal}
             onUpdateCategory={onUpdateCategory}
             onArchiveCategory={onArchiveCategory}
+            onReorderGoals={onReorderGoals}
+            onReorderAreas={onReorderAreas}
           />
           <div className="border-t border-border/40 px-3 py-2">
             <NewAreaForm spaces={data.spaces} onAdd={onAddCategory} />
