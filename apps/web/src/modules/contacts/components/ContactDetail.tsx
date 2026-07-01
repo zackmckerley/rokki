@@ -25,21 +25,14 @@ import {
 } from "../lib/client-api";
 import { ContactForm } from "./ContactForm";
 
-function initials(c: {
-  first_name?: string | null;
-  last_name?: string | null;
-  nickname?: string | null;
-}) {
-  const a = (c.first_name ?? c.nickname ?? "").trim()[0] ?? "";
-  const b = (c.last_name ?? "").trim()[0] ?? "";
-  return (a + b).toUpperCase() || "?";
-}
-
-function formatAddress(a: ContactAddress): string {
+/** Address as trimmed lines (each rendered as its own block, so a wrapped
+ *  address stays left-aligned to the value column). */
+function addressLines(a: ContactAddress): string[] {
   const cityLine = [a.city, a.state].filter(Boolean).join(", ");
-  return [a.line1, a.line2, [cityLine, a.postal].filter(Boolean).join(" "), a.country]
-    .filter(Boolean)
-    .join("\n");
+  const cityPostal = [cityLine, a.postal].filter(Boolean).join(" ");
+  return [a.line1, a.line2, cityPostal, a.country]
+    .map((s) => (s ?? "").trim())
+    .filter(Boolean);
 }
 
 function mapsHref(a: ContactAddress): string {
@@ -177,11 +170,7 @@ export function ContactDetail({
                   alt=""
                   className="h-9 w-9 flex-shrink-0 rounded-md object-cover"
                 />
-              ) : (
-                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md bg-accent/15 font-mono text-xs font-medium text-accent">
-                  {initials(contact)}
-                </span>
-              )}
+              ) : null}
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
                   <span className="truncate text-sm font-semibold text-text-0">
@@ -257,7 +246,13 @@ export function ContactDetail({
               )}
               {contact.addresses.map((a, i) => (
                 <FieldRow key={`a${i}`} label={i === 0 ? "Address" : ""} chip={a.label} href={mapsHref(a)} external>
-                  <span className="whitespace-pre-wrap leading-tight">{formatAddress(a)}</span>
+                  <span className="block leading-tight">
+                    {addressLines(a).map((ln, k) => (
+                      <span key={k} className="block">
+                        {ln}
+                      </span>
+                    ))}
+                  </span>
                 </FieldRow>
               ))}
               {contact.family.map((f, i) => (
@@ -336,7 +331,7 @@ function FieldRow({
 }) {
   const inner = (
     <>
-      <span className="w-14 flex-shrink-0 pt-px text-[10px] uppercase tracking-wide text-text-3">
+      <span className="w-16 flex-shrink-0 pt-px text-[10px] uppercase tracking-wide text-text-3">
         {label}
       </span>
       <span className="min-w-0 flex-1 text-text-1">{children}</span>
