@@ -291,6 +291,47 @@ export async function updateGoal(
   if (error) throw error;
 }
 
+/**
+ * Persist a hand-drag order by writing each id's array index to `display_order`.
+ * Both loaders order by `display_order`, so this is all that's needed. A handful
+ * of rows per group, so parallel per-row updates are fine.
+ */
+export async function reorderGoals(supabase: Db, orderedIds: string[]): Promise<void> {
+  const now = new Date().toISOString();
+  const results = await Promise.all(
+    orderedIds.map((id, i) =>
+      supabase
+        .from("goals_goals")
+        .update({ display_order: i, updated_at: now } as never)
+        .eq("id", id),
+    ),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
+}
+
+/** Move `dragId` to sit immediately before `targetId`. Pure — for drag-reorder. */
+export function moveBefore(ids: string[], dragId: string, targetId: string): string[] {
+  if (dragId === targetId) return ids;
+  const without = ids.filter((x) => x !== dragId);
+  const idx = without.indexOf(targetId);
+  if (idx < 0) return ids;
+  return [...without.slice(0, idx), dragId, ...without.slice(idx)];
+}
+
+export async function reorderCategories(supabase: Db, orderedIds: string[]): Promise<void> {
+  const results = await Promise.all(
+    orderedIds.map((id, i) =>
+      supabase
+        .from("goals_categories")
+        .update({ display_order: i } as never)
+        .eq("id", id),
+    ),
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) throw failed.error;
+}
+
 /** Rename / recolor a goal area. */
 export async function updateCategory(
   supabase: Db,

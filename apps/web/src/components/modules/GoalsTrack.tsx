@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Pencil, Archive, Check, X, Loader2 } from "lucide-react";
+import { useState, type DragEvent } from "react";
+import { Plus, Pencil, Archive, Check, X, Loader2, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
   GoalsCategoryRow,
@@ -10,6 +10,13 @@ import type {
   GoalPeriod,
   TargetPeriod,
 } from "@/lib/modules/goals-queries";
+import { moveBefore } from "@/lib/modules/goals-queries";
+
+type DragHandleProps = {
+  draggable: true;
+  onDragStart: (e: DragEvent) => void;
+  onDragEnd: () => void;
+};
 import {
   periodWindow,
   eachDayOfWeek,
@@ -67,6 +74,8 @@ interface Props {
   onArchiveGoal: (goalId: string) => Promise<void>;
   onUpdateCategory: (categoryId: string, patch: { name?: string; color?: string }) => Promise<void>;
   onArchiveCategory: (categoryId: string) => Promise<void>;
+  onReorderGoals: (categoryId: string, orderedGoalIds: string[]) => Promise<void>;
+  onReorderAreas: (orderedCategoryIds: string[]) => Promise<void>;
 }
 
 function valueOn(entries: GoalsEntryRow[], date: string): number {
@@ -80,22 +89,80 @@ function sumInWindow(entries: GoalsEntryRow[], start: string, end: string): numb
 }
 
 export function GoalsTrack(props: Props) {
+  const [dragArea, setDragArea] = useState<string | null>(null);
+  const [overArea, setOverArea] = useState<string | null>(null);
+  const catIds = props.categories.map((c) => c.id);
+
   return (
     <div className="flex flex-col">
       {props.categories.map((c) => (
-        <Area key={c.id} category={c} {...props} />
+        <div
+          key={c.id}
+          onDragOver={(e) => {
+            if (dragArea && dragArea !== c.id) {
+              e.preventDefault();
+              if (overArea !== c.id) setOverArea(c.id);
+            }
+          }}
+          onDrop={(e) => {
+            if (!dragArea) return;
+            e.preventDefault();
+            const next = moveBefore(catIds, dragArea, c.id);
+            setDragArea(null);
+            setOverArea(null);
+            if (next !== catIds) void props.onReorderAreas(next);
+          }}
+          className={cn(
+            "border-t-2 border-transparent",
+            overArea === c.id && dragArea !== c.id ? "border-accent" : "",
+          )}
+        >
+          <Area
+            category={c}
+            dragging={dragArea === c.id}
+            dragHandle={{
+              draggable: true,
+              onDragStart: (e) => {
+                e.dataTransfer.effectAllowed = "move";
+                setDragArea(c.id);
+              },
+              onDragEnd: () => {
+                setDragArea(null);
+                setOverArea(null);
+              },
+            }}
+            {...props}
+          />
+        </div>
       ))}
     </div>
   );
 }
 
-function Area({ category, ...rest }: { category: GoalsCategoryRow } & Props) {
+function Area({
+  category,
+  dragging,
+  dragHandle,
+  ...rest
+}: {
+  category: GoalsCategoryRow;
+  dragging: boolean;
+  dragHandle: DragHandleProps;
+} & Props) {
   const goals = rest.goals.filter((g) => g.category_id === category.id);
+  const goalIds = goals.map((g) => g.id);
   const [editing, setEditing] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [dragGoal, setDragGoal] = useState<string | null>(null);
+  const [overGoal, setOverGoal] = useState<string | null>(null);
 
   return (
-    <div className="border-t border-border/40 px-3 py-3 first:border-t-0">
+    <div
+      className={cn(
+        "border-t border-border/40 px-3 py-3 first:border-t-0",
+        dragging && "opacity-50",
+      )}
+    >
       {editing ? (
         <AreaEditForm
           category={category}
@@ -110,7 +177,15 @@ function Area({ category, ...rest }: { category: GoalsCategoryRow } & Props) {
           }}
         />
       ) : (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            aria-label="Drag to reorder area"
+            className="cursor-grab rounded-sm p-0.5 text-text-3 hover:text-text-1 active:cursor-grabbing"
+            {...dragHandle}
+          >
+            <GripVertical className="h-3 w-3" />
+          </button>
           <span
             aria-hidden="true"
             className="h-2 w-2 flex-shrink-0 rounded-full"
@@ -133,7 +208,44 @@ function Area({ category, ...rest }: { category: GoalsCategoryRow } & Props) {
 
       <div className="mt-3 flex flex-col gap-2.5">
         {goals.map((g) => (
-          <GoalRow key={g.id} goal={g} {...rest} />
+          <div
+            key={g.id}
+            onDragOver={(e) => {
+              if (dragGoal && dragGoal !== g.id) {
+                e.preventDefault();
+                if (overGoal !== g.id) setOverGoal(g.id);
+              }
+            }}
+            onDrop={(e) => {
+              if (!dragGoal) return;
+              e.preventDefault();
+              const next = moveBefore(goalIds, dragGoal, g.id);
+              setDragGoal(null);
+              setOverGoal(null);
+              if (next !== goalIds) void rest.onReorderGoals(category.id, next);
+            }}
+            className={cn(
+              "-mt-[2px] border-t-2 border-transparent pt-[2px]",
+              overGoal === g.id && dragGoal !== g.id ? "border-accent" : "",
+              dragGoal === g.id ? "opacity-50" : "",
+            )}
+          >
+            <GoalRow
+              goal={g}
+              dragHandle={{
+                draggable: true,
+                onDragStart: (e) => {
+                  e.dataTransfer.effectAllowed = "move";
+                  setDragGoal(g.id);
+                },
+                onDragEnd: () => {
+                  setDragGoal(null);
+                  setOverGoal(null);
+                },
+              }}
+              {...rest}
+            />
+          </div>
         ))}
       </div>
 
@@ -163,13 +275,14 @@ function Area({ category, ...rest }: { category: GoalsCategoryRow } & Props) {
 
 function GoalRow({
   goal,
+  dragHandle,
   today,
   targetsByGoal,
   entriesByGoal,
   onLog,
   onUpdateGoal,
   onArchiveGoal,
-}: { goal: GoalsGoalRow } & Props) {
+}: { goal: GoalsGoalRow; dragHandle: DragHandleProps } & Props) {
   const [editing, setEditing] = useState(false);
   const target = targetsByGoal[goal.id] ?? 0;
   const entries = entriesByGoal[goal.id] ?? [];
@@ -211,7 +324,15 @@ function GoalRow({
 
   return (
     <div className="text-xs">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          aria-label="Drag to reorder goal"
+          className="cursor-grab rounded-sm p-0.5 text-text-3 hover:text-text-1 active:cursor-grabbing"
+          {...dragHandle}
+        >
+          <GripVertical className="h-3 w-3" />
+        </button>
         <span className="min-w-0 flex-1 truncate text-text-0">{goal.name}</span>
         <span className="font-mono text-[10px] text-text-3">
           <b className="text-text-1">{total}</b> / {target} {goal.unit} ·{" "}

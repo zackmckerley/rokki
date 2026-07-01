@@ -18,6 +18,8 @@ import {
   setWeeklyTarget,
   setGoalArchived,
   setCategoryArchived,
+  reorderGoals,
+  reorderCategories,
   loadArchivedCategories,
   loadArchivedGoals,
   type GoalsCategoryRow,
@@ -196,6 +198,42 @@ export function GoalsCard() {
     },
     [load],
   );
+  // Drag-reorder: optimistically reorder locally, persist display_order, reload.
+  const onReorderAreas = useCallback(
+    async (orderedIds: string[]) => {
+      setData((d) => {
+        if (!d) return d;
+        const rank = new Map(orderedIds.map((id, i) => [id, i]));
+        const categories = [...d.categories].sort(
+          (a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0),
+        );
+        return { ...d, categories };
+      });
+      await reorderCategories(createClient(), orderedIds);
+      await load();
+    },
+    [load],
+  );
+  const onReorderGoals = useCallback(
+    async (categoryId: string, orderedIds: string[]) => {
+      setData((d) => {
+        if (!d) return d;
+        const rank = new Map(orderedIds.map((id, i) => [id, i]));
+        const reordered = d.goals
+          .filter((g) => g.category_id === categoryId)
+          .sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+        let k = 0;
+        // Slot the reordered subset back into the category's original positions.
+        const goals = d.goals.map((g) =>
+          g.category_id === categoryId ? reordered[k++] : g,
+        );
+        return { ...d, goals };
+      });
+      await reorderGoals(createClient(), orderedIds);
+      await load();
+    },
+    [load],
+  );
 
   const count = data?.categories.length;
   const tabBar = (
@@ -249,6 +287,8 @@ export function GoalsCard() {
             onArchiveGoal={onArchiveGoal}
             onUpdateCategory={onUpdateCategory}
             onArchiveCategory={onArchiveCategory}
+            onReorderGoals={onReorderGoals}
+            onReorderAreas={onReorderAreas}
           />
           <div className="border-t border-border/40 px-3 py-2">
             <NewAreaForm spaces={data.spaces} onAdd={onAddCategory} />
