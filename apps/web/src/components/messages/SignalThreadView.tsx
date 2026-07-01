@@ -23,6 +23,7 @@ import {
   composerKeyDown,
 } from "./composer-utils";
 import { ChatMessageList, formatBytes } from "./ChatThread";
+import { VideoAttachment } from "./VideoAttachment";
 import { Lightbox } from "./Lightbox";
 
 type SignalStatus = "sending" | "sent" | "delivered" | "read" | "failed";
@@ -646,12 +647,11 @@ function MediaGallery({
               <div className="grid grid-cols-2 gap-1.5">
                 {videos.map((x, i) =>
                   x.att.url ? (
-                    <video
+                    <VideoAttachment
                       key={x.att.url ?? x.att.filename ?? i}
-                      src={x.att.url}
-                      controls
-                      playsInline
-                      preload="metadata"
+                      url={x.att.url}
+                      contentType={x.att.content_type}
+                      filename={x.att.filename}
                       className="aspect-video w-full rounded-sm bg-black object-cover"
                     />
                   ) : null,

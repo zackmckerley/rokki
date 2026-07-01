@@ -15,6 +15,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { VideoAttachment } from "./VideoAttachment";
 
 /**
  * Shared chat rendering used by BOTH the dashboard Messages card
@@ -202,12 +203,11 @@ export function ChatMessageList({
                       ) : null}
                       {vids.map((a, k) =>
                         a.url ? (
-                          <video
+                          <VideoAttachment
                             key={`v${k}`}
-                            src={a.url}
-                            controls
-                            playsInline
-                            preload="metadata"
+                            url={a.url}
+                            contentType={a.content_type}
+                            filename={a.filename}
                             className="block max-h-60 max-w-[260px] rounded-[5px] bg-black"
                           />
                         ) : null,
