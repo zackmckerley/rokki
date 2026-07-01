@@ -59,7 +59,7 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="Primary"
-      className="flex h-14 flex-shrink-0 items-stretch border-t border-border bg-bg-1 lg:hidden"
+      className="flex h-14 flex-shrink-0 items-stretch border-t border-border bg-bg-1 md:hidden"
     >
       {TABS.map((tab) => {
         const Icon = tab.icon;
