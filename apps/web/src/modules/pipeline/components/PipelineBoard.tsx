@@ -13,6 +13,7 @@ import {
   ChevronRight,
   ChevronsLeftRight,
   ChevronsRightLeft,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
@@ -23,6 +24,7 @@ import {
   rollupField,
   sumAttr,
   compactMoney,
+  leadHaystack,
 } from "@/lib/pipeline/board";
 import { PipelineList } from "./PipelineList";
 import { CustomizePanel } from "./CustomizePanel";
@@ -51,6 +53,7 @@ export function PipelineBoard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
+  const [query, setQuery] = useState("");
   const [view, setView] = useState<"board" | "list">("board");
   // One "now" for the whole tree, ticking each minute so "cold" / "follow-up
   // due" refresh on their own without a reload.
@@ -237,10 +240,19 @@ export function PipelineBoard() {
     if (isFollowUpDue(l, nowMs)) fuCount++;
     if (isRotting(l, stages, nowMs)) coldCount++;
   }
-  const visibleLeads = attentionOnly ? activeLeads.filter(needsAttention) : activeLeads;
+  const q = query.trim().toLowerCase();
+  const queriedActive = q
+    ? activeLeads.filter((l) => leadHaystack(l).includes(q))
+    : activeLeads;
+  const visibleLeads = attentionOnly
+    ? queriedActive.filter(needsAttention)
+    : queriedActive;
   const { columns, orphans } = groupByStage(visibleLeads, stages);
   const rollup = pipeline ? rollupField(pipeline.fields) : null;
   const cardFields = pipeline ? pipeline.fields.filter((f) => f.card) : [];
+  const boardValue = rollup ? sumAttr(visibleLeads, rollup.key) : 0;
+  // The list view honors the same search box (attention-focus is board-only).
+  const listLeads = q ? leads.filter((l) => leadHaystack(l).includes(q)) : leads;
   const allCollapsed =
     columns.length > 0 && columns.every((c) => collapsed.has(c.stage.key));
 
@@ -267,6 +279,36 @@ export function PipelineBoard() {
           </span>
         )}
         <span className="font-mono text-2xs text-text-3">{visibleLeads.length}</span>
+        {boardValue > 0 ? (
+          <span
+            className="font-mono text-2xs text-text-2"
+            title="Total value across the leads shown"
+          >
+            {compactMoney(boardValue)}
+          </span>
+        ) : null}
+        {pipeline ? (
+          <div className="flex h-7 w-40 items-center gap-1.5 rounded-sm border border-border bg-bg-2 px-2 focus-within:border-border-focus">
+            <Search className="h-3 w-3 flex-shrink-0 text-text-3" aria-hidden="true" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search leads…"
+              aria-label="Search leads"
+              className="min-w-0 flex-1 bg-transparent text-xs text-text-1 placeholder:text-text-3 outline-none"
+            />
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="rounded-sm p-0.5 text-text-3 hover:text-text-1"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         <div className="ml-auto flex items-center gap-0.5 rounded border border-border p-0.5">
           <button
             type="button"
@@ -366,7 +408,7 @@ export function PipelineBoard() {
         </div>
       ) : view === "list" ? (
         <PipelineList
-          leads={leads}
+          leads={listLeads}
           pipeline={pipeline}
           nowMs={nowMs}
           onSelect={(id) => setSelectedLead(id)}
@@ -528,6 +570,11 @@ export function PipelineBoard() {
                     onDragStart={(e) => e.dataTransfer.setData("text/plain", lead.id)}
                   />
                 ))}
+                {colLeads.length === 0 ? (
+                  <div className="flex flex-1 items-center justify-center rounded border border-dashed border-border/40 px-2 py-4 text-center text-[10px] text-text-3">
+                    {q ? "No matches" : "Drop a lead here"}
+                  </div>
+                ) : null}
               </div>
               <button
                 type="button"

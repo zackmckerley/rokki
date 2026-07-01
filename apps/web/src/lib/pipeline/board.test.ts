@@ -7,6 +7,8 @@ import {
   rollupField,
   sumAttr,
   compactMoney,
+  daysSince,
+  leadHaystack,
 } from "./board";
 import { HELIOS_PIPELINE } from "./templates";
 import type { LeadRow, PipelineField } from "./db";
@@ -143,5 +145,33 @@ describe("compactMoney", () => {
   it("is empty for zero / non-finite", () => {
     expect(compactMoney(0)).toBe("");
     expect(compactMoney(NaN)).toBe("");
+  });
+});
+
+describe("daysSince", () => {
+  const now = Date.parse("2026-06-30T12:00:00Z");
+  it("floors whole days", () => {
+    expect(daysSince("2026-06-27T12:00:00Z", now)).toBe(3);
+    expect(daysSince("2026-06-30T00:00:00Z", now)).toBe(0);
+  });
+  it("never negative; 0 for null/invalid", () => {
+    expect(daysSince("2026-07-05T00:00:00Z", now)).toBe(0);
+    expect(daysSince(null, now)).toBe(0);
+    expect(daysSince("nonsense", now)).toBe(0);
+  });
+});
+
+describe("leadHaystack", () => {
+  it("includes name, subtitle, source and nested attribute values", () => {
+    const h = leadHaystack({
+      name: "Grove Palms",
+      subtitle: "3051 SW 27 Ave",
+      source: "Referral",
+      attributes: { parcels: [{ address: "3052 SW 27 Ave" }], asking: 1200000 },
+    });
+    expect(h).toContain("grove palms");
+    expect(h).toContain("3051 sw 27");
+    expect(h).toContain("referral");
+    expect(h).toContain("3052 sw 27"); // nested parcel address
   });
 });

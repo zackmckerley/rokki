@@ -43,6 +43,28 @@ export function compactMoney(n: number): string {
   return `$${Math.round(n)}`;
 }
 
+/** Whole days between an ISO timestamp and `nowMs` (floored, never negative). */
+export function daysSince(iso: string | null | undefined, nowMs: number): number {
+  if (!iso) return 0;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, Math.floor((nowMs - t) / 86_400_000));
+}
+
+/** Lower-cased searchable text for a lead — name, subtitle, source + every
+ *  attribute value (JSON so nested parcels/addresses are covered too). */
+export function leadHaystack(
+  lead: Pick<LeadRow, "name" | "subtitle" | "source" | "attributes">,
+): string {
+  let attrs = "";
+  try {
+    attrs = JSON.stringify(lead.attributes ?? {});
+  } catch {
+    attrs = "";
+  }
+  return `${lead.name} ${lead.subtitle ?? ""} ${lead.source ?? ""} ${attrs}`.toLowerCase();
+}
+
 export interface StageColumn {
   stage: PipelineStage;
   leads: LeadRow[];
