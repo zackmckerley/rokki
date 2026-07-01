@@ -54,6 +54,13 @@ const SORTS: { v: LeadSort; label: string }[] = [
   { v: "updated", label: "Recently updated" },
 ];
 
+interface MoveToast {
+  leadId: string;
+  fromStage: string;
+  fromStatus: LeadRow["status"];
+  toLabel: string;
+}
+
 export function PipelineBoard() {
   const [spaces, setSpaces] = useState<SpaceLite[]>([]);
   const [spaceId, setSpaceId] = useState<string | null>(null);
@@ -99,6 +106,14 @@ export function PipelineBoard() {
   const [createErr, setCreateErr] = useState<string | null>(null);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [toast, setToast] = useState<MoveToast | null>(null);
+
+  // Auto-dismiss the move toast after a few seconds.
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(t);
+  }, [toast]);
   // Collapsed (minimized) columns, by stage key — persisted per pipeline so a
   // focused subset survives reloads.
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -215,6 +230,8 @@ export function PipelineBoard() {
     if (!pipeline) return;
     const stage = pipeline.stages.find((s) => s.key === stageKey);
     if (!stage) return;
+    const before = leads.find((l) => l.id === leadId);
+    if (before && before.stage === stageKey) return; // dropped on its own column
     const status: LeadRow["status"] | undefined =
       stage.type === "won" ? "won" : stage.type === "lost" ? "lost" : undefined;
     const prev = leads;
@@ -226,8 +243,33 @@ export function PipelineBoard() {
     try {
       await updateLead(leadId, { stage: stageKey, ...(status ? { status } : {}) });
       void refresh();
+      if (before) {
+        setToast({
+          leadId,
+          fromStage: before.stage,
+          fromStatus: before.status,
+          toLabel: stage.label,
+        });
+      }
     } catch {
       setLeads(prev); // revert on failure
+    }
+  }
+
+  // Restore a lead's prior stage + status (used by the move toast's Undo).
+  async function undoMove(t: MoveToast) {
+    setToast(null);
+    const prev = leads;
+    setLeads((ls) =>
+      ls.map((l) =>
+        l.id === t.leadId ? { ...l, stage: t.fromStage, status: t.fromStatus } : l,
+      ),
+    );
+    try {
+      await updateLead(t.leadId, { stage: t.fromStage, status: t.fromStatus });
+      void refresh();
+    } catch {
+      setLeads(prev);
     }
   }
 
@@ -277,7 +319,7 @@ export function PipelineBoard() {
     columns.length > 0 && columns.every((c) => collapsed.has(c.stage.key));
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
       {/* Top bar */}
       <div className="flex flex-shrink-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         {spaces.length > 1 ? (
@@ -710,6 +752,32 @@ export function PipelineBoard() {
           onClose={() => setCustomizeOpen(false)}
           onSaved={refresh}
         />
+      )}
+
+      {/* Move toast + Undo */}
+      {toast && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-3 z-40 flex justify-center">
+          <div className="pointer-events-auto flex items-center gap-3 rounded-md border border-border bg-bg-1 px-3 py-1.5 text-xs text-text-1 shadow-lg">
+            <span className="truncate">
+              Moved to <span className="font-medium text-text-0">{toast.toLabel}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => void undoMove(toast)}
+              className="font-semibold text-accent hover:underline"
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              aria-label="Dismiss"
+              className="rounded-sm p-0.5 text-text-3 hover:text-text-1"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
