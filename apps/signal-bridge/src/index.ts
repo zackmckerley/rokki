@@ -316,7 +316,66 @@ async function writeInbound(m: InboundMessage): Promise<{ error: string | null }
   return { error: null };
 }
 
-/** Read each received attachment off signal-cli's disk + upload to storage. */
+const EXT_MIME: Record<string, string> = {
+  mp4: "video/mp4", m4v: "video/mp4", mov: "video/quicktime", webm: "video/webm",
+  mkv: "video/x-matroska", avi: "video/x-msvideo", "3gp": "video/3gpp", ogv: "video/ogg",
+  gif: "image/gif", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png",
+  webp: "image/webp", heic: "image/heic", heif: "image/heif", bmp: "image/bmp", avif: "image/avif",
+  mp3: "audio/mpeg", m4a: "audio/mp4", ogg: "audio/ogg", oga: "audio/ogg", wav: "audio/wav",
+  aac: "audio/aac", opus: "audio/opus", pdf: "application/pdf",
+};
+const MIME_EXT: Record<string, string> = {
+  "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm", "video/x-matroska": "mkv",
+  "video/x-msvideo": "avi", "video/3gpp": "3gp", "video/ogg": "ogv",
+  "image/gif": "gif", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp",
+  "image/heic": "heic", "image/heif": "heif", "image/bmp": "bmp", "image/avif": "avif",
+  "audio/mpeg": "mp3", "audio/mp4": "m4a", "audio/ogg": "ogg", "audio/wav": "wav",
+  "audio/aac": "aac", "audio/opus": "opus", "application/pdf": "pdf",
+};
+
+/** Sniff a MIME type from a buffer's magic bytes (video/image/audio/pdf). */
+function sniffMime(buf: Buffer): string | null {
+  if (buf.length < 12) return null;
+  const a4 = buf.toString("ascii", 0, 4);
+  if (buf.toString("ascii", 4, 8) === "ftyp") {
+    const brand = buf.toString("ascii", 8, 12);
+    if (brand.startsWith("qt")) return "video/quicktime";
+    if (brand.startsWith("hei") || brand.startsWith("mif")) return "image/heic";
+    if (brand.startsWith("avif")) return "image/avif";
+    return "video/mp4";
+  }
+  if (a4 === "GIF8") return "image/gif";
+  if (buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3) return "video/webm";
+  if (a4 === "RIFF") {
+    const form = buf.toString("ascii", 8, 12);
+    if (form === "AVI ") return "video/x-msvideo";
+    if (form === "WEBP") return "image/webp";
+    if (form === "WAVE") return "audio/wav";
+  }
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return "image/jpeg";
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return "image/png";
+  if (a4 === "%PDF") return "application/pdf";
+  if (a4 === "OggS") return "audio/ogg";
+  if (buf.toString("ascii", 0, 3) === "ID3") return "audio/mpeg";
+  return null;
+}
+
+/** Infer a real MIME type when signal-cli didn't provide one: by filename
+ *  extension first, then by sniffing the bytes. Null if truly unknown. */
+function inferMime(filename: string | null | undefined, buf: Buffer): string | null {
+  const ext = (filename ?? "").toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  if (ext && EXT_MIME[ext]) return EXT_MIME[ext];
+  return sniffMime(buf);
+}
+
+/** Read each received attachment off signal-cli's disk + upload to storage.
+ *
+ *  signal-cli's receive JSON often omits contentType AND filename (just an
+ *  opaque id), so a video would be stored as octet-stream with no extension and
+ *  the client would classify it as a plain file (never rendering <video>). We
+ *  infer a real MIME type (by extension, else magic bytes) and use it for BOTH
+ *  the storage upload content-type (so the signed URL decodes) and the stored
+ *  record (so the client classifies it), synthesizing a filename extension. */
 async function uploadSignalAttachments(
   userId: string,
   threadId: string,
@@ -335,8 +394,14 @@ async function uploadSignalAttachments(
     try {
       const buf = await readFile(join(SIGNAL_DATA_HOME, "attachments", a.id));
       const key = `${userId}/${threadId}/${a.id}`;
+      const mime = a.contentType ?? inferMime(a.filename, buf) ?? "application/octet-stream";
+      // Give an unnamed attachment an extension matching its type so the
+      // client's extension-based classification also works.
+      const filename =
+        a.filename ??
+        (MIME_EXT[mime] ? `${a.id}.${MIME_EXT[mime]}` : null);
       const { error } = await db.storage.from(MEDIA_BUCKET).upload(key, buf, {
-        contentType: a.contentType ?? "application/octet-stream",
+        contentType: mime,
         upsert: true,
       });
       if (error) {
@@ -345,8 +410,8 @@ async function uploadSignalAttachments(
       }
       out.push({
         storage_key: key,
-        content_type: a.contentType ?? null,
-        filename: a.filename ?? null,
+        content_type: mime === "application/octet-stream" ? (a.contentType ?? null) : mime,
+        filename,
         size: a.size ?? buf.length,
       });
     } catch (e) {
