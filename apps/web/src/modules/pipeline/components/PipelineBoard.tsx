@@ -1,7 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Plus, X, Clock, Flame, LayoutGrid, List, SlidersHorizontal } from "lucide-react";
+import { useEffect, useState, type DragEvent } from "react";
+import {
+  Plus,
+  X,
+  Clock,
+  Flame,
+  LayoutGrid,
+  List,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeftRight,
+  ChevronsRightLeft,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { LeadRow, PipelineRow } from "@/lib/pipeline/db";
 import {
@@ -29,6 +41,7 @@ import { useOverlay } from "../lib/use-overlay";
 
 const SPACE_KEY = "rokki:pipeline-space";
 const VIEW_KEY = "rokki:pipeline-view";
+const COLLAPSE_KEY = "rokki:pipeline-collapsed";
 
 export function PipelineBoard() {
   const [spaces, setSpaces] = useState<SpaceLite[]>([]);
@@ -63,6 +76,36 @@ export function PipelineBoard() {
   const [createErr, setCreateErr] = useState<string | null>(null);
   const [customizeOpen, setCustomizeOpen] = useState(false);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  // Collapsed (minimized) columns, by stage key — persisted per pipeline so a
+  // focused subset survives reloads.
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!pipeline || typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(`${COLLAPSE_KEY}:${pipeline.id}`);
+      const keys: string[] = raw ? JSON.parse(raw) : [];
+      setCollapsed(new Set(Array.isArray(keys) ? keys : []));
+    } catch {
+      setCollapsed(new Set());
+    }
+  }, [pipeline?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function persistCollapsed(next: Set<string>) {
+    setCollapsed(next);
+    if (pipeline && typeof window !== "undefined") {
+      window.localStorage.setItem(
+        `${COLLAPSE_KEY}:${pipeline.id}`,
+        JSON.stringify([...next]),
+      );
+    }
+  }
+  function toggleCollapse(key: string) {
+    const next = new Set(collapsed);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    persistCollapsed(next);
+  }
 
   // Esc closes whichever overlay is open (+ restores focus to the trigger).
   useOverlay(createStage != null, () => setCreateStage(null));
@@ -198,6 +241,8 @@ export function PipelineBoard() {
   const { columns, orphans } = groupByStage(visibleLeads, stages);
   const rollup = pipeline ? rollupField(pipeline.fields) : null;
   const cardFields = pipeline ? pipeline.fields.filter((f) => f.card) : [];
+  const allCollapsed =
+    columns.length > 0 && columns.every((c) => collapsed.has(c.stage.key));
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -242,6 +287,27 @@ export function PipelineBoard() {
             <List className="h-3.5 w-3.5" />
           </button>
         </div>
+        {view === "board" && columns.length > 0 ? (
+          <button
+            type="button"
+            onClick={() =>
+              persistCollapsed(
+                allCollapsed
+                  ? new Set()
+                  : new Set(columns.map((c) => c.stage.key)),
+              )
+            }
+            aria-label={allCollapsed ? "Expand all columns" : "Collapse all columns"}
+            title={allCollapsed ? "Expand all columns" : "Collapse all columns"}
+            className="rounded-sm p-1 text-text-3 hover:bg-bg-2 hover:text-text-0"
+          >
+            {allCollapsed ? (
+              <ChevronsLeftRight className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronsRightLeft className="h-3.5 w-3.5" />
+            )}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => setCustomizeOpen(true)}
@@ -359,19 +425,52 @@ export function PipelineBoard() {
           {columns.map(({ stage, leads: colLeads }) => {
             const colValue = rollup ? sumAttr(colLeads, rollup.key) : 0;
             const coldInCol = colLeads.filter((l) => isRotting(l, stages, nowMs)).length;
+            // Drop handlers are shared by the full and collapsed column so you
+            // can drag a card onto a minimized stage too.
+            const onDragOver = (e: DragEvent) => {
+              e.preventDefault();
+              if (dragOverStage !== stage.key) setDragOverStage(stage.key);
+            };
+            const onDrop = (e: DragEvent) => {
+              e.preventDefault();
+              setDragOverStage(null);
+              const id = e.dataTransfer.getData("text/plain");
+              if (id) void moveLead(id, stage.key);
+            };
+
+            // Minimized column — a thin vertical rail you click to reopen.
+            if (collapsed.has(stage.key)) {
+              return (
+                <button
+                  key={stage.key}
+                  type="button"
+                  onClick={() => toggleCollapse(stage.key)}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
+                  title={`Expand ${stage.label}`}
+                  aria-label={`Expand ${stage.label} column`}
+                  className={`flex w-9 flex-shrink-0 flex-col items-center gap-2 rounded border bg-bg-2/30 py-2 hover:bg-bg-2/60 ${
+                    dragOverStage === stage.key
+                      ? "border-border-focus bg-accent/5"
+                      : "border-border/60"
+                  }`}
+                >
+                  <ChevronRight className="h-3.5 w-3.5 flex-shrink-0 text-text-3" />
+                  <span className="font-mono text-2xs text-text-3">{colLeads.length}</span>
+                  {coldInCol > 0 ? (
+                    <Flame className="h-2.5 w-2.5 flex-shrink-0 text-danger" />
+                  ) : null}
+                  <span className="mt-0.5 max-h-40 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-2xs font-semibold uppercase tracking-wide text-text-2 [writing-mode:vertical-rl]">
+                    {stage.label}
+                  </span>
+                </button>
+              );
+            }
             return (
             <div
               key={stage.key}
-              onDragOver={(e) => {
-                e.preventDefault();
-                if (dragOverStage !== stage.key) setDragOverStage(stage.key);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragOverStage(null);
-                const id = e.dataTransfer.getData("text/plain");
-                if (id) void moveLead(id, stage.key);
-              }}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
               className={`flex min-w-[13rem] flex-1 flex-col rounded border bg-bg-2/30 ${
                 dragOverStage === stage.key
                   ? "border-border-focus bg-accent/5"
@@ -406,6 +505,15 @@ export function PipelineBoard() {
                       gate
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => toggleCollapse(stage.key)}
+                    aria-label={`Collapse ${stage.label} column`}
+                    title="Collapse column"
+                    className="rounded-sm p-0.5 text-text-3 hover:text-text-1"
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                  </button>
                 </div>
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">

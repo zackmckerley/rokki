@@ -122,7 +122,8 @@ export function TerminalScopeFilter({ terminals, spaces, scopeTerminalId }: Prop
             : "Focus the dashboard on a single terminal"
         }
         className={cn(
-          "flex items-center gap-1.5 rounded-sm border px-2 py-1 text-[11px] font-semibold uppercase tracking-wide transition-colors",
+          // h-7 matches the TopBar search box height so the two controls line up.
+          "flex h-7 items-center gap-1.5 rounded-sm border px-2 text-[11px] font-semibold uppercase tracking-wide transition-colors",
           selected
             ? "border-accent/40 bg-accent-subtle text-text-0"
             : open

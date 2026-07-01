@@ -227,7 +227,9 @@ export function DashboardClient({
                 server re-renders with the narrowed slot queries.
                 Aligned right so it sits next to the search box without
                 competing with the greeting. */}
-            <div className="ml-auto flex items-center gap-2">
+            {/* mr-2 keeps a small gap so Focus doesn't butt up against the
+                TopBar search box on its right. */}
+            <div className="ml-auto mr-2 flex items-center gap-2">
               <TerminalScopeFilter
                 terminals={terminals}
                 spaces={spaces}
