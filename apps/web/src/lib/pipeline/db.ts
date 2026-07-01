@@ -14,6 +14,8 @@ export interface PipelineStage {
   rotting_days?: number;
   /** Reaching this stage promotes the lead to a Terminal. */
   is_terminal_gate?: boolean;
+  /** Soft cap on lead count — over it, the column header flags amber. */
+  wip_limit?: number;
 }
 
 export type PipelineFieldType =

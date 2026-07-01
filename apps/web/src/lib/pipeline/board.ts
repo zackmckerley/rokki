@@ -65,6 +65,38 @@ export function leadHaystack(
   return `${lead.name} ${lead.subtitle ?? ""} ${lead.source ?? ""} ${attrs}`.toLowerCase();
 }
 
+export type LeadSort = "manual" | "value" | "cold" | "updated";
+
+/** Safe epoch-ms parse — invalid/empty dates sort as 0 (oldest). */
+function ms(iso: string | null | undefined): number {
+  const t = Date.parse(iso ?? "");
+  return Number.isNaN(t) ? 0 : t;
+}
+
+/**
+ * Sort a column's leads. `manual` keeps the server order. Returns a new array;
+ * never mutates the input.
+ *   value   — highest rollup-field value first
+ *   cold    — least-recently-active first (most likely going cold)
+ *   updated — most-recently-updated first
+ */
+export function sortLeads(
+  leads: LeadRow[],
+  sort: LeadSort,
+  rollupKey: string | null,
+): LeadRow[] {
+  if (sort === "manual") return leads;
+  const arr = [...leads];
+  if (sort === "value" && rollupKey) {
+    arr.sort((a, b) => sumAttr([b], rollupKey) - sumAttr([a], rollupKey));
+  } else if (sort === "cold") {
+    arr.sort((a, b) => ms(a.last_activity_at) - ms(b.last_activity_at));
+  } else if (sort === "updated") {
+    arr.sort((a, b) => ms(b.updated_at) - ms(a.updated_at));
+  }
+  return arr;
+}
+
 export interface StageColumn {
   stage: PipelineStage;
   leads: LeadRow[];
