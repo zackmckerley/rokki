@@ -204,9 +204,10 @@ export function GoalsCard() {
       setData((d) => {
         if (!d) return d;
         const rank = new Map(orderedIds.map((id, i) => [id, i]));
-        const categories = [...d.categories].sort(
-          (a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0),
-        );
+        // Unranked ids (e.g. one added concurrently) sort to the end, not the
+        // front; self-heals on the reload below regardless.
+        const at = (id: string) => rank.get(id) ?? Number.MAX_SAFE_INTEGER;
+        const categories = [...d.categories].sort((a, b) => at(a.id) - at(b.id));
         return { ...d, categories };
       });
       await reorderCategories(createClient(), orderedIds);
@@ -219,9 +220,10 @@ export function GoalsCard() {
       setData((d) => {
         if (!d) return d;
         const rank = new Map(orderedIds.map((id, i) => [id, i]));
+        const at = (id: string) => rank.get(id) ?? Number.MAX_SAFE_INTEGER;
         const reordered = d.goals
           .filter((g) => g.category_id === categoryId)
-          .sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+          .sort((a, b) => at(a.id) - at(b.id));
         let k = 0;
         // Slot the reordered subset back into the category's original positions.
         const goals = d.goals.map((g) =>
