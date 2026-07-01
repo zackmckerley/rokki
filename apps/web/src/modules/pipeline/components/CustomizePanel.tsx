@@ -62,6 +62,7 @@ interface StageRow {
   type: PipelineStage["type"];
   gate: boolean;
   rottingDays: string;
+  wipLimit: string;
 }
 
 function fieldToRow(f: PipelineField): FieldRow {
@@ -82,6 +83,7 @@ function stageToRow(s: PipelineStage): StageRow {
     type: s.type,
     gate: Boolean(s.is_terminal_gate),
     rottingDays: s.rotting_days ? String(s.rotting_days) : "",
+    wipLimit: s.wip_limit ? String(s.wip_limit) : "",
   };
 }
 
@@ -113,7 +115,7 @@ export function CustomizePanel({
   function addStage() {
     setStages((rs) => [
       ...rs,
-      { key: "", label: "", color: "", type: "open", gate: false, rottingDays: "" },
+      { key: "", label: "", color: "", type: "open", gate: false, rottingDays: "", wipLimit: "" },
     ]);
   }
   function removeStage(i: number) {
@@ -164,6 +166,8 @@ export function CustomizePanel({
       if (r.color) st.color = r.color;
       const rd = Number(r.rottingDays);
       if (r.rottingDays.trim() && Number.isFinite(rd) && rd > 0) st.rotting_days = rd;
+      const wl = Number(r.wipLimit);
+      if (r.wipLimit.trim() && Number.isFinite(wl) && wl > 0) st.wip_limit = Math.floor(wl);
       if (r.gate) st.is_terminal_gate = true;
       out.push(st);
     }
@@ -322,10 +326,21 @@ export function CustomizePanel({
                     type="number"
                     min={0}
                     aria-label="Cold after days"
+                    title="Cold after N days idle"
                     className={`${input} w-10 px-1 text-center`}
                     placeholder="—"
                     value={r.rottingDays}
                     onChange={(e) => patchStage(i, { rottingDays: e.target.value })}
+                  />
+                  <input
+                    type="number"
+                    min={0}
+                    aria-label="WIP limit"
+                    title="WIP limit — the column header flags amber over this count"
+                    className={`${input} w-10 px-1 text-center`}
+                    placeholder="WIP"
+                    value={r.wipLimit}
+                    onChange={(e) => patchStage(i, { wipLimit: e.target.value })}
                   />
                   <button
                     type="button"

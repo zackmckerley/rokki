@@ -9,6 +9,7 @@ import {
   compactMoney,
   daysSince,
   leadHaystack,
+  sortLeads,
 } from "./board";
 import { HELIOS_PIPELINE } from "./templates";
 import type { LeadRow, PipelineField } from "./db";
@@ -173,5 +174,27 @@ describe("leadHaystack", () => {
     expect(h).toContain("3051 sw 27");
     expect(h).toContain("referral");
     expect(h).toContain("3052 sw 27"); // nested parcel address
+  });
+});
+
+describe("sortLeads", () => {
+  const rows = [
+    lead({ id: "a", attributes: { ask: 500000 }, last_activity_at: "2026-06-10T00:00:00Z", updated_at: "2026-06-25T00:00:00Z" }),
+    lead({ id: "b", attributes: { ask: 2000000 }, last_activity_at: "2026-06-01T00:00:00Z", updated_at: "2026-06-28T00:00:00Z" }),
+    lead({ id: "c", attributes: { ask: 100000 }, last_activity_at: "2026-06-20T00:00:00Z", updated_at: "2026-06-05T00:00:00Z" }),
+  ];
+  it("manual keeps the input order (same reference)", () => {
+    expect(sortLeads(rows, "manual", "ask")).toBe(rows);
+  });
+  it("value sorts high→low and doesn't mutate the input", () => {
+    const out = sortLeads(rows, "value", "ask");
+    expect(out.map((l) => l.id)).toEqual(["b", "a", "c"]);
+    expect(rows.map((l) => l.id)).toEqual(["a", "b", "c"]);
+  });
+  it("cold sorts least-recently-active first", () => {
+    expect(sortLeads(rows, "cold", "ask").map((l) => l.id)).toEqual(["b", "a", "c"]);
+  });
+  it("updated sorts most-recently-updated first", () => {
+    expect(sortLeads(rows, "updated", "ask").map((l) => l.id)).toEqual(["b", "a", "c"]);
   });
 });

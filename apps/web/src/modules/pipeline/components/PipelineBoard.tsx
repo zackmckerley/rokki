@@ -25,6 +25,8 @@ import {
   sumAttr,
   compactMoney,
   leadHaystack,
+  sortLeads,
+  type LeadSort,
 } from "@/lib/pipeline/board";
 import { PipelineList } from "./PipelineList";
 import { CustomizePanel } from "./CustomizePanel";
@@ -44,6 +46,13 @@ import { useOverlay } from "../lib/use-overlay";
 const SPACE_KEY = "rokki:pipeline-space";
 const VIEW_KEY = "rokki:pipeline-view";
 const COLLAPSE_KEY = "rokki:pipeline-collapsed";
+const SORT_KEY = "rokki:pipeline-sort";
+const SORTS: { v: LeadSort; label: string }[] = [
+  { v: "manual", label: "Default order" },
+  { v: "value", label: "Value ↓" },
+  { v: "cold", label: "Going cold" },
+  { v: "updated", label: "Recently updated" },
+];
 
 export function PipelineBoard() {
   const [spaces, setSpaces] = useState<SpaceLite[]>([]);
@@ -54,7 +63,18 @@ export function PipelineBoard() {
   const [error, setError] = useState<string | null>(null);
   const [attentionOnly, setAttentionOnly] = useState(false);
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<LeadSort>("manual");
   const [view, setView] = useState<"board" | "list">("board");
+
+  useEffect(() => {
+    const saved =
+      typeof window !== "undefined" ? window.localStorage.getItem(SORT_KEY) : null;
+    if (saved && SORTS.some((s) => s.v === saved)) setSort(saved as LeadSort);
+  }, []);
+  function selectSort(s: LeadSort) {
+    setSort(s);
+    if (typeof window !== "undefined") window.localStorage.setItem(SORT_KEY, s);
+  }
   // One "now" for the whole tree, ticking each minute so "cold" / "follow-up
   // due" refresh on their own without a reload.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -309,6 +329,21 @@ export function PipelineBoard() {
             ) : null}
           </div>
         ) : null}
+        {view === "board" && pipeline ? (
+          <select
+            value={sort}
+            onChange={(e) => selectSort(e.target.value as LeadSort)}
+            aria-label="Sort leads within columns"
+            title="Sort leads within each column"
+            className="h-7 rounded-sm border border-border bg-bg-2 px-1.5 text-2xs text-text-1 outline-none focus:border-border-focus"
+          >
+            {SORTS.map((s) => (
+              <option key={s.v} value={s.v}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        ) : null}
         <div className="ml-auto flex items-center gap-0.5 rounded border border-border p-0.5">
           <button
             type="button"
@@ -467,6 +502,11 @@ export function PipelineBoard() {
           {columns.map(({ stage, leads: colLeads }) => {
             const colValue = rollup ? sumAttr(colLeads, rollup.key) : 0;
             const coldInCol = colLeads.filter((l) => isRotting(l, stages, nowMs)).length;
+            const sortedLeads = sortLeads(colLeads, sort, rollup?.key ?? null);
+            const overWip =
+              typeof stage.wip_limit === "number" &&
+              stage.wip_limit > 0 &&
+              colLeads.length > stage.wip_limit;
             // Drop handlers are shared by the full and collapsed column so you
             // can drag a card onto a minimized stage too.
             const onDragOver = (e: DragEvent) => {
@@ -523,7 +563,17 @@ export function PipelineBoard() {
                 <span className="text-2xs font-semibold uppercase tracking-wide text-text-2">
                   {stage.label}
                 </span>
-                <span className="font-mono text-2xs text-text-3">{colLeads.length}</span>
+                <span
+                  className={`font-mono text-2xs ${overWip ? "font-semibold text-warning" : "text-text-3"}`}
+                  title={
+                    overWip
+                      ? `Over WIP limit — ${colLeads.length} of ${stage.wip_limit}`
+                      : undefined
+                  }
+                >
+                  {colLeads.length}
+                  {overWip ? `/${stage.wip_limit}` : ""}
+                </span>
                 <div className="ml-auto flex items-center gap-1.5">
                   {colValue > 0 && (
                     <span
@@ -559,7 +609,7 @@ export function PipelineBoard() {
                 </div>
               </div>
               <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-1.5">
-                {colLeads.map((lead) => (
+                {sortedLeads.map((lead) => (
                   <LeadCard
                     key={lead.id}
                     lead={lead}
