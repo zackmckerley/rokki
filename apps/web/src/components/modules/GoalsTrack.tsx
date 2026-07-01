@@ -8,21 +8,40 @@ import type {
   GoalsGoalRow,
   GoalsEntryRow,
   GoalPeriod,
+  TargetPeriod,
 } from "@/lib/modules/goals-queries";
-import { periodWindow, eachDayOfWeek } from "@/lib/modules/goals-week";
+import {
+  periodWindow,
+  eachDayOfWeek,
+  startOfWeek,
+  type GoalPeriodKind,
+} from "@/lib/modules/goals-week";
 
-const DAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"];
-const PERIODS: { v: GoalPeriod; label: string; per: string }[] = [
-  { v: "daily", label: "Daily", per: "wk" },
-  { v: "weekly", label: "Weekly", per: "wk" },
-  { v: "monthly", label: "Monthly", per: "mo" },
+// Week starts Sunday → labels run Sun … Sat.
+const DAY_LETTERS = ["S", "M", "T", "W", "T", "F", "S"];
+const PERIODS: { v: GoalPeriod; label: string }[] = [
+  { v: "daily", label: "Daily" },
+  { v: "weekly", label: "Weekly" },
+  { v: "monthly", label: "Monthly" },
 ];
+const TARGET_PERIODS: { v: TargetPeriod; label: string; short: string }[] = [
+  { v: "day", label: "day", short: "day" },
+  { v: "week", label: "week", short: "wk" },
+  { v: "month", label: "month", short: "mo" },
+];
+const TARGET_TO_KIND: Record<TargetPeriod, GoalPeriodKind> = {
+  day: "daily",
+  week: "weekly",
+  month: "monthly",
+};
+const TARGET_SHORT: Record<TargetPeriod, string> = { day: "day", week: "wk", month: "mo" };
 const SWATCHES = ["#64748B", "#3B82F6", "#22C55E", "#EAB308", "#A855F7", "#14B8A6", "#EF4444"];
 
 export interface NewGoal {
   name: string;
   unit: string;
   period: GoalPeriod;
+  target_period: TargetPeriod;
   target: number;
 }
 
@@ -37,7 +56,13 @@ interface Props {
   onAddGoal: (categoryId: string, input: NewGoal) => Promise<void>;
   onUpdateGoal: (
     goalId: string,
-    patch: { name?: string; unit?: string; period?: GoalPeriod; target?: number },
+    patch: {
+      name?: string;
+      unit?: string;
+      period?: GoalPeriod;
+      target_period?: TargetPeriod;
+      target?: number;
+    },
   ) => Promise<void>;
   onArchiveGoal: (goalId: string) => Promise<void>;
   onUpdateCategory: (categoryId: string, patch: { name?: string; color?: string }) => Promise<void>;
@@ -48,7 +73,11 @@ function valueOn(entries: GoalsEntryRow[], date: string): number {
   const e = entries.find((x) => x.entry_date === date);
   return e ? Number(e.value) : 0;
 }
-const unitOf = (g: GoalsGoalRow) => (g.period === "monthly" ? "mo" : "wk");
+function sumInWindow(entries: GoalsEntryRow[], start: string, end: string): number {
+  return entries
+    .filter((e) => e.entry_date >= start && e.entry_date <= end)
+    .reduce((s, e) => s + Number(e.value), 0);
+}
 
 export function GoalsTrack(props: Props) {
   return (
@@ -66,7 +95,7 @@ function Area({ category, ...rest }: { category: GoalsCategoryRow } & Props) {
   const [adding, setAdding] = useState(false);
 
   return (
-    <div className="border-t border-border/40 px-3 py-2.5 first:border-t-0">
+    <div className="border-t border-border/40 px-3 py-3 first:border-t-0">
       {editing ? (
         <AreaEditForm
           category={category}
@@ -102,26 +131,28 @@ function Area({ category, ...rest }: { category: GoalsCategoryRow } & Props) {
         </div>
       )}
 
-      <div className="mt-1.5 flex flex-col gap-2">
+      <div className="mt-3 flex flex-col gap-2.5">
         {goals.map((g) => (
           <GoalRow key={g.id} goal={g} {...rest} />
         ))}
       </div>
 
       {adding ? (
-        <GoalEditForm
-          submitLabel="Add"
-          onCancel={() => setAdding(false)}
-          onSave={async (vals) => {
-            await rest.onAddGoal(category.id, vals);
-            setAdding(false);
-          }}
-        />
+        <div className="mt-3">
+          <GoalEditForm
+            submitLabel="Add"
+            onCancel={() => setAdding(false)}
+            onSave={async (vals) => {
+              await rest.onAddGoal(category.id, vals);
+              setAdding(false);
+            }}
+          />
+        </div>
       ) : (
         <button
           type="button"
           onClick={() => setAdding(true)}
-          className="mt-2 flex items-center gap-1 text-2xs text-text-3 hover:text-text-1"
+          className="mt-3 flex items-center gap-1 text-2xs text-text-3 hover:text-text-1"
         >
           <Plus className="h-3 w-3" /> Add goal
         </button>
@@ -142,19 +173,29 @@ function GoalRow({
   const [editing, setEditing] = useState(false);
   const target = targetsByGoal[goal.id] ?? 0;
   const entries = entriesByGoal[goal.id] ?? [];
-  const win = periodWindow(goal.period, today);
 
-  const total =
-    goal.period === "daily"
-      ? eachDayOfWeek(win.start).reduce((s, d) => s + valueOn(entries, d), 0)
-      : valueOn(entries, win.start);
+  // The target is measured over its own window (day/week/month), independent of
+  // the record cadence.
+  const targetWin = periodWindow(TARGET_TO_KIND[goal.target_period], today);
+  const total = sumInWindow(entries, targetWin.start, targetWin.end);
   const pct = target > 0 ? Math.min((total / target) * 100, 100) : 0;
+
+  // The logging cells follow the record cadence. Daily → the current Sun–Sat
+  // week; weekly/monthly → a single bucket keyed on its start date.
+  const weekStart = startOfWeek(today);
+  const cadenceStart = periodWindow(goal.period, today).start;
 
   if (editing) {
     return (
       <GoalEditForm
         submitLabel="Save"
-        initial={{ name: goal.name, unit: goal.unit, period: goal.period, target }}
+        initial={{
+          name: goal.name,
+          unit: goal.unit,
+          period: goal.period,
+          target_period: goal.target_period,
+          target,
+        }}
         onCancel={() => setEditing(false)}
         onArchive={async () => {
           await onArchiveGoal(goal.id);
@@ -171,12 +212,10 @@ function GoalRow({
   return (
     <div className="text-xs">
       <div className="flex items-center gap-2">
-        <span className="min-w-0 flex-1 truncate text-text-0">
-          {goal.name}
-          <span className="ml-1 text-[10px] text-text-3">· {goal.unit}</span>
-        </span>
+        <span className="min-w-0 flex-1 truncate text-text-0">{goal.name}</span>
         <span className="font-mono text-[10px] text-text-3">
-          <b className="text-text-1">{total}</b> / {target} / {unitOf(goal)}
+          <b className="text-text-1">{total}</b> / {target} {goal.unit} ·{" "}
+          {TARGET_SHORT[goal.target_period]}
         </span>
         <button
           type="button"
@@ -189,8 +228,8 @@ function GoalRow({
       </div>
 
       {goal.period === "daily" ? (
-        <div className="mt-1 flex items-center gap-1">
-          {eachDayOfWeek(win.start).map((d, i) => (
+        <div className="mt-1.5 flex items-center gap-1">
+          {eachDayOfWeek(weekStart).map((d, i) => (
             <LogCell
               key={d}
               label={DAY_LETTERS[i]}
@@ -201,18 +240,18 @@ function GoalRow({
           ))}
         </div>
       ) : (
-        <div className="mt-1 flex items-center gap-2">
+        <div className="mt-1.5 flex items-center gap-2">
           <LogCell
             wide
             label={goal.period === "monthly" ? "this month" : "this week"}
-            value={valueOn(entries, win.start)}
+            value={valueOn(entries, cadenceStart)}
             isToday
-            onCommit={(v) => onLog(goal.id, win.start, v)}
+            onCommit={(v) => onLog(goal.id, cadenceStart, v)}
           />
         </div>
       )}
 
-      <div className="mt-1.5 h-1 w-full rounded-sm bg-bg-3">
+      <div className="mt-2 h-1 w-full rounded-sm bg-bg-3">
         <div
           className={cn("h-full rounded-sm", pct >= 100 ? "bg-success" : "bg-accent")}
           style={{ width: `${pct}%` }}
@@ -294,27 +333,44 @@ function GoalEditForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [unit, setUnit] = useState(initial?.unit ?? "");
   const [period, setPeriod] = useState<GoalPeriod>(initial?.period ?? "daily");
+  const [targetPeriod, setTargetPeriod] = useState<TargetPeriod>(
+    initial?.target_period ?? "week",
+  );
   const [target, setTarget] = useState(initial?.target ? String(initial.target) : "");
   const [busy, setBusy] = useState(false);
 
-  const per = PERIODS.find((p) => p.v === period)?.per ?? "wk";
-  const canSave = name.trim() && unit.trim() && Number.isFinite(Number(target)) && target.trim() !== "";
+  const canSave =
+    name.trim() && unit.trim() && Number.isFinite(Number(target)) && target.trim() !== "";
 
   async function save() {
     if (!canSave) return;
     setBusy(true);
     try {
-      await onSave({ name: name.trim(), unit: unit.trim(), period, target: Number(target) });
+      await onSave({
+        name: name.trim(),
+        unit: unit.trim(),
+        period,
+        target_period: targetPeriod,
+        target: Number(target),
+      });
     } finally {
       setBusy(false);
     }
   }
 
   const inp =
-    "rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 text-[11px] text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus";
+    "rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-0 placeholder:text-text-3 outline-none focus:border-border-focus";
+  const lbl = "flex items-center gap-1.5 text-[10px] text-text-3";
   return (
-    <div className="flex flex-col gap-1.5 rounded border border-border/60 bg-bg-1 p-2">
-      <div className="flex items-center gap-1.5">
+    <div className="flex flex-col gap-2.5 rounded-md border border-border/60 bg-bg-1 p-2.5">
+      {/* Unit on the far left, then the goal name. */}
+      <div className="flex items-center gap-2">
+        <input
+          className={`${inp} w-24 flex-shrink-0`}
+          placeholder="unit (e.g. reps)"
+          value={unit}
+          onChange={(e) => setUnit(e.target.value)}
+        />
         <input
           autoFocus
           className={`${inp} min-w-0 flex-1`}
@@ -322,28 +378,40 @@ function GoalEditForm({
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        <input
-          className={`${inp} w-16`}
-          placeholder="unit"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value)}
-        />
       </div>
-      <div className="flex items-center gap-1.5">
-        <select
-          aria-label="Cadence"
-          className={inp}
-          value={period}
-          onChange={(e) => setPeriod(e.target.value as GoalPeriod)}
-        >
-          {PERIODS.map((p) => (
-            <option key={p.v} value={p.v}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <span className="flex items-center gap-1">
-          <span className="text-[10px] text-text-3">target</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <label className={lbl}>
+          Record
+          <select
+            aria-label="Record cadence"
+            className={inp}
+            value={period}
+            onChange={(e) => setPeriod(e.target.value as GoalPeriod)}
+          >
+            {PERIODS.map((p) => (
+              <option key={p.v} value={p.v}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={lbl}>
+          Target per
+          <select
+            aria-label="Target period"
+            className={inp}
+            value={targetPeriod}
+            onChange={(e) => setTargetPeriod(e.target.value as TargetPeriod)}
+          >
+            {TARGET_PERIODS.map((p) => (
+              <option key={p.v} value={p.v}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className={lbl}>
+          Target
           <input
             type="number"
             inputMode="numeric"
@@ -352,37 +420,36 @@ function GoalEditForm({
             value={target}
             onChange={(e) => setTarget(e.target.value)}
           />
-          <span className="text-[10px] text-text-3">/ {per}</span>
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          {onArchive && (
-            <button
-              type="button"
-              onClick={() => void onArchive()}
-              aria-label="Archive goal"
-              className="rounded-sm p-1 text-text-3 hover:text-danger"
-            >
-              <Archive className="h-3.5 w-3.5" />
-            </button>
-          )}
+        </label>
+      </div>
+      <div className="flex items-center justify-end gap-1.5">
+        {onArchive && (
           <button
             type="button"
-            onClick={onCancel}
-            aria-label="Cancel"
-            className="rounded-sm p-1 text-text-3 hover:text-text-1"
+            onClick={() => void onArchive()}
+            aria-label="Archive goal"
+            className="mr-auto rounded-sm p-1 text-text-3 hover:text-danger"
           >
-            <X className="h-3.5 w-3.5" />
+            <Archive className="h-3.5 w-3.5" />
           </button>
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={!canSave || busy}
-            className="flex items-center gap-1 rounded-sm border border-border bg-accent/15 px-1.5 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-            {submitLabel}
-          </button>
-        </div>
+        )}
+        <button
+          type="button"
+          onClick={onCancel}
+          aria-label="Cancel"
+          className="rounded-sm p-1 text-text-3 hover:text-text-1"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={() => void save()}
+          disabled={!canSave || busy}
+          className="flex items-center gap-1 rounded-sm border border-border bg-accent/15 px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+          {submitLabel}
+        </button>
       </div>
     </div>
   );
@@ -417,7 +484,7 @@ function AreaEditForm({
     <div className="flex items-center gap-1.5">
       <input
         autoFocus
-        className="min-w-0 flex-1 rounded-sm border border-border bg-bg-2 px-1.5 py-0.5 text-[11px] text-text-0 outline-none focus:border-border-focus"
+        className="min-w-0 flex-1 rounded-sm border border-border bg-bg-2 px-2 py-1 text-[11px] text-text-0 outline-none focus:border-border-focus"
         value={name}
         onChange={(e) => setName(e.target.value)}
       />
@@ -457,7 +524,7 @@ function AreaEditForm({
         type="button"
         onClick={() => void save()}
         disabled={!name.trim() || busy}
-        className="rounded-sm border border-border bg-accent/15 px-1.5 py-0.5 text-[11px] font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
+        className="rounded-sm border border-border bg-accent/15 px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent/25 disabled:opacity-50"
       >
         {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
       </button>

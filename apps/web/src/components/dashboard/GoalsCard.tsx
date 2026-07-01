@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { Loader2, Plus, Target, RotateCcw } from "lucide-react";
 import { DashboardCard } from "./DashboardCard";
 import { GoalsTrack, type NewGoal } from "@/components/modules/GoalsTrack";
@@ -24,6 +24,7 @@ import {
   type GoalsGoalRow,
   type GoalsEntryRow,
   type GoalPeriod,
+  type TargetPeriod,
 } from "@/lib/modules/goals-queries";
 import { startOfWeek, periodWindow } from "@/lib/modules/goals-week";
 
@@ -127,6 +128,7 @@ export function GoalsCard() {
         name: input.name,
         unit: input.unit,
         period: input.period,
+        target_period: input.target_period,
       });
       await setWeeklyTarget(supabase, {
         goal_id: goal.id,
@@ -140,13 +142,20 @@ export function GoalsCard() {
   const onUpdateGoal = useCallback(
     async (
       goalId: string,
-      patch: { name?: string; unit?: string; period?: GoalPeriod; target?: number },
+      patch: {
+        name?: string;
+        unit?: string;
+        period?: GoalPeriod;
+        target_period?: TargetPeriod;
+        target?: number;
+      },
     ) => {
       const supabase = createClient();
       await updateGoal(supabase, goalId, {
         name: patch.name,
         unit: patch.unit,
         period: patch.period,
+        target_period: patch.target_period,
       });
       if (patch.target !== undefined) {
         await setWeeklyTarget(supabase, {
@@ -190,19 +199,21 @@ export function GoalsCard() {
 
   const count = data?.categories.length;
   const tabBar = (
-    <div className="flex items-center gap-0.5 rounded border border-border p-0.5">
-      {TABS.map((t) => (
-        <button
-          key={t.v}
-          type="button"
-          onClick={() => setTab(t.v)}
-          aria-pressed={tab === t.v}
-          className={`rounded-sm px-1.5 py-0.5 text-2xs ${
-            tab === t.v ? "bg-bg-3 text-text-0" : "text-text-3 hover:text-text-1"
-          }`}
-        >
-          {t.label}
-        </button>
+    <div className="flex items-center overflow-hidden rounded border border-border">
+      {TABS.map((t, i) => (
+        <Fragment key={t.v}>
+          {i > 0 ? <span aria-hidden="true" className="h-4 w-px bg-border" /> : null}
+          <button
+            type="button"
+            onClick={() => setTab(t.v)}
+            aria-pressed={tab === t.v}
+            className={`px-2 py-0.5 text-2xs ${
+              tab === t.v ? "bg-bg-3 text-text-0" : "text-text-3 hover:text-text-1"
+            }`}
+          >
+            {t.label}
+          </button>
+        </Fragment>
       ))}
     </div>
   );

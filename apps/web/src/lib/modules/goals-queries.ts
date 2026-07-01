@@ -26,22 +26,27 @@ export interface GoalsCategoryRow {
 
 /** How often a value is logged for a goal (and the window the target spans). */
 export type GoalPeriod = "daily" | "weekly" | "monthly";
+/** The window a goal's target is measured over — independent of the cadence. */
+export type TargetPeriod = "day" | "week" | "month";
 
 export interface GoalsGoalRow {
   id: string;
   category_id: string;
   name: string;
   unit: string;
+  /** Record cadence — how often you log. */
   period: GoalPeriod;
+  /** The window the target applies to (per day / week / month). */
+  target_period: TargetPeriod;
   display_order: number;
   source_type: "manual" | "auto";
   source_config: Record<string, unknown> | null;
   archived_at: string | null;
 }
 
-/** The select list for a goal row (kept in one place — it now includes period). */
+/** The select list for a goal row (kept in one place). */
 const GOAL_COLUMNS =
-  "id, category_id, name, unit, period, display_order, source_type, source_config, archived_at";
+  "id, category_id, name, unit, period, target_period, display_order, source_type, source_config, archived_at";
 
 export interface GoalsTargetRow {
   id: string;
@@ -243,7 +248,13 @@ export async function createCategory(
 
 export async function createGoal(
   supabase: Db,
-  input: { category_id: string; name: string; unit: string; period?: GoalPeriod },
+  input: {
+    category_id: string;
+    name: string;
+    unit: string;
+    period?: GoalPeriod;
+    target_period?: TargetPeriod;
+  },
 ): Promise<GoalsGoalRow> {
   const { data, error } = await supabase
     .from("goals_goals")
@@ -252,6 +263,7 @@ export async function createGoal(
       name: input.name.trim(),
       unit: input.unit.trim(),
       period: input.period ?? "daily",
+      target_period: input.target_period ?? "week",
     } as never)
     .select(GOAL_COLUMNS)
     .single();
@@ -259,16 +271,22 @@ export async function createGoal(
   return data as GoalsGoalRow;
 }
 
-/** Rename / retype a goal (name, unit, period). RLS scopes the write. */
+/** Rename / retype a goal (name, unit, cadence, target window). RLS scopes it. */
 export async function updateGoal(
   supabase: Db,
   goalId: string,
-  patch: { name?: string; unit?: string; period?: GoalPeriod },
+  patch: {
+    name?: string;
+    unit?: string;
+    period?: GoalPeriod;
+    target_period?: TargetPeriod;
+  },
 ): Promise<void> {
   const writable: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (patch.name !== undefined) writable.name = patch.name.trim();
   if (patch.unit !== undefined) writable.unit = patch.unit.trim();
   if (patch.period !== undefined) writable.period = patch.period;
+  if (patch.target_period !== undefined) writable.target_period = patch.target_period;
   const { error } = await supabase.from("goals_goals").update(writable).eq("id", goalId);
   if (error) throw error;
 }
