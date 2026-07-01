@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type DragEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
 import {
   Plus,
   X,
@@ -241,8 +241,13 @@ export function PipelineBoard() {
       ),
     );
     try {
-      await updateLead(leadId, { stage: stageKey, ...(status ? { status } : {}) });
-      void refresh();
+      // Merge the authoritative server row (reconciles last_activity_at etc.)
+      // instead of a full getBoard() refetch on every drop.
+      const updated = await updateLead(leadId, {
+        stage: stageKey,
+        ...(status ? { status } : {}),
+      });
+      setLeads((ls) => ls.map((l) => (l.id === leadId ? updated : l)));
       if (before) {
         setToast({
           leadId,
@@ -266,8 +271,11 @@ export function PipelineBoard() {
       ),
     );
     try {
-      await updateLead(t.leadId, { stage: t.fromStage, status: t.fromStatus });
-      void refresh();
+      const updated = await updateLead(t.leadId, {
+        stage: t.fromStage,
+        status: t.fromStatus,
+      });
+      setLeads((ls) => ls.map((l) => (l.id === t.leadId ? updated : l)));
     } catch {
       setLeads(prev);
     }
@@ -290,31 +298,66 @@ export function PipelineBoard() {
     }
   }
 
-  const stages = pipeline?.stages ?? [];
-  const activeLeads = leads.filter(
-    (l) => l.status !== "converted" && l.status !== "dead",
-  );
-  const needsAttention = (l: LeadRow) =>
-    isFollowUpDue(l, nowMs) || isRotting(l, stages, nowMs);
-  let fuCount = 0;
-  let coldCount = 0;
-  for (const l of activeLeads) {
-    if (isFollowUpDue(l, nowMs)) fuCount++;
-    if (isRotting(l, stages, nowMs)) coldCount++;
-  }
+  const stages = useMemo(() => pipeline?.stages ?? [], [pipeline]);
   const q = query.trim().toLowerCase();
-  const queriedActive = q
-    ? activeLeads.filter((l) => leadHaystack(l).includes(q))
-    : activeLeads;
-  const visibleLeads = attentionOnly
-    ? queriedActive.filter(needsAttention)
-    : queriedActive;
-  const { columns, orphans } = groupByStage(visibleLeads, stages);
-  const rollup = pipeline ? rollupField(pipeline.fields) : null;
-  const cardFields = pipeline ? pipeline.fields.filter((f) => f.card) : [];
-  const boardValue = rollup ? sumAttr(visibleLeads, rollup.key) : 0;
+
+  // Searchable text is computed ONCE per lead (JSON.stringify of attributes is
+  // the expensive bit) so each search keystroke just does a substring test.
+  const haystackById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const l of leads) m.set(l.id, leadHaystack(l));
+    return m;
+  }, [leads]);
+  const matches = (l: LeadRow) => (haystackById.get(l.id) ?? "").includes(q);
+
+  const activeLeads = useMemo(
+    () => leads.filter((l) => l.status !== "converted" && l.status !== "dead"),
+    [leads],
+  );
+  // Only the attention counts depend on the 60s `nowMs` tick.
+  const { fuCount, coldCount } = useMemo(() => {
+    let fu = 0;
+    let cold = 0;
+    for (const l of activeLeads) {
+      if (isFollowUpDue(l, nowMs)) fu++;
+      if (isRotting(l, stages, nowMs)) cold++;
+    }
+    return { fuCount: fu, coldCount: cold };
+  }, [activeLeads, stages, nowMs]);
+
+  const queriedActive = useMemo(
+    () => (q ? activeLeads.filter(matches) : activeLeads),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [activeLeads, q, haystackById],
+  );
+  const visibleLeads = useMemo(
+    () =>
+      attentionOnly
+        ? queriedActive.filter(
+            (l) => isFollowUpDue(l, nowMs) || isRotting(l, stages, nowMs),
+          )
+        : queriedActive,
+    [attentionOnly, queriedActive, stages, nowMs],
+  );
+  const { columns, orphans } = useMemo(
+    () => groupByStage(visibleLeads, stages),
+    [visibleLeads, stages],
+  );
+  const rollup = useMemo(() => (pipeline ? rollupField(pipeline.fields) : null), [pipeline]);
+  const cardFields = useMemo(
+    () => (pipeline ? pipeline.fields.filter((f) => f.card) : []),
+    [pipeline],
+  );
+  const boardValue = useMemo(
+    () => (rollup ? sumAttr(visibleLeads, rollup.key) : 0),
+    [rollup, visibleLeads],
+  );
   // The list view honors the same search box (attention-focus is board-only).
-  const listLeads = q ? leads.filter((l) => leadHaystack(l).includes(q)) : leads;
+  const listLeads = useMemo(
+    () => (q ? leads.filter(matches) : leads),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [leads, q, haystackById],
+  );
   const allCollapsed =
     columns.length > 0 && columns.every((c) => collapsed.has(c.stage.key));
 
