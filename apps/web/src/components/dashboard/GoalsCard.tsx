@@ -50,7 +50,12 @@ const TABS: { v: Tab; label: string }[] = [
 const SWATCHES = ["#3B82F6", "#22C55E", "#EF4444", "#EAB308", "#A855F7", "#14B8A6"];
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  // LOCAL calendar date, not UTC. toISOString() would roll to tomorrow in the
+  // evening for negative-UTC users (e.g. UTC-4), logging entries to the wrong
+  // day and advancing the week strip a day early.
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 function minIso(a: string, b: string) {
   return a < b ? a : b;
