@@ -39,6 +39,21 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     return badRequest("Invalid JSON body");
   }
   try {
+    // `attributes.files` is owned by the file-upload/delete route, not the edit
+    // form. The form submits its (possibly stale) attributes snapshot, which
+    // would otherwise clobber files added during the same session — so preserve
+    // the server's current files list across any attributes update.
+    if (body.attributes && typeof body.attributes === "object") {
+      const current = await getLead(supabase, id);
+      const currentFiles = (current?.attributes as { files?: unknown } | null)
+        ?.files;
+      if (currentFiles !== undefined) {
+        body.attributes = {
+          ...(body.attributes as Record<string, unknown>),
+          files: currentFiles,
+        };
+      }
+    }
     const lead = await updateLead(supabase, id, body);
     if (!lead) return notFound("Lead not found");
     return ok({ lead });

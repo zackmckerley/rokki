@@ -90,8 +90,17 @@ async function handleDelete(request: NextRequest, { params }: Props) {
   const lead = await getLead(supabase, id);
   if (!lead) return notFound("Lead not found");
 
+  // Only delete a key that actually belongs to THIS lead. Storage RLS only
+  // checks the `<userId>/` prefix, so without this a caller could pass another
+  // lead's key and delete its bytes. Require both the user+lead prefix AND that
+  // the key is one of this lead's recorded files.
+  const current = filesOf(lead.attributes);
+  if (!key.startsWith(`${user.id}/${id}/`) || !current.some((f) => f.key === key)) {
+    return badRequest("key does not belong to this lead");
+  }
+
   await supabase.storage.from(LEAD_FILES_BUCKET).remove([key]);
-  const files = filesOf(lead.attributes).filter((f) => f.key !== key);
+  const files = current.filter((f) => f.key !== key);
   await updateLead(supabase, id, { attributes: { ...lead.attributes, files } });
   return ok({ files });
 }

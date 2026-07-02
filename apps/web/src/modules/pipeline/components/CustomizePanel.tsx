@@ -175,13 +175,18 @@ export function CustomizePanel({
   }
 
   function buildFields(): PipelineField[] {
+    const rows = fields.filter((r) => r.label.trim());
+    // Reserve every EXISTING (persisted) key up-front so a new / auto-slugged
+    // row can never steal — and thereby rename — an established field's key.
+    // Renaming an existing key would orphan every lead's stored values for it.
     const taken = new Set<string>();
-    return fields
-      .filter((r) => r.label.trim())
+    for (const r of rows) if (r.key) taken.add(r.key);
+    return rows
       .map((r) => {
-        let key = r.key || slugifyKey(r.label);
-        key = uniqueKey(key, taken);
-        taken.add(key);
+        // Existing rows keep their persisted key; only new rows (no r.key) get
+        // a freshly-slugged, de-duplicated key.
+        const key = r.key || uniqueKey(slugifyKey(r.label), taken);
+        if (!r.key) taken.add(key);
         const field: PipelineField = { key, label: r.label.trim(), type: r.type };
         if (r.group.trim()) field.group = r.group.trim();
         if (r.card) field.card = true;
