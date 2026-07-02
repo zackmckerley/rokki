@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { withObservability } from "@/lib/observability";
 import { evaluatePriceAlerts } from "@/lib/markets/evaluate-alerts";
+import { verifyCronSecret } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -12,11 +13,7 @@ export const maxDuration = 300;
  * Actions (see docs/09_ENVIRONMENTS.md / cron workflows).
  */
 function authorize(request: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return false; // no secret configured ⇒ endpoint disabled
-  if (request.headers.get("x-cron-secret") === expected) return true;
-  if (request.headers.get("authorization") === `Bearer ${expected}`) return true;
-  return false;
+  return verifyCronSecret(request);
 }
 
 function unauthorized(): NextResponse {

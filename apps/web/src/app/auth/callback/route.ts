@@ -6,6 +6,7 @@ import {
 import type { EmailOtpType } from "@supabase/supabase-js";
 import type { Database, OrgRole, ProjectRole } from "@rokki/db";
 import { withObservability } from "@/lib/observability";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 type ServerClient = ReturnType<typeof createServerClient<Database>>;
 
@@ -41,7 +42,8 @@ async function handleGet(request: NextRequest) {
   const code = searchParams.get("code");
   const tokenHash = searchParams.get("token_hash");
   const rawType = searchParams.get("type");
-  const redirectTo = searchParams.get("redirect_to") ?? "/";
+  // Same-origin path only — never redirect a just-authenticated user off-site.
+  const redirectTo = safeRedirectPath(searchParams.get("redirect_to"));
 
   // Build the response up-front so the Supabase client can bind cookies to it.
   const response = NextResponse.redirect(`${origin}${redirectTo}`);

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 import { createClient } from "@/lib/supabase/server";
-import { validateBearer } from "@/lib/api-auth";
+import { validateBearer, hasScope } from "@/lib/api-auth";
 
 export interface AdminContext {
   /** The admin user's auth id. */
@@ -55,6 +55,22 @@ export async function requireAdmin(
   let email: string | undefined;
 
   if (bearer) {
+    // A PAT may only drive admin tooling if it carries the `admin` scope —
+    // otherwise a narrow read/write token owned by an admin could perform
+    // destructive cross-tenant operations.
+    if (!hasScope(bearer, "admin")) {
+      return NextResponse.json(
+        {
+          errors: [
+            {
+              code: "forbidden",
+              message: "This token lacks the required `admin` scope.",
+            },
+          ],
+        },
+        { status: 403 },
+      );
+    }
     userId = bearer.userId;
   } else {
     const supabase = await createClient();

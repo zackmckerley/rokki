@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import type { Database, OrgRole, ProjectRole } from "@rokki/db";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 /**
  * Second leg of the invite / magic-link flow. The hash-fragment shim in
@@ -15,7 +16,7 @@ import type { Database, OrgRole, ProjectRole } from "@rokki/db";
  */
 export async function GET(request: NextRequest) {
   const { origin, searchParams } = new URL(request.url);
-  const redirectTo = searchParams.get("redirect_to") ?? "/";
+  const redirectTo = safeRedirectPath(searchParams.get("redirect_to"));
 
   const supabase = await createClient();
   const {

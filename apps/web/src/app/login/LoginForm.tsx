@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { FormError } from "@/components/ui/FormError";
+import { safeRedirectPath } from "@/lib/safe-redirect";
 
 /**
  * Login form. Closed system — accounts are created by platform admins
@@ -23,7 +24,8 @@ import { FormError } from "@/components/ui/FormError";
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirect_to") ?? "/";
+  // Only ever navigate to a same-origin path — never an attacker-supplied URL.
+  const redirectTo = safeRedirectPath(searchParams.get("redirect_to"));
   const callbackError = searchParams.get("error");
 
   const [identifier, setIdentifier] = useState("");

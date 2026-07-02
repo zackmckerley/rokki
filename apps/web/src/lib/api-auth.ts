@@ -74,3 +74,21 @@ export async function validateBearer(
     admin,
   };
 }
+
+/**
+ * Whether a bearer token carries the required capability. `admin` implies
+ * everything; `write` implies `read`. A `read`-only token can NOT write, and
+ * only an explicit `admin` scope grants admin. Every write/admin route must
+ * gate on this — validateBearer only proves *who* the token is, not *what* it
+ * may do.
+ */
+export function hasScope(
+  bearer: Pick<BearerAuth, "scopes">,
+  needed: "read" | "write" | "admin",
+): boolean {
+  const s = bearer.scopes ?? [];
+  if (s.includes("admin")) return true;
+  if (needed === "admin") return false;
+  if (needed === "write") return s.includes("write");
+  return s.includes("read") || s.includes("write");
+}

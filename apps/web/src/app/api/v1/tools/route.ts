@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { validateBearer } from "@/lib/api-auth";
+import { validateBearer, hasScope } from "@/lib/api-auth";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 
@@ -43,6 +43,17 @@ async function handlePost(request: NextRequest) {
   let userId: string;
   const bearer = await validateBearer(request);
   if (bearer) {
+    // Publishing a tool is a write — a read-only PAT must not be allowed to.
+    if (!hasScope(bearer, "write")) {
+      return NextResponse.json(
+        {
+          errors: [
+            { code: "forbidden", message: "This token lacks the `write` scope." },
+          ],
+        },
+        { status: 403 },
+      );
+    }
     supabase = bearer.admin;
     userId = bearer.userId;
   } else {
