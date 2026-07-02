@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { withObservability } from "@/lib/observability";
+import { verifyCronSecret } from "@/lib/cron-auth";
 import type { Database } from "@rokki/db";
 
 /**
@@ -189,13 +190,7 @@ async function refreshOne(
 }
 
 function authorize(request: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) return false; // no secret configured = endpoint disabled
-  const cronHeader = request.headers.get("x-cron-secret");
-  if (cronHeader === expected) return true;
-  const auth = request.headers.get("authorization") ?? "";
-  if (auth === `Bearer ${expected}`) return true;
-  return false;
+  return verifyCronSecret(request);
 }
 
 function unauthorized(): NextResponse {

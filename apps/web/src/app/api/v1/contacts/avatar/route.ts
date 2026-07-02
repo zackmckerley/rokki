@@ -9,6 +9,7 @@ import {
   imageExtFromType,
   avatarStorageKey,
 } from "@/lib/contacts/avatar";
+import { sniffImageMime } from "@/lib/file-sniff";
 
 export const dynamic = "force-dynamic";
 // Profile pictures are small, but give image processing a little headroom.
@@ -36,15 +37,21 @@ async function handlePost(request: NextRequest) {
   if (file.size === 0) return badRequest("file is empty");
   if (file.size > AVATAR_MAX_BYTES) return badRequest("image too large (max 8 MB)");
 
-  const ext = imageExtFromType(file.type);
+  // Trust the bytes, not the client's Content-Type. The avatar bucket is
+  // PUBLIC and rendered via <img src>, so an SVG/HTML uploaded as "image/png"
+  // would be stored XSS. Sniff the real type from magic bytes; text-based
+  // formats (SVG) have none and are rejected.
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const sniffed = sniffImageMime(bytes);
+  if (!sniffed) return badRequest("file is not a supported image");
+  const ext = imageExtFromType(sniffed);
   if (!ext) return badRequest("unsupported image type");
 
   const key = avatarStorageKey(user.id, randomUUID(), ext);
-  const bytes = new Uint8Array(await file.arrayBuffer());
 
   const { error } = await supabase.storage
     .from(AVATAR_BUCKET)
-    .upload(key, bytes, { contentType: file.type, upsert: false });
+    .upload(key, bytes, { contentType: sniffed, upsert: false });
   if (error) return internal(error.message);
 
   const { data } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(key);
