@@ -24,7 +24,9 @@ export function applyOrder<T>(
   idOf: (x: T) => string,
   order: string[],
 ): T[] {
-  if (order.length === 0) return items;
+  // Defensive: a corrupt localStorage value could hand us a non-array. Coerce
+  // rather than throw on `.map` mid-render (which white-screens the rail).
+  if (!Array.isArray(order) || order.length === 0) return items;
   const pos = new Map(order.map((id, i) => [id, i] as const));
   return items
     .map((item, i) => ({ item, i }))

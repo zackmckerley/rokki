@@ -155,7 +155,16 @@ export function ExplorerRail({
       if (t) {
         const parsed = JSON.parse(t) as unknown;
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          setTerminalOrder(parsed as Record<string, string[]>);
+          // Validate each value is a string[] — a corrupt/legacy entry (e.g. a
+          // bare string) would otherwise reach applyOrder().map() and throw
+          // during render, white-screening the rail and every page that uses it.
+          const clean: Record<string, string[]> = {};
+          for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+            if (Array.isArray(v)) {
+              clean[k] = v.filter((x): x is string => typeof x === "string");
+            }
+          }
+          setTerminalOrder(clean);
         }
       }
     } catch {
