@@ -286,11 +286,12 @@ export function PipelineBoard() {
     setCreateBusy(true);
     setCreateErr(null);
     try {
-      const lead = await createLead({ ...patch, pipeline_id: pipeline.id, space_id: spaceId });
+      await createLead({ ...patch, pipeline_id: pipeline.id, space_id: spaceId });
+      // Just save and close — the new lead lands on the board in one step.
+      // (We used to auto-open the detail drawer here, but that read as the
+      // entry form "cutting out" and forced a needless second Save.)
       setCreateStage(null);
       await refresh();
-      // Open the new lead so people / parcels / files are right there.
-      setSelectedLead(lead.id);
     } catch (e) {
       setCreateErr(e instanceof Error ? e.message : "Could not create");
     } finally {
