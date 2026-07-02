@@ -100,10 +100,17 @@ describe("merge helpers don't share references with the parser (Finding 1)", () 
 });
 
 describe("mergeSocials", () => {
-  it("appends + dedupes by value", () => {
+  it("appends + dedupes by (kind, value)", () => {
     const out = mergeSocials(
       [{ kind: "linkedin", value: "linkedin.com/in/me" }],
       [{ kind: "linkedin", value: "LinkedIn.com/in/me" }, { kind: "website", value: "me.com" }],
+    );
+    expect(out).toHaveLength(2);
+  });
+  it("keeps the same handle on different platforms", () => {
+    const out = mergeSocials(
+      [{ kind: "instagram", value: "john" }],
+      [{ kind: "x", value: "john" }],
     );
     expect(out).toHaveLength(2);
   });
