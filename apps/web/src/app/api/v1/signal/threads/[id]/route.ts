@@ -56,9 +56,13 @@ async function handleGet(_req: NextRequest, { params }: Props) {
       const withUrls = await Promise.all(
         atts.map(async (a) => {
           if (!a.storage_key) return { ...a, url: null };
+          // download:true → Content-Disposition: attachment. Inline <img>/<video>
+          // still render (subresource loads ignore the header), but an
+          // attacker-controlled text/html attachment downloads instead of
+          // executing inline on the storage origin (stored-XSS mitigation).
           const { data: signed } = await supabase.storage
             .from("signal-media")
-            .createSignedUrl(a.storage_key, 60 * 60);
+            .createSignedUrl(a.storage_key, 60 * 60, { download: true });
           return { ...a, url: signed?.signedUrl ?? null };
         }),
       );
