@@ -59,6 +59,11 @@ interface TasksCardProps {
   /** Disable the create button (e.g. user has zero terminals). */
   createDisabled?: boolean;
   /**
+   * Scope label for the header ("Space → Terminal") when a dashboard focus
+   * filter is active. Falls back to the generic "Tasks" title when null.
+   */
+  scopeLabel?: string | null;
+  /**
    * When true, render every visible task (no ROW_LIMIT truncation,
    * no "X more" footer). The card body scrolls inside whatever
    * height the parent gives it — meant for full-page views like
@@ -97,6 +102,7 @@ export function TasksCard({
   terminalNameById,
   createHref = "/?new=task",
   createDisabled,
+  scopeLabel,
   expanded = false,
 }: TasksCardProps) {
   // The cap is gone. Zack: "I could just keep on scrolling through
@@ -282,6 +288,7 @@ export function TasksCard({
     // byte-for-byte the same interface as the in-terminal TasksPane.
     <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--rk-card-radius)] border border-border-strong bg-bg-1 shadow-sm">
       <TaskListToolbar
+        title={scopeLabel ?? undefined}
         count={visibleAssigned.length}
         sortMode={sortMode}
         onSortMode={setSortMode}

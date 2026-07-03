@@ -106,6 +106,10 @@ function hideDoneStorageKey(projectId: string): string {
   return `rokki_tasks_hide_done:${projectId}`;
 }
 
+function starredOnlyStorageKey(projectId: string): string {
+  return `rokki_tasks_starred_only:${projectId}`;
+}
+
 function collapsedGroupsStorageKey(projectId: string): string {
   return `rokki_tasks_collapsed_groups:${projectId}`;
 }
@@ -254,6 +258,30 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
       /* ignore */
     }
   }, [projectId, hideDone]);
+
+  // Hydrate + persist the starred-only filter per project — it was the one
+  // filter that reset on every reload (sort, group, hide-done all persisted).
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(
+        starredOnlyStorageKey(projectId),
+      );
+      if (saved === "1") setStarredOnly(true);
+    } catch {
+      /* ignore */
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        starredOnlyStorageKey(projectId),
+        starredOnly ? "1" : "0",
+      );
+    } catch {
+      /* ignore */
+    }
+  }, [projectId, starredOnly]);
 
   // Hydrate + persist collapsed-group state per project.
   useEffect(() => {
@@ -847,11 +875,25 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
 
   const commentTask = tasks.find((t) => t.id === commentTaskId) ?? null;
 
+  // The visible list after hide-done → starred-only → text filter. Hoisted out
+  // of the render body so the toolbar count reflects what's actually shown
+  // (it used to read tasks.length — the unfiltered total — so the header said
+  // "47" while the list showed 3).
+  const visibleTasks = useMemo(() => {
+    const afterDone = hideDone
+      ? tasks.filter((t) => t.status !== "done")
+      : tasks;
+    const afterStar = starredOnly
+      ? afterDone.filter((t) => t.starred)
+      : afterDone;
+    return filterTasks(afterStar, query, ticker);
+  }, [tasks, hideDone, starredOnly, query, ticker]);
+
   return (
     <div className="flex h-full">
       <div className="flex h-full flex-1 flex-col">
       <TaskListToolbar
-        count={tasks.length}
+        count={visibleTasks.length}
         sortMode={sortMode}
         onSortMode={setSortMode}
         groupMode={groupMode}
@@ -890,15 +932,9 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
             // bucket semantics — disable it when grouped OR filtered to
             // avoid a confusing "drag worked but the row didn't move"
             // UX.
-            // Hide-done step runs before the search filter so the "X
-            // tasks match" count reflects only what's visible.
-            const visibleSource = hideDone
-              ? tasks.filter((t) => t.status !== "done")
-              : tasks;
-            const starScoped = starredOnly
-              ? visibleSource.filter((t) => t.starred)
-              : visibleSource;
-            const filtered = filterTasks(starScoped, query, ticker);
+            // Same visible list the toolbar count is derived from
+            // (hide-done → starred-only → text filter), computed once above.
+            const filtered = visibleTasks;
             const dragEnabled =
               sortMode === "manual" && groupMode === "none" && !query.trim();
             const groups = groupTasks(filtered, groupMode);

@@ -16,6 +16,11 @@ interface Props {
    * `TasksCard`. Null/undefined = no filter (show everything).
    */
   scopeTerminalId?: string | null;
+  /**
+   * Human label for the active scope ("Space → Terminal"), shown in the card
+   * header when a focus filter is active. Null = generic "Tasks" header.
+   */
+  scopeLabel?: string | null;
 }
 
 /**
@@ -41,6 +46,7 @@ export async function TasksCardServer({
   terminalNameById,
   createDisabled,
   scopeTerminalId,
+  scopeLabel,
 }: Props) {
   const supabase = await createClient();
   const [assignedRaw, delegatedRaw] = await Promise.all([
@@ -60,6 +66,7 @@ export async function TasksCardServer({
       tickerById={tickerById}
       terminalNameById={terminalNameById}
       createDisabled={createDisabled}
+      scopeLabel={scopeLabel}
     />
   );
 }
