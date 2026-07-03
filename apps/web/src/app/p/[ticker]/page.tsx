@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { CheckSquare, Users } from "lucide-react";
+import { CheckSquare, Users, Settings } from "lucide-react";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import type { Database } from "@rokki/db";
 import { createClient } from "@/lib/supabase/server";
@@ -239,10 +239,18 @@ export default async function ProjectTerminalPage({ params }: Props) {
           ) : null}
           <span className="text-text-3">/</span>
           <span className="text-text-0 font-medium">{p.name}</span>
-          {/* The settings cog used to live here. Removed in favour of
-              the F5 Settings tab in the function-key bar, so Settings
-              now reads as a peer of Files / Tasks / Team instead of a
-              hidden cog tucked next to the breadcrumb. */}
+          {/* Settings gear — restored next to the terminal name. The F5
+              Settings tab still works, but users kept looking for the cog
+              here to rename / manage a terminal, so give it back a visible
+              affordance in the breadcrumb. */}
+          <Link
+            href={`/p/${p.slug}/settings`}
+            aria-label="Terminal settings"
+            title="Terminal settings"
+            className="text-text-3 transition-colors hover:text-text-0"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </Link>
           <span className="ml-auto flex items-center gap-3">
             <TerminalPresence
               terminalId={p.id}

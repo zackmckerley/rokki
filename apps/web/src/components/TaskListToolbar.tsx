@@ -84,12 +84,17 @@ export function TaskListToolbar({
           box lines up header-for-header with Schedule and Messages. The
           list controls live in the compact strip below (row 2). */}
       <div className="flex h-[var(--rk-card-header-h)] flex-shrink-0 items-center justify-between border-b border-border px-3">
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {handle}
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-text-2">
+          <h2
+            title={title}
+            className="truncate text-xs font-semibold uppercase tracking-wide text-text-2"
+          >
             {title}
           </h2>
-          <span className="font-mono text-2xs text-text-3">{count}</span>
+          <span className="flex-shrink-0 font-mono text-2xs text-text-3">
+            {count}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           {minimize}

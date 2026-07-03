@@ -117,6 +117,21 @@ export default async function DashboardPage({ searchParams }: Props) {
       ? params.focus
       : null;
 
+  // When a terminal focus filter is active, label the Tasks card header with
+  // its "Space → Terminal" context instead of the generic "Tasks", so it's
+  // obvious what the filtered list is scoped to.
+  const focusTerminal = focusTerminalId
+    ? terminals.find((t) => t.id === focusTerminalId)
+    : null;
+  const focusSpace = focusTerminal
+    ? spaces.find((s) => s.id === focusTerminal.space_id)
+    : null;
+  const tasksScopeLabel = focusTerminal
+    ? focusSpace
+      ? `${focusSpace.name} → ${focusTerminal.name}`
+      : focusTerminal.name
+    : null;
+
   // Week card filter state. URL is the source of truth so deep links
   // and browser-back work for free.
   const weekRange: WeekRange =
@@ -177,6 +192,7 @@ export default async function DashboardPage({ searchParams }: Props) {
             terminalNameById={terminalNameById}
             createDisabled={terminals.length === 0}
             scopeTerminalId={focusTerminalId}
+            scopeLabel={tasksScopeLabel}
           />
         </Suspense>
       }
