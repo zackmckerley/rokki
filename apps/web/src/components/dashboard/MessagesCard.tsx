@@ -28,6 +28,7 @@ import {
 import { DashboardCard } from "./DashboardCard";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import { useCoalescedCallback } from "@/lib/use-coalesced-callback";
 import { PresenceDot } from "../presence/PresenceDot";
 import { uploadSignalMedia } from "@/lib/signal/upload";
 import {
@@ -152,17 +153,23 @@ export function MessagesCard() {
     void load();
   }, [load]);
 
+  // Coalesce realtime-driven reloads: three tables each fire on every insert/
+  // update (Signal delivery + read receipts alone are a burst per message), and
+  // each used to run a full inbox refetch. One trailing refetch per quiet window
+  // instead — still authoritative, just not a storm.
+  const scheduleLoad = useCoalescedCallback(() => void load(), 250);
+
   useRealtimeTable<{ id: string }>(
     { table: "messages", channelKey: "dash:messages" },
-    { onInsert: () => void load() },
+    { onInsert: scheduleLoad },
   );
   useRealtimeTable<{ id: string }>(
     { table: "message_threads", channelKey: "dash:threads" },
-    { onInsert: () => void load(), onUpdate: () => void load() },
+    { onInsert: scheduleLoad, onUpdate: scheduleLoad },
   );
   useRealtimeTable<{ id: string }>(
     { table: "signal_messages", channelKey: "dash:sigmsgs" },
-    { onInsert: () => void load(), onUpdate: () => void load() },
+    { onInsert: scheduleLoad, onUpdate: scheduleLoad },
   );
 
   // Signal-only: every conversation goes through Signal, so the inbox shows
@@ -591,13 +598,17 @@ function ThreadQuickView({
     [],
   );
 
+  // The open conversation gets an UPDATE per delivery/read receipt on top of
+  // real messages — coalesce so a receipt burst is one refetch, not one each.
+  // 200ms keeps newly-arrived messages feeling instant.
+  const scheduleLoad = useCoalescedCallback(() => void load(), 200);
   useRealtimeTable<{ id: string }>(
     {
       table: isSignal ? "signal_messages" : "messages",
       filter: `thread_id=eq.${thread.id}`,
       channelKey: `dashqv:${thread.id}`,
     },
-    { onInsert: () => void load(), onUpdate: () => void load() },
+    { onInsert: scheduleLoad, onUpdate: scheduleLoad },
   );
 
   // ── attachments (Signal only) ──────────────────────────────────────────────

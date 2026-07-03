@@ -67,7 +67,14 @@ export async function rateLimitCheck(opts: CheckOpts): Promise<RateLimitResult> 
  * will usually be the IP.
  */
 export function rateLimitToken(request: Request, extra?: string): string {
+  // On Vercel (our host) this is NOT client-spoofable: Vercel's edge OVERWRITES
+  // x-forwarded-for with the real client IP and drops any client-supplied value
+  // (https://vercel.com/docs/headers/request-headers), so the leftmost entry is
+  // trusted. Prefer x-real-ip (Vercel-set, single value) and fall back to the
+  // first x-forwarded-for entry. If we ever move off Vercel behind an untrusted
+  // proxy, revisit — the leftmost XFF entry would then be attacker-controlled.
+  const realIp = request.headers.get("x-real-ip")?.trim();
   const fwd = request.headers.get("x-forwarded-for") ?? "";
-  const ip = fwd.split(",")[0]?.trim() || "unknown";
+  const ip = realIp || fwd.split(",")[0]?.trim() || "unknown";
   return extra ? `${ip}:${extra}` : ip;
 }
