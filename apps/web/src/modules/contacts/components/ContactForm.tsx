@@ -130,6 +130,10 @@ export function ContactForm({
 }) {
   const [v, setV] = useState<FormState>(() => fromContact(initial));
   const [customType, setCustomType] = useState("");
+  // Raw text buffer for the comma-separated tags input, so typing the comma
+  // delimiter survives (binding the input straight to tags.join(", ") wiped the
+  // comma on every keystroke, making a second tag impossible to start).
+  const [tagsText, setTagsText] = useState(() => (initial?.tags ?? []).join(", "));
   const [uploading, setUploading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [avatarErr, setAvatarErr] = useState<string | null>(null);
@@ -660,16 +664,17 @@ export function ContactForm({
         <label className={label}>Tags (comma-separated)</label>
         <input
           className={input}
-          value={v.tags.join(", ")}
-          onChange={(e) =>
+          value={tagsText}
+          onChange={(e) => {
+            setTagsText(e.target.value);
             set(
               "tags",
               e.target.value
                 .split(",")
                 .map((s) => s.trim())
                 .filter(Boolean),
-            )
-          }
+            );
+          }}
         />
       </div>
 
