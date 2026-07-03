@@ -55,8 +55,14 @@ export interface ResolvedTerminal {
 export async function resolveTerminalBySegment(
   supabase: AnySupabaseClient,
   segment: string,
+  opts: { includeArchived?: boolean } = {},
 ): Promise<ResolvedTerminal | null> {
   if (!segment) return null;
+
+  // Restore/undo flows need to find an already-archived terminal; every other
+  // caller wants only live rows. Default excludes archived.
+  const notArchived = (q: AnySupabaseClient) =>
+    opts.includeArchived ? q : q.is("archived_at", null);
 
   // Slug lookup — the common case for any link generated since the
   // 20260526010000_terminal_slug migration shipped.
@@ -69,11 +75,12 @@ export async function resolveTerminalBySegment(
   // after creating a same-named terminal. Take the most recently created
   // match instead, so a just-created terminal resolves to itself.
   {
-    const { data } = await supabase
-      .from("terminals")
-      .select("id, space_id, slug, ticker, name")
-      .eq("slug", segment)
-      .is("archived_at", null)
+    const { data } = await notArchived(
+      supabase
+        .from("terminals")
+        .select("id, space_id, slug, ticker, name")
+        .eq("slug", segment),
+    )
       .order("created_at", { ascending: false })
       .limit(1);
     const row = ((data ?? []) as ResolvedTerminal[])[0];
@@ -82,11 +89,12 @@ export async function resolveTerminalBySegment(
 
   // Fallback for shared URLs minted before the slug column existed.
   if (looksLikeLegacyTicker(segment)) {
-    const { data } = await supabase
-      .from("terminals")
-      .select("id, space_id, slug, ticker, name")
-      .eq("ticker", segment.toUpperCase())
-      .is("archived_at", null)
+    const { data } = await notArchived(
+      supabase
+        .from("terminals")
+        .select("id, space_id, slug, ticker, name")
+        .eq("ticker", segment.toUpperCase()),
+    )
       .order("created_at", { ascending: false })
       .limit(1);
     const row = ((data ?? []) as ResolvedTerminal[])[0];
