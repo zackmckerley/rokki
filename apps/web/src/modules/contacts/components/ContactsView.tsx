@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Search, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { ContactRow } from "@/lib/contacts/db";
@@ -85,8 +85,16 @@ export function ContactsView({
     setLastPatch(null);
   }
 
-  // Debounced server search/refresh.
+  // Debounced server search/refresh. Skip the very first run: the server
+  // already streamed `initialContacts` for the empty query, so a mount-time
+  // fetch just re-requests the same 200 rows and re-renders the whole list.
+  // Clearing the search box later still refetches (didMount is already true).
+  const didMount = useRef(false);
   useEffect(() => {
+    if (!didMount.current) {
+      didMount.current = true;
+      if (!q.trim()) return;
+    }
     const t = setTimeout(() => {
       listContacts({ q: q.trim() || undefined, limit: 200 })
         .then(setContacts)

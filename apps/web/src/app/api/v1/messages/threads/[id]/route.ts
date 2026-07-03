@@ -19,6 +19,9 @@ async function handleGet(_req: NextRequest, { params }: Props) {
   } = await supabase.auth.getUser();
   if (!user) return unauth();
 
+  // Cap at the most recent 200 messages — an unbounded fetch grew linearly
+  // with thread length and dominated inbox load on long threads. Fetch newest
+  // first with a limit, then flip back to oldest-first for rendering.
   const { data } = await supabase
     .from("messages")
     .select(
@@ -26,7 +29,8 @@ async function handleGet(_req: NextRequest, { params }: Props) {
     )
     .eq("thread_id", id)
     .is("deleted_at", null)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: false })
+    .limit(200);
 
   type Row = {
     id: string;
@@ -37,7 +41,7 @@ async function handleGet(_req: NextRequest, { params }: Props) {
     deleted_at: string | null;
     pinging_task_id: string | null;
   };
-  const rows = (data ?? []) as Row[];
+  const rows = ((data ?? []) as Row[]).slice().reverse();
   const authorIds = Array.from(new Set(rows.map((r) => r.author_id)));
   const { data: profiles } = authorIds.length
     ? await supabase
