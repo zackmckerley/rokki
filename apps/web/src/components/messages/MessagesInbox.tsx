@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useRealtimeTable } from "@/lib/supabase/realtime";
+import { useCoalescedCallback } from "@/lib/use-coalesced-callback";
 import { createClient } from "@/lib/supabase/client";
 import { SignalThreadView } from "./SignalThreadView";
 import { SignalContactPicker } from "./SignalContactPicker";
@@ -172,6 +173,15 @@ export function MessagesInbox() {
     if (activeId && !activeIsSignal) void loadMessages(activeId);
   }, [activeId, activeIsSignal, loadMessages]);
 
+  // Coalesce realtime-driven reloads so a burst of inserts/updates (e.g. a
+  // sync backfill or receipt storm) collapses into one refetch instead of one
+  // per event. Both stay authoritative full reloads — no incremental-patch
+  // desync risk.
+  const scheduleActiveMessages = useCoalescedCallback(() => {
+    if (activeId && !activeIsSignal) void loadMessages(activeId);
+  }, 200);
+  const scheduleThreads = useCoalescedCallback(() => void loadThreads(), 250);
+
   // Realtime: any message insert under the active (native) thread appends in
   // place. Signal threads have their own realtime inside SignalThreadView.
   useRealtimeTable<{ id: string; thread_id: string }>(
@@ -183,8 +193,8 @@ export function MessagesInbox() {
     },
     {
       onInsert: () => {
-        if (activeId && !activeIsSignal) void loadMessages(activeId);
-        void loadThreads();
+        scheduleActiveMessages();
+        scheduleThreads();
       },
     },
   );
@@ -195,8 +205,8 @@ export function MessagesInbox() {
       channelKey: "msg:threads",
     },
     {
-      onInsert: () => void loadThreads(),
-      onUpdate: () => void loadThreads(),
+      onInsert: scheduleThreads,
+      onUpdate: scheduleThreads,
     },
   );
 
