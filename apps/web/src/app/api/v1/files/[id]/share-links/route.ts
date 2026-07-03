@@ -13,6 +13,26 @@ interface Props {
  *   { label?, expires_in_days?, max_views?, require_email? }
  */
 
+/**
+ * Confirms the caller can actually see this file before we list or mint share
+ * links for it. share_links RLS only checks terminal membership, not
+ * can_see_file — so without this a member could share (or enumerate shares of)
+ * an owners-only / custom-visibility file they cannot read. can_see_file
+ * governs files_select, so a non-visible file returns null here.
+ */
+async function callerCanSeeFile(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fileId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("files")
+    .select("id")
+    .eq("id", fileId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  return !!data;
+}
+
 async function handleGet(_req: NextRequest, { params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
@@ -20,6 +40,7 @@ async function handleGet(_req: NextRequest, { params }: Props) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return unauth();
+  if (!(await callerCanSeeFile(supabase, id))) return notFound();
 
   const { data, error } = await supabase
     .from("share_links")
@@ -62,6 +83,7 @@ async function handlePost(request: NextRequest, { params }: Props) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return unauth();
+  if (!(await callerCanSeeFile(supabase, id))) return notFound();
 
   const body = (await request.json().catch(() => ({}))) as {
     label?: string;
@@ -100,6 +122,12 @@ function unauth() {
   return NextResponse.json(
     { errors: [{ code: "unauthenticated", message: "Sign in required" }] },
     { status: 401 },
+  );
+}
+function notFound() {
+  return NextResponse.json(
+    { errors: [{ code: "not_found", message: "File not found" }] },
+    { status: 404 },
   );
 }
 function internal(msg: string) {

@@ -154,6 +154,20 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
     { auth: { autoRefreshToken: false, persistSession: false } },
   );
 
+  // folders_delete RLS is manager-only (is_project_manager), but this route
+  // cascades via the service-role client, which bypasses that policy — so a
+  // plain member could delete an entire folder tree. Re-enforce manager rights
+  // explicitly. The trg_terminal_init_members trigger seeds every space owner
+  // into terminal_members as role='owner', so this also covers space owners.
+  const { data: membership } = await admin
+    .from("terminal_members")
+    .select("role")
+    .eq("terminal_id", folder.terminal_id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const role = (membership as { role: string } | null)?.role;
+  if (role !== "owner" && role !== "manager") return forbidden();
+
   const stamp = new Date().toISOString();
   const prefix = folder.path + "/";
 
@@ -220,6 +234,19 @@ function notFound() {
   return NextResponse.json(
     { errors: [{ code: "not_found", message: "Folder not found" }] },
     { status: 404 },
+  );
+}
+function forbidden() {
+  return NextResponse.json(
+    {
+      errors: [
+        {
+          code: "forbidden",
+          message: "Only a terminal manager or owner can delete a folder.",
+        },
+      ],
+    },
+    { status: 403 },
   );
 }
 function internal(msg: string) {

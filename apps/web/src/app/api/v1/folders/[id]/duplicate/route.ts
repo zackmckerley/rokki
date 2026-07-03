@@ -111,12 +111,20 @@ async function handlePost(_req: NextRequest, { params }: Props) {
   const { data: files } = await admin
     .from("files")
     .select(
-      "id, folder, filename, mime_type, size_bytes, blob_key, visibility, sha256",
+      "id, folder, filename, mime_type, size_bytes, blob_key, visibility, visibility_users, visibility_roles, virus_scan_status, sha256",
     )
     .eq("terminal_id", src.terminal_id)
     .is("deleted_at", null)
     .or(`folder.eq.${src.path},folder.like.${oldPrefix}%`);
 
+  type VisibilityRole =
+    | "owner"
+    | "manager"
+    | "architect"
+    | "gc"
+    | "lender"
+    | "family"
+    | "guest";
   type FileToCopy = {
     id: string;
     folder: string;
@@ -125,10 +133,20 @@ async function handlePost(_req: NextRequest, { params }: Props) {
     size_bytes: number;
     blob_key: string;
     visibility: "project" | "owners" | "custom";
+    visibility_users: string[] | null;
+    visibility_roles: VisibilityRole[] | null;
+    virus_scan_status: "pending" | "clean" | "infected" | "skipped";
     sha256: string | null;
   };
   let copied = 0;
+  let skippedInfected = 0;
   for (const f of (files ?? []) as FileToCopy[]) {
+    // Never propagate a virus-flagged file — otherwise the copy inherited
+    // virus_scan_status:'skipped' and became downloadable past the scanner.
+    if (f.virus_scan_status === "infected") {
+      skippedInfected++;
+      continue;
+    }
     const newId = crypto.randomUUID();
     const newKey = buildBlobKey({
       projectId: src.terminal_id,
@@ -150,8 +168,14 @@ async function handlePost(_req: NextRequest, { params }: Props) {
       size_bytes: f.size_bytes,
       blob_key: newKey,
       visibility: f.visibility,
+      // Preserve the custom-visibility scope — dropping these left 'custom'
+      // files visible to no one (silent loss), and blanking them on a copy of
+      // a re-scoped file would be a scope leak in the other direction.
+      visibility_users: f.visibility_users ?? undefined,
+      visibility_roles: f.visibility_roles ?? undefined,
       version: 1,
-      virus_scan_status: "skipped",
+      // Carry the source's real scan status instead of laundering to 'skipped'.
+      virus_scan_status: f.virus_scan_status,
       sha256: f.sha256,
       uploaded_by: user.id,
     });
