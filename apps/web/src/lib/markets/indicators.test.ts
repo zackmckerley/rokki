@@ -42,6 +42,12 @@ describe("rsi", () => {
       }
     }
   });
+  it("a perfectly flat series is neutral (50), not overbought (100)", () => {
+    const flat = Array(20).fill(100);
+    const out = rsi(flat, 14);
+    expect(out[14]).toBe(50);
+    expect(out[19]).toBe(50);
+  });
 
   it("is 100 for a rising series and 0 for a falling one", () => {
     const rising = Array.from({ length: 20 }, (_, i) => i + 1);

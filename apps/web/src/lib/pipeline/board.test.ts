@@ -143,6 +143,11 @@ describe("compactMoney", () => {
     expect(compactMoney(1_200)).toBe("$1K");
     expect(compactMoney(750)).toBe("$750");
   });
+  it("promotes the K→M boundary instead of showing $1000K", () => {
+    expect(compactMoney(999_999)).toBe("$1.0M");
+    expect(compactMoney(999_500)).toBe("$1.0M");
+    expect(compactMoney(999_499)).toBe("$999K");
+  });
   it("is empty for zero / non-finite", () => {
     expect(compactMoney(0)).toBe("");
     expect(compactMoney(NaN)).toBe("");

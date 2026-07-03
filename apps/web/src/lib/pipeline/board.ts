@@ -28,7 +28,12 @@ export function sumAttr(leads: Pick<LeadRow, "attributes">[], key: string): numb
   let total = 0;
   for (const l of leads) {
     const raw = (l.attributes as Record<string, unknown>)?.[key];
-    const n = typeof raw === "number" ? raw : parseFloat(String(raw ?? ""));
+    // Strip $ / commas / spaces then Number() — strict, so "3.5M", "12 units"
+    // etc. are ignored rather than parseFloat's lenient 3.5 / 12.
+    const n =
+      typeof raw === "number"
+        ? raw
+        : Number(String(raw ?? "").replace(/[$,\s]/g, ""));
     if (Number.isFinite(n)) total += n;
   }
   return total;
@@ -38,7 +43,10 @@ export function sumAttr(leads: Pick<LeadRow, "attributes">[], key: string): numb
 export function compactMoney(n: number): string {
   if (!Number.isFinite(n) || n === 0) return "";
   const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
+  // Promote to "M" when the K value would round to >= 1000 (999,999 → "$1.0M",
+  // not "$1000K"). Choosing the tier by the rounded value avoids the boundary gap.
+  if (Math.round(abs / 1_000) >= 1_000)
+    return `$${(n / 1_000_000).toFixed(abs >= 10_000_000 ? 0 : 1)}M`;
   if (abs >= 1_000) return `$${Math.round(n / 1_000)}K`;
   return `$${Math.round(n)}`;
 }

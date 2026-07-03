@@ -69,9 +69,7 @@ export function parseDueDate(input: string): string | null {
     if (unit.startsWith("d")) return toISODate(addDays(today, n));
     if (unit.startsWith("w")) return toISODate(addDays(today, n * 7));
     if (unit.startsWith("m")) {
-      const d = new Date(today);
-      d.setMonth(d.getMonth() + n);
-      return toISODate(d);
+      return toISODate(addMonths(today, n));
     }
   }
 
@@ -83,9 +81,7 @@ export function parseDueDate(input: string): string | null {
     if (unit === "d") return toISODate(addDays(today, n));
     if (unit === "w") return toISODate(addDays(today, n * 7));
     if (unit === "m") {
-      const d = new Date(today);
-      d.setMonth(d.getMonth() + n);
-      return toISODate(d);
+      return toISODate(addMonths(today, n));
     }
   }
 
@@ -93,7 +89,7 @@ export function parseDueDate(input: string): string | null {
   const isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
   if (isoMatch) {
     const [, y, m, d] = isoMatch;
-    return formatYMD(Number(y), Number(m), Number(d));
+    return formatYMDChecked(Number(y), Number(m), Number(d));
   }
 
   // M/D or M/D/YY or M/D/YYYY
@@ -105,7 +101,7 @@ export function parseDueDate(input: string): string | null {
         ? 2000 + Number(yy)
         : Number(yy)
       : today.getFullYear();
-    return formatYMD(year, Number(mm), Number(dd));
+    return formatYMDChecked(year, Number(mm), Number(dd));
   }
 
   return null;
@@ -141,6 +137,26 @@ function addDays(d: Date, n: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() + n);
   return r;
+}
+
+/** Add `n` months, clamping the day so Jan 31 + 1m → Feb 28/29, not Mar 3. */
+function addMonths(d: Date, n: number): Date {
+  const day = d.getDate();
+  const r = new Date(d);
+  r.setDate(1);
+  r.setMonth(r.getMonth() + n);
+  const daysInMonth = new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate();
+  r.setDate(Math.min(day, daysInMonth));
+  return r;
+}
+
+/** formatYMD, but rejects out-of-range / impossible dates (13/45, Feb 30) → null. */
+function formatYMDChecked(y: number, m: number, d: number): string | null {
+  if (!Number.isInteger(m) || m < 1 || m > 12) return null;
+  if (!Number.isInteger(d) || d < 1) return null;
+  const daysInMonth = new Date(y, m, 0).getDate();
+  if (d > daysInMonth) return null;
+  return formatYMD(y, m, d);
 }
 
 /**

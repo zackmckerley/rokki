@@ -19,24 +19,30 @@ export function fmtPrice(n: number | null | undefined, currency = "USD"): string
 
 export function fmtChange(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(2)}`;
+  // Sign from the ROUNDED value, so a sub-cent change isn't a signed zero
+  // ("+0.00" / "-0.00").
+  const r = Number(n.toFixed(2));
+  const sign = r > 0 ? "+" : "";
+  return `${sign}${r.toFixed(2)}`;
 }
 
 export function fmtPct(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(2)}%`;
+  const r = Number(n.toFixed(2));
+  const sign = r > 0 ? "+" : "";
+  return `${sign}${r.toFixed(2)}%`;
 }
 
 /** Compact magnitude: 1.2K / 3.4M / 5.6B / 7.8T. */
 export function fmtCompact(n: number | null | undefined): string {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   const abs = Math.abs(n);
-  if (abs >= 1e12) return `${(n / 1e12).toFixed(2)}T`;
-  if (abs >= 1e9) return `${(n / 1e9).toFixed(2)}B`;
-  if (abs >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
-  if (abs >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  // Thresholds sit just below each power of ten so a value that ROUNDS up into
+  // the next tier is labelled there (999,999.5 → "1.00M", not "1000.0K").
+  if (abs >= 9.995e11) return `${(n / 1e12).toFixed(2)}T`;
+  if (abs >= 9.995e8) return `${(n / 1e9).toFixed(2)}B`;
+  if (abs >= 9.995e5) return `${(n / 1e6).toFixed(2)}M`;
+  if (abs >= 999.95) return `${(n / 1e3).toFixed(1)}K`;
   return n.toLocaleString();
 }
 
@@ -86,6 +92,7 @@ export function fmtRelative(iso: string | null | undefined): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   const secs = Math.round((Date.now() - d.getTime()) / 1000);
+  if (secs < 0) return fmtDate(iso); // future timestamp — show the date, not "just now"
   if (secs < 60) return "just now";
   const mins = Math.round(secs / 60);
   if (mins < 60) return `${mins}m ago`;
