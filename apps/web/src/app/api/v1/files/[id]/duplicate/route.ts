@@ -32,7 +32,7 @@ async function handlePost(request: NextRequest, { params }: Props) {
   const { data } = await supabase
     .from("files")
     .select(
-      "id, terminal_id, folder, filename, mime_type, size_bytes, blob_key, visibility, sha256",
+      "id, terminal_id, folder, filename, mime_type, size_bytes, blob_key, visibility, sha256, virus_scan_status",
     )
     .eq("id", id)
     .is("deleted_at", null)
@@ -48,9 +48,22 @@ async function handlePost(request: NextRequest, { params }: Props) {
         blob_key: string;
         visibility: "project" | "owners" | "custom";
         sha256: string | null;
+        virus_scan_status: "pending" | "clean" | "infected" | "skipped";
       }
     | null;
   if (!src) return notFound();
+  // Never duplicate a virus-flagged (or not-yet-scanned) file — otherwise the
+  // copy inherited virus_scan_status:'skipped' and became downloadable.
+  if (src.virus_scan_status === "infected")
+    return NextResponse.json(
+      { errors: [{ code: "virus_detected", message: "Cannot duplicate a file flagged by virus scanning." }] },
+      { status: 403 },
+    );
+  if (src.virus_scan_status === "pending")
+    return NextResponse.json(
+      { errors: [{ code: "scan_pending", message: "File is still being scanned; try again shortly." }] },
+      { status: 202 },
+    );
 
   const destFolder = body.folder ?? src.folder;
   if (destFolder !== "/" && destFolder !== src.folder) {
@@ -95,7 +108,9 @@ async function handlePost(request: NextRequest, { params }: Props) {
       blob_key: newBlobKey,
       visibility: src.visibility,
       version: 1,
-      virus_scan_status: "skipped",
+      // Carry the source's (clean/skipped) status — infected/pending were
+      // already rejected above — instead of blindly marking the copy skipped.
+      virus_scan_status: src.virus_scan_status,
       sha256: src.sha256,
       uploaded_by: user.id,
     })

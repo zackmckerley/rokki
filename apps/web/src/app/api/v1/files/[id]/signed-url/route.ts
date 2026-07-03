@@ -29,16 +29,36 @@ async function handleGet(_req: NextRequest, { params }: Props) {
 
   const { data } = await supabase
     .from("files")
-    .select("id, blob_key, mime_type, filename")
+    .select("id, blob_key, mime_type, filename, deleted_at, virus_scan_status")
     .eq("id", id)
     .maybeSingle();
   const file = data as
-    | { id: string; blob_key: string; mime_type: string; filename: string }
+    | {
+        id: string;
+        blob_key: string;
+        mime_type: string;
+        filename: string;
+        deleted_at: string | null;
+        virus_scan_status: "pending" | "clean" | "infected" | "skipped";
+      }
     | null;
-  if (!file)
+  // can_see_file RLS deliberately does NOT filter soft-deleted rows or scan
+  // status, so guard here exactly like the download route — otherwise this
+  // preview URL hands out bytes of a trashed or virus-flagged file.
+  if (!file || file.deleted_at)
     return NextResponse.json(
       { errors: [{ code: "not_found", message: "File not found" }] },
       { status: 404 },
+    );
+  if (file.virus_scan_status === "infected")
+    return NextResponse.json(
+      { errors: [{ code: "virus_detected", message: "File was flagged by virus scanning." }] },
+      { status: 403 },
+    );
+  if (file.virus_scan_status === "pending")
+    return NextResponse.json(
+      { errors: [{ code: "scan_pending", message: "File is still being scanned." }] },
+      { status: 202 },
     );
 
   const url = await getSignedDownloadUrl(file.blob_key, 300);
