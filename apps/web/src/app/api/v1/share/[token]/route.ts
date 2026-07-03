@@ -47,11 +47,12 @@ async function handleGet(request: NextRequest, { params }: Props) {
   if (new Date(l.expires_at).getTime() < Date.now()) return denied("expired");
 
   if (l.max_views != null) {
+    // Count ALL accesses (view AND download) against the cap — counting only
+    // `view` let `?download=1` fetch the file unlimited times past max_views.
     const { count } = await admin
       .from("share_link_accesses")
       .select("id", { count: "exact", head: true })
-      .eq("share_link_id", l.id)
-      .eq("kind", "view");
+      .eq("share_link_id", l.id);
     if ((count ?? 0) >= l.max_views) return denied("max_views_reached");
   }
 
