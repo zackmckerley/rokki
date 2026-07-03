@@ -25,13 +25,27 @@ async function handleGet(request: NextRequest) {
     if (!user) return unauth();
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("tools")
     .select(
       "id, slug, name, description, visibility, owner_user_id, owner_space_id, current_version, tags, timeout_seconds, created_at, updated_at",
     )
-    .is("deleted_at", null)
-    .order("name", { ascending: true });
+    .is("deleted_at", null);
+
+  // The Bearer path uses the service-role client, which BYPASSES the
+  // tools_select RLS policy — without an explicit scope it returned every
+  // private tool in every space (cross-tenant leak). Re-scope it to what the
+  // token's user may see: public tools plus tools they own. This is a
+  // conservative subset of the RLS predicate (org-/grant-shared tools aren't
+  // enumerated via PAT); the cookie path keeps full RLS visibility. userId is
+  // a validated UUID from the token, so the interpolation is injection-safe.
+  if (bearer) {
+    query = query.or(
+      `visibility.eq.public,owner_user_id.eq.${bearer.userId}`,
+    );
+  }
+
+  const { data, error } = await query.order("name", { ascending: true });
   if (error) return internal(error.message);
   return NextResponse.json({ data });
 }
