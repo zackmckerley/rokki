@@ -155,13 +155,19 @@ export function CustomizePanel({
   }
 
   function buildStages(): PipelineStage[] {
+    const rows = stages.filter((r) => r.label.trim());
+    // Reserve every EXISTING stage key up-front so a new / auto-slugged stage
+    // can never steal — and thereby rename — an established stage's key. A
+    // renamed stage key orphans every lead sitting in that stage (leads store
+    // the stage key). Same guard buildFields() uses for field keys.
     const taken = new Set<string>();
+    for (const r of rows) if (r.key) taken.add(r.key);
     const out: PipelineStage[] = [];
-    for (const r of stages) {
-      if (!r.label.trim()) continue;
-      let key = r.key || slugifyKey(r.label) || "stage";
-      key = uniqueKey(key, taken);
-      taken.add(key);
+    for (const r of rows) {
+      // Existing stages keep their persisted key; only new stages (no r.key)
+      // get a freshly-slugged, de-duplicated key.
+      const key = r.key || uniqueKey(slugifyKey(r.label) || "stage", taken);
+      if (!r.key) taken.add(key);
       const st: PipelineStage = { key, label: r.label.trim(), type: r.type };
       if (r.color) st.color = r.color;
       const rd = Number(r.rottingDays);
