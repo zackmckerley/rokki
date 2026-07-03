@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type DragEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent } from "react";
 import { Plus, Pencil, Archive, Check, X, Loader2, GripVertical } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -398,6 +398,14 @@ function LogCell({
 }) {
   const [v, setV] = useState(value === 0 ? "" : String(value));
   const [busy, setBusy] = useState(false);
+  const editing = useRef(false);
+
+  // Re-sync to the authoritative value when it changes externally (a reload
+  // after a failed/normalized write), but never clobber what the user is
+  // actively typing.
+  useEffect(() => {
+    if (!editing.current) setV(value === 0 ? "" : String(value));
+  }, [value]);
 
   async function commit() {
     const n = v.trim() === "" ? 0 : Number(v);
@@ -422,7 +430,13 @@ function LogCell({
         value={v}
         disabled={busy}
         onChange={(e) => setV(e.target.value)}
-        onBlur={commit}
+        onFocus={() => {
+          editing.current = true;
+        }}
+        onBlur={() => {
+          editing.current = false;
+          void commit();
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         }}
