@@ -53,7 +53,15 @@ export function rsi(values: number[], period = 14): (number | null)[] {
   }
   let avgGain = gain / period;
   let avgLoss = loss / period;
-  out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+  // avgLoss === 0 with avgGain > 0 → maximally overbought (100). But a FLAT
+  // series has avgLoss === 0 AND avgGain === 0 (no movement) → neutral (50),
+  // not 100.
+  out[period] =
+    avgLoss === 0
+      ? avgGain === 0
+        ? 50
+        : 100
+      : 100 - 100 / (1 + avgGain / avgLoss);
 
   for (let i = period + 1; i < values.length; i++) {
     const d = values[i]! - values[i - 1]!;
@@ -61,7 +69,12 @@ export function rsi(values: number[], period = 14): (number | null)[] {
     const l = d < 0 ? -d : 0;
     avgGain = (avgGain * (period - 1) + g) / period;
     avgLoss = (avgLoss * (period - 1) + l) / period;
-    out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
+    out[i] =
+      avgLoss === 0
+        ? avgGain === 0
+          ? 50
+          : 100
+        : 100 - 100 / (1 + avgGain / avgLoss);
   }
   return out;
 }
