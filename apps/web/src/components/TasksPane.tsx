@@ -577,11 +577,13 @@ export function TasksPane({ ticker, projectId, currentUserId }: TasksPaneProps) 
     // not from the unmoved list.
     const next = [...tasks];
     const [moved] = next.splice(fromIdx, 1);
-    // Inserting after `toIdx`: drop AT the target's position when the
-    // user dragged downward, BEFORE the target when dragging upward.
-    // Visual convention: dropping ON a row places the source ABOVE
-    // it (matches the way the highlight reads as "I'm landing here").
-    const insertAt = fromIdx < toIdx ? toIdx : toIdx;
+    // Visual convention: dropping ON a row places the source ABOVE it.
+    // After splicing `moved` out at fromIdx, every index after it shifts
+    // left by one — so for a DOWNWARD drag the target now sits at toIdx-1
+    // and we insert there to land above it; for an UPWARD drag the target
+    // is unshifted at toIdx. (The old `fromIdx < toIdx ? toIdx : toIdx`
+    // was a dead ternary that dropped downward rows one slot too low.)
+    const insertAt = fromIdx < toIdx ? toIdx - 1 : toIdx;
     next.splice(insertAt, 0, moved);
 
     const movedIdx = next.findIndex((t) => t.id === sourceId);

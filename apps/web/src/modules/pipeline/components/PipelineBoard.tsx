@@ -232,8 +232,19 @@ export function PipelineBoard() {
     if (!stage) return;
     const before = leads.find((l) => l.id === leadId);
     if (before && before.stage === stageKey) return; // dropped on its own column
+    // Sync status to the destination stage type. Moving INTO won/lost sets it;
+    // moving back OUT of won/lost into an open-type stage must clear it back to
+    // "open" (previously it was left undefined, so a lead dragged out of Won
+    // stayed status:"won" forever). Leave dead/converted untouched — those are
+    // set by explicit actions, not by a drag.
     const status: LeadRow["status"] | undefined =
-      stage.type === "won" ? "won" : stage.type === "lost" ? "lost" : undefined;
+      stage.type === "won"
+        ? "won"
+        : stage.type === "lost"
+          ? "lost"
+          : before && (before.status === "won" || before.status === "lost")
+            ? "open"
+            : undefined;
     const prev = leads;
     setLeads((ls) =>
       ls.map((l) =>
