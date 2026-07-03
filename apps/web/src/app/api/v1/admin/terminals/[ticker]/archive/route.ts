@@ -60,7 +60,11 @@ async function handleDelete(request: NextRequest, { params }: Props) {
   if ("status" in gate) return gate;
   const { admin, userId: actorId } = gate;
 
-  const resolved = await resolveTerminalBySegment(admin, ticker);
+  // Restore must find the *archived* row — the default resolver filters
+  // archived terminals out, which made every restore 404.
+  const resolved = await resolveTerminalBySegment(admin, ticker, {
+    includeArchived: true,
+  });
   if (!resolved)
     return NextResponse.json(
       { errors: [{ code: "not_found", message: "Terminal not found" }] },

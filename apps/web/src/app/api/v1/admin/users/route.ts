@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import type { User } from "@supabase/supabase-js";
 import { requireAdmin } from "@/lib/admin-auth";
 import { emitEvent } from "@/lib/events";
 
@@ -38,20 +39,27 @@ async function handleGet(request: NextRequest) {
     0,
   );
 
-  // Supabase listUsers supports pagination but no search — we'd have to pull
-  // everything and filter. At the volume we expect for admin UX (hundreds),
-  // that's fine. If we outgrow it, switch to a direct SQL query on auth.users.
-  const { data, error } = await admin.auth.admin.listUsers({
-    perPage: 200,
-    page: 1,
-  });
-  if (error) {
-    return NextResponse.json(
-      { errors: [{ code: "internal_error", message: error.message }] },
-      { status: 500 },
-    );
+  // Supabase listUsers supports pagination but no search — we pull every page
+  // and filter/search/paginate in memory. Loop until a short page signals the
+  // end (previously this fetched only page 1, so any instance past 200 users
+  // silently dropped everyone after #200 from the table + search). The 10k cap
+  // is a safety bound far above expected admin volume.
+  const all: User[] = [];
+  for (let page = 1; page <= 50; page++) {
+    const { data, error } = await admin.auth.admin.listUsers({
+      perPage: 200,
+      page,
+    });
+    if (error) {
+      return NextResponse.json(
+        { errors: [{ code: "internal_error", message: error.message }] },
+        { status: 500 },
+      );
+    }
+    const batch = data?.users ?? [];
+    all.push(...batch);
+    if (batch.length < 200) break;
   }
-  const all = data?.users ?? [];
 
   // Join with profiles (admin flag, full_name). Pull the whole small table.
   const { data: profs } = await admin

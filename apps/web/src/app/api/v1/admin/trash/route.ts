@@ -212,14 +212,19 @@ async function handleGet(request: NextRequest) {
     for (const row of (profiles ?? []) as { user_id: string; full_name: string | null }[]) {
       if (row.full_name) actorMap.set(row.user_id, row.full_name);
     }
-    const { data: users } = await admin.auth.admin.listUsers({
-      perPage: Math.max(actorIds.length, 50),
-      page: 1,
-    });
-    for (const u of users?.users ?? []) {
-      if (actorIds.includes(u.id) && !actorMap.has(u.id) && u.email) {
-        actorMap.set(u.id, u.email);
-      }
+    // Fall back to the auth email for actors without a profile name. listUsers
+    // has no id filter — it returns an arbitrary first page of ALL users, so
+    // any actor past that page was never matched (blank "deleted by" once the
+    // instance grew past ~50 users). Look each missing actor up directly.
+    const missing = actorIds.filter((id) => !actorMap.has(id));
+    const fetched = await Promise.all(
+      missing.map((id) =>
+        admin.auth.admin.getUserById(id).catch(() => null),
+      ),
+    );
+    for (const res of fetched) {
+      const u = res?.data?.user;
+      if (u?.email) actorMap.set(u.id, u.email);
     }
   }
 
