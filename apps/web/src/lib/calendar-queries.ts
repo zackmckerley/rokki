@@ -142,15 +142,30 @@ function rangeForView(view: CalendarView, refDate: string): Range {
   if (view === "today") {
     end.setDate(end.getDate() + 1);
   } else if (view === "week") {
+    // Snap to the Sunday that starts the week so week columns align with the
+    // month grid (which is Sunday-first) instead of starting on refDate.
+    start.setDate(start.getDate() - start.getDay());
+    end.setTime(start.getTime());
     end.setDate(end.getDate() + 7);
   } else {
     start.setDate(1);
     end.setDate(1);
     end.setMonth(end.getMonth() + 1);
   }
+  // This code runs server-side, where the clock is UTC — so `start`/`end` are
+  // UTC-midnight boundaries. A viewer in a non-UTC zone has a local day that is
+  // shifted by their offset, so an evening event stored just past UTC-midnight
+  // would fall outside a tight window and never reach the client. Pad the event
+  // fetch by a day on each side (covers every real offset, ≤14h) and let the
+  // client re-bucket to the correct local day. Task date bounds stay exact —
+  // due_date is a bare calendar date with no timezone.
+  const eventStart = new Date(start);
+  eventStart.setDate(eventStart.getDate() - 1);
+  const eventEnd = new Date(end);
+  eventEnd.setDate(eventEnd.getDate() + 1);
   return {
-    startIso: start.toISOString(),
-    endIso: end.toISOString(),
+    startIso: eventStart.toISOString(),
+    endIso: eventEnd.toISOString(),
     startDate: start.toISOString().slice(0, 10),
     endDate: new Date(end.getTime() - 1).toISOString().slice(0, 10),
   };

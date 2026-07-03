@@ -23,6 +23,11 @@ import type {
   CalendarSource,
   CalendarView,
 } from "@/lib/calendar-queries";
+import {
+  localDateKey,
+  localizeItemDate,
+  weekStartLocal,
+} from "@/lib/calendar-local-date";
 
 interface Props {
   view: CalendarView;
@@ -54,12 +59,16 @@ export function CalendarClient({
   const router = useRouter();
   const searchParams = useSearchParams();
   const hiddenSet = useMemo(() => new Set(hiddenSourceIds), [hiddenSourceIds]);
+  // The loader runs on the server (UTC), so timed events arrive bucketed to
+  // their UTC calendar date. Re-key them to the browser's local day before any
+  // bucketing/filtering so evening events land on the correct day.
+  const localItems = useMemo(() => items.map(localizeItemDate), [items]);
   const selectedKey = searchParams.get("selected");
   const selectedItem = useMemo(() => {
     if (!selectedKey) return null;
     const [kind, id] = selectedKey.split(":");
-    return items.find((it) => it.kind === kind && it.id === id) ?? null;
-  }, [items, selectedKey]);
+    return localItems.find((it) => it.kind === kind && it.id === id) ?? null;
+  }, [localItems, selectedKey]);
 
   /** Push a new ?view= / ?date= / ?sources= / ?selected= without re-typing the rest. */
   function navigate(patch: {
@@ -178,7 +187,7 @@ export function CalendarClient({
       </header>
 
       {/* Body */}
-      {items.length === 0 ? (
+      {localItems.length === 0 ? (
         <EmptyState
           message={
             sources.length <= 1
@@ -187,11 +196,11 @@ export function CalendarClient({
           }
         />
       ) : view === "today" ? (
-        <DayView items={items} refDate={refDate} onOpen={openItem} />
+        <DayView items={localItems} refDate={refDate} onOpen={openItem} />
       ) : view === "week" ? (
-        <WeekView items={items} refDate={refDate} onOpen={openItem} />
+        <WeekView items={localItems} refDate={refDate} onOpen={openItem} />
       ) : (
-        <MonthView items={items} refDate={refDate} onOpen={openItem} />
+        <MonthView items={localItems} refDate={refDate} onOpen={openItem} />
       )}
 
       {/* Drawer */}
@@ -517,9 +526,18 @@ function positionEvents(items: CalendarItem[]): Positioned[] {
   type Working = { item: CalendarItem; startMin: number; endMin: number };
   const work: Working[] = sorted.map((it) => {
     const startMin = minutesIntoDay(it.when);
-    const endMin = it.ends_at
-      ? minutesIntoDay(it.ends_at)
-      : startMin + 30;
+    // minutesIntoDay discards the date, so an event ending after local midnight
+    // wraps to a tiny minute-of-day (endMin < startMin) → negative height + a
+    // broken overlap cluster. When ends_at falls on a later local day, treat it
+    // as filling the rest of this day's grid instead.
+    const crossesMidnight =
+      !!it.ends_at &&
+      localDateKey(new Date(it.ends_at)) !== localDateKey(new Date(it.when));
+    const endMin = crossesMidnight
+      ? DAY_GRID_END_HOUR * 60
+      : it.ends_at
+        ? minutesIntoDay(it.ends_at)
+        : startMin + 30;
     return {
       item: it,
       startMin: Math.max(startMin, DAY_GRID_START_HOUR * 60),
@@ -642,7 +660,10 @@ function WeekView({
   refDate: string;
   onOpen: (item: CalendarItem) => void;
 }) {
-  const days = useMemo(() => buildDayRange(refDate, 7), [refDate]);
+  // Snap to the Sunday that starts refDate's week so the 7 columns align with
+  // a calendar week (and with the Sunday-first month grid) instead of starting
+  // on whatever weekday the user happened to navigate to.
+  const days = useMemo(() => buildDayRange(weekStartLocal(refDate), 7), [refDate]);
   const itemsByDay = useMemo(() => groupByDate(items), [items]);
   const allDayByDay = useMemo(() => {
     const m = new Map<string, CalendarItem[]>();
@@ -1084,7 +1105,7 @@ function buildDayRange(
   return Array.from({ length: count }).map((_, i) => {
     const cur = new Date(start);
     cur.setDate(cur.getDate() + i);
-    const iso = cur.toISOString().slice(0, 10);
+    const iso = localDateKey(cur);
     const isToday = cur.getTime() === today.getTime();
     const fmt = cur.toLocaleDateString(undefined, {
       weekday: "short",
@@ -1117,7 +1138,7 @@ function buildMonthCells(refDate: string): MonthCell[] {
     const cur = new Date(start);
     cur.setDate(cur.getDate() + i);
     return {
-      date: cur.toISOString().slice(0, 10),
+      date: localDateKey(cur),
       dayOfMonth: cur.getDate(),
       month: cur.getMonth(),
       isToday: cur.getTime() === today.getTime(),
