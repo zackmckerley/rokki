@@ -198,6 +198,28 @@ END:VCARD`;
   });
 });
 
+describe("parseContact — birthday parsing (no fabricated day)", () => {
+  it("month + year with NO day does not invent one", () => {
+    expect(parseContact("Birthday: September 2024").birthday).toBeUndefined();
+    expect(parseContact("Birthday: May 1985").birthday).toBeUndefined();
+  });
+  it("Month D, YYYY parses fully", () => {
+    expect(parseContact("Birthday: March 9, 1985").birthday).toBe("1985-03-09");
+  });
+  it("year-less Month D → 0000 sentinel", () => {
+    expect(parseContact("Birthday: March 9").birthday).toBe("0000-03-09");
+  });
+});
+
+describe("parseContact — socials are per-platform", () => {
+  it("same handle on two platforms is not deduped", () => {
+    const r = parseContact("Instagram: john\nTwitter: john");
+    const kinds = r.socials.map((s) => s.kind).sort();
+    expect(r.socials).toHaveLength(2);
+    expect(kinds).toEqual(["instagram", "x"]);
+  });
+});
+
 describe("parseContact — dedupe + robustness", () => {
   it("dedupes repeated email/phone", () => {
     const r = parseContact(

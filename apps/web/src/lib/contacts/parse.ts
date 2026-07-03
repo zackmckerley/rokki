@@ -231,15 +231,21 @@ function parseBirthday(raw: string): string | undefined {
     const yyyy = m[3].length === 2 ? `19${m[3]}` : m[3];
     return `${yyyy}-${pad(m[1])}-${pad(m[2])}`;
   }
-  // "Month D, YYYY" / "D Month YYYY"
+  // "Month D, YYYY" / "Month D" (year-less) / "D Month YYYY"
   const months = "jan feb mar apr may jun jul aug sep oct nov dec".split(" ");
   const lower = s.toLowerCase();
   for (let i = 0; i < 12; i++) {
-    if (lower.includes(months[i])) {
-      const dm = /(\d{1,2})/.exec(s);
-      const ym = /(\d{4})/.exec(s);
-      if (dm && ym) return `${ym[1]}-${pad(String(i + 1))}-${pad(dm[1])}`;
-    }
+    if (!lower.includes(months[i])) continue;
+    const month = pad(String(i + 1));
+    const ym = /\b(\d{4})\b/.exec(s);
+    const year = ym ? ym[1] : "0000"; // 0000 = year-less sentinel (see format.ts)
+    // Find the day among the NON-year digits, so we never borrow the year's
+    // leading digits as a fabricated day ("September 2024" must not become the
+    // 20th). If there's no genuine day, don't invent one — skip the birthday.
+    const rest = ym ? s.replace(ym[0], " ") : s;
+    const dm = /\b(\d{1,2})\b/.exec(rest);
+    if (!dm) return undefined;
+    return `${year}-${month}-${pad(dm[1])}`;
   }
   return undefined;
 }
@@ -271,7 +277,15 @@ function pushPhone(out: ParsedContact, phone: string, label?: string) {
 }
 function pushSocial(out: ParsedContact, social: ContactSocial | null) {
   if (!social) return;
-  if (out.socials.some((s) => s.value.toLowerCase() === social.value.toLowerCase()))
+  // Dedupe per (platform, handle) — the same @handle is common across
+  // Instagram / X / etc. and must not collapse to one.
+  if (
+    out.socials.some(
+      (s) =>
+        s.kind === social.kind &&
+        s.value.toLowerCase() === social.value.toLowerCase(),
+    )
+  )
     return;
   out.socials.push(social);
 }
