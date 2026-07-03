@@ -142,7 +142,14 @@ export function DueChip({
       />
     );
   }
-  const d = new Date(date);
+  // Parse a date-only value to LOCAL midnight (not UTC) so the day-diff against
+  // local-midnight `today` is correct — new Date("2026-07-15") would be UTC
+  // midnight and shift the label/overdue by a day for non-UTC users. (Matches
+  // bucketByDue's date-only handling so the row chip and group header agree.)
+  const ymd = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+  const d = ymd
+    ? new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]))
+    : new Date(date);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const diff = Math.round((d.getTime() - today.getTime()) / 86_400_000);

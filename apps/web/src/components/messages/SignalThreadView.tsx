@@ -416,7 +416,15 @@ export function SignalThreadView({
   );
   const imageItems = useMemo(
     () =>
-      mediaItems.filter((x) => (x.att.content_type ?? "").startsWith("image/")),
+      // MUST match the isImage() predicate the clickable tiles use (content_type
+      // OR extension) — otherwise an extension-only image (null content_type,
+      // "photo.jpg") renders as a clickable tile but isn't in this index, so
+      // openLightbox's findIndex returns -1 and the click does nothing.
+      mediaItems.filter(
+        (x) =>
+          (x.att.content_type ?? "").startsWith("image/") ||
+          /\.(jpe?g|png|gif|webp|heic|heif|bmp|avif)$/i.test(x.att.filename ?? ""),
+      ),
     [mediaItems],
   );
   // Map to the ChatMessageList shape once per messages change — NOT on every

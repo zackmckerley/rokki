@@ -411,6 +411,22 @@ function DashboardTaskRow({
   const [override, setOverride] = useState<
     Partial<Pick<AssignedTask, "status" | "starred">>
   >({});
+  // Drop each optimistic override once the server prop catches up to it,
+  // otherwise a successful PATCH's override lingers forever and masks later
+  // server changes (e.g. another user starring the task) until unmount.
+  useEffect(() => {
+    setOverride((o) => {
+      let changed = false;
+      const next = { ...o };
+      for (const k of Object.keys(next) as (keyof typeof next)[]) {
+        if (task[k] === next[k]) {
+          delete next[k];
+          changed = true;
+        }
+      }
+      return changed ? next : o;
+    });
+  }, [task]);
   const merged: AssignedTask = { ...task, ...override };
 
   function rollback(patch: Partial<Pick<AssignedTask, "status" | "starred">>) {
