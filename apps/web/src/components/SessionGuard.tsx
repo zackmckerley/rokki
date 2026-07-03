@@ -30,6 +30,10 @@ export function SessionGuard() {
   useEffect(() => {
     const supabase = createClient();
     let active = true;
+    // Hoisted so the effect's OWN cleanup can remove the channel. Previously the
+    // removeChannel lived in a cleanup returned from the .then() callback, which
+    // React never sees — so every mount/unmount leaked a realtime channel.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     // Only subscribe if we're authenticated. Otherwise we'd open a channel
     // on the login page for no reason.
@@ -40,7 +44,7 @@ export function SessionGuard() {
       // Unique suffix so remounts don't collide with a still-closing
       // channel of the same name — same class of bug as useRealtimeTable.
       const channelName = `session-revocations:${userId}:${Date.now()}`;
-      const channel = supabase
+      channel = supabase
         .channel(channelName)
         .on(
           "postgres_changes" as never,
@@ -88,15 +92,11 @@ export function SessionGuard() {
                 : "info",
           });
         });
-
-      return () => {
-        active = false;
-        void supabase.removeChannel(channel);
-      };
     });
 
     return () => {
       active = false;
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [router]);
 

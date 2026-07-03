@@ -97,14 +97,18 @@ async function handlePost(_req: NextRequest, { params }: Props) {
     name: string;
     parent_path: string;
   };
-  for (const row of (descendants ?? []) as FolderDescendant[]) {
-    await admin.from("folders").insert({
-      terminal_id: src.terminal_id,
-      path: rewritePath(row.path),
-      name: row.name,
-      parent_path: rewritePath(row.parent_path),
-      created_by: user.id,
-    });
+  // One batched insert instead of N sequential round-trips. Folders use a
+  // string path/parent_path model (no parent-id FK), so insert order is
+  // irrelevant and a single array insert is referentially safe.
+  const folderRows = ((descendants ?? []) as FolderDescendant[]).map((row) => ({
+    terminal_id: src.terminal_id,
+    path: rewritePath(row.path),
+    name: row.name,
+    parent_path: rewritePath(row.parent_path),
+    created_by: user.id,
+  }));
+  if (folderRows.length > 0) {
+    await admin.from("folders").insert(folderRows);
   }
 
   // 3. Copy every file — blob copy server-side + new DB row
@@ -138,6 +142,10 @@ async function handlePost(_req: NextRequest, { params }: Props) {
     virus_scan_status: "pending" | "clean" | "infected" | "skipped";
     sha256: string | null;
   };
+  // Blob copies must stay per-object (storage has no bulk copy), but the DB
+  // rows are accumulated and inserted in ONE round-trip after the copy loop
+  // instead of one insert per file.
+  const fileRows = [];
   let copied = 0;
   let skippedInfected = 0;
   for (const f of (files ?? []) as FileToCopy[]) {
@@ -159,7 +167,7 @@ async function handlePost(_req: NextRequest, { params }: Props) {
       console.error("[folders.duplicate] copy error for", f.filename, e);
       continue;
     }
-    await admin.from("files").insert({
+    fileRows.push({
       id: newId,
       terminal_id: src.terminal_id,
       folder: rewritePath(f.folder),
@@ -180,6 +188,9 @@ async function handlePost(_req: NextRequest, { params }: Props) {
       uploaded_by: user.id,
     });
     copied++;
+  }
+  if (fileRows.length > 0) {
+    await admin.from("files").insert(fileRows);
   }
 
   await supabase

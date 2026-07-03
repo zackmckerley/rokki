@@ -72,21 +72,22 @@ async function handleGet() {
     nextUp = upcoming[0] ?? null;
   }
 
-  // Unread mentions in the last 24h.
-  const { count: mentionCount } = await supabase
-    .from("notifications")
-    .select("id", { count: "exact", head: true })
-    .eq("kind", "mention")
-    .gte("created_at", in24h.toISOString())
-    .is("read_at", null);
-
-  // Activity highlights in the last 24h (scoped by RLS).
-  const { data: acts } = await supabase
-    .from("activity")
-    .select("action, metadata, created_at")
-    .gte("created_at", in24h.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(100);
+  // Unread mentions + activity highlights in the last 24h — independent
+  // queries, so run them concurrently instead of one-after-the-other.
+  const [{ count: mentionCount }, { data: acts }] = await Promise.all([
+    supabase
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("kind", "mention")
+      .gte("created_at", in24h.toISOString())
+      .is("read_at", null),
+    supabase
+      .from("activity")
+      .select("action, metadata, created_at")
+      .gte("created_at", in24h.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(100),
+  ]);
   type Act = {
     action: string;
     metadata: Record<string, unknown> | null;
