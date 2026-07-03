@@ -127,6 +127,19 @@ export function DashboardPanels({
     );
   }
 
+  // If the maximized module stops being visible (minimized/hidden from the rail,
+  // a settings change, or a cross-device sync pull), drop out of maximize —
+  // otherwise every OTHER panel stays hiddenByMax and the whole area goes blank
+  // with no way to recover.
+  useEffect(() => {
+    if (
+      maximizedId &&
+      (!activeIds.has(maximizedId) || Boolean(mods?.minimized?.has(maximizedId)))
+    ) {
+      setMaximizedId(null);
+    }
+  }, [maximizedId, activeIds, mods]);
+
   // Track the lg breakpoint so the dynamic inline styles (panel flex,
   // grid template) only apply on desktop; mobile stays a natural stack.
   useEffect(() => {
@@ -310,6 +323,7 @@ export function DashboardPanels({
     setLayout(normalizeLayout(DEFAULT_DASH_LAYOUT));
     setWeights({ week: 1, tasks: 1, messages: 1, markets: 1, goals: 1, contacts: 1, pipeline: 1 });
     setCenterFrac(0.6);
+    setMaximizedId(null); // otherwise the grid stays maximized and the reset is invisible
   }
 
   /* ---------------- render helpers ---------------- */
