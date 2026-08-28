@@ -29,7 +29,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
   },
   "devDependencies": {
-    "@types/node": "^20.14.0",
+    "@types/node": "^25.9.3",
     "@vitest/ui": "^4.1.8",
     "knip": "^6.12.2",
     "prettier": "^3.3.3",
