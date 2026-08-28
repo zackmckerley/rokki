@@ -1,0 +1,51 @@
+name: Refresh sandbox from production
+
+# Copies the production Supabase project's data into the sandbox
+# (rokki-staging) Supabase project so the sandbox mirrors what real
+# users see, while writes stay isolated.
+#
+# Read from prod, write to sandbox. Never the other direction —
+# nothing here can touch prod data (the script only DELETEs and
+# INSERTs on the sandbox project ref).
+#
+# Tables copied are listed in scripts/mirror-prod-to-sandbox.mjs.
+# Sandbox-only tables (modules_catalog, goals_*, etc.) are not
+# touched — they don't exist on prod and stay as-is on sandbox.
+#
+# Triggers:
+#   - workflow_dispatch     manual one-off refresh
+#   - workflow_run          after a successful "Deploy production" run,
+#                           so sandbox auto-syncs whenever prod ships
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy production"]
+    types: [completed]
+
+concurrency:
+  group: refresh-sandbox
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    name: Mirror prod → sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # workflow_run fires regardless of the upstream workflow's
+    # conclusion. We only refresh after a SUCCESSFUL prod deploy
+    # (no point copying a half-shipped database state). Manual
+    # dispatches always run.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Run mirror script
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROD_REF: ${{ vars.SUPABASE_PROD_REF }}
+          SANDBOX_REF: ${{ vars.SUPABASE_STAGING_REF }}
+        run: node scripts/mirror-prod-to-sandbox.mjs
