@@ -21,7 +21,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("access_tokens")
-    // @ts-expect-error Phase 0 — update type collapses to never
     .update({
       revoked_at: new Date().toISOString(),
       revoked_reason: "user_revoked",

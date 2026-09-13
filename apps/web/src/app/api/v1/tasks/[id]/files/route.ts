@@ -88,7 +88,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("task_files")
-    // @ts-expect-error generic insert collapses to never
     .insert({
       task_id: taskId,
       file_id: body.file_id,
@@ -109,7 +108,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
   if (t) {
     await supabase
       .from("activity")
-      // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
       .insert({
         terminal_id: t.terminal_id,
         actor_id: user.id,

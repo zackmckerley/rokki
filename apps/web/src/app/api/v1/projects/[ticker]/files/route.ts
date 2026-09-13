@@ -133,7 +133,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const result = await supabase
     .from("files")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       id: fileId,
       terminal_id: project.id,
@@ -172,7 +171,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: project.id,
       space_id: project.space_id,

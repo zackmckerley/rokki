@@ -68,7 +68,6 @@ export function BriefingCard({
       };
       await supa
         .from("profiles")
-        // @ts-expect-error generic update collapses to never
         .update({ settings: next })
         .eq("user_id", user.id);
     } catch {

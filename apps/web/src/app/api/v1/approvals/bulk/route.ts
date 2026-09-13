@@ -136,7 +136,6 @@ async function handlePost(request: NextRequest) {
     const updateIds = toUpdate.map((r) => r.id);
     const { error: updateErr } = await supabase
       .from("approvals")
-      // @ts-expect-error Phase 0 generics
       .update({
         status: decision,
         note,

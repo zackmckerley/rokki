@@ -104,7 +104,6 @@ async function handlePost(request: NextRequest) {
 
   const insert = await supabase
     .from("comments")
-    // @ts-expect-error generated insert collapses to never
     .insert({
       entity_type: body.entity_type,
       entity_id: body.entity_id,

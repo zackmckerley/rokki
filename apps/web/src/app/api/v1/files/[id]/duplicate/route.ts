@@ -97,7 +97,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const result = await supabase
     .from("files")
-    // @ts-expect-error Phase 0 — insert type collapses to never
     .insert({
       id: newId,
       terminal_id: src.terminal_id,
@@ -126,7 +125,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — insert type collapses to never
     .insert({
       terminal_id: src.terminal_id,
       actor_id: user.id,

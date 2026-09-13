@@ -148,7 +148,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
   const now = new Date().toISOString();
   const { error } = await supabase
     .from("spaces")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .update({ archived_at: now })
     .eq("id", space.id);
   // The `cascade_space_archive` AFTER UPDATE trigger fans this out

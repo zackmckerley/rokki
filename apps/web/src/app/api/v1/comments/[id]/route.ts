@@ -71,7 +71,6 @@ async function handlePatch(request: NextRequest, { params }: Props) {
   const mentions = mentionedUserIds(content);
   const { data, error } = await supabase
     .from("comments")
-    // @ts-expect-error generic update payload collapses to never
     .update({
       body: content,
       mentions,
@@ -96,7 +95,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("comments")
-    // @ts-expect-error generic update payload collapses to never
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id)
     .eq("created_by", user.id);

@@ -25,7 +25,6 @@ async function handlePatch() {
 
   const { error } = await supabase
     .from("notifications")
-    // @ts-expect-error generic update payload collapses to never
     .update({ read_at: new Date().toISOString() })
     .is("read_at", null);
 

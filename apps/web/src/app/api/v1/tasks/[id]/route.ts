@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { withObservability } from "@/lib/observability";
 import { validateRecurrenceRule } from "@/lib/task-recurrence";
 import { normalizeEmails } from "@/lib/normalize-emails";
-import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
+import type { Json, TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -182,14 +182,13 @@ async function handlePatch(request: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: data.terminal_id,
       actor_id: user.id,
       action: body.status === "done" ? "task.complete" : "task.update",
       entity_type: "task",
       entity_id: id,
-      metadata: patch,
+      metadata: patch as Json,
     });
 
   return NextResponse.json({ data });
@@ -219,7 +218,6 @@ async function handleDelete(_request: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("tasks")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .update({
       deleted_at: new Date().toISOString(),
       deleted_by: user.id,
@@ -229,7 +227,6 @@ async function handleDelete(_request: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: project.terminal_id,
       actor_id: user.id,

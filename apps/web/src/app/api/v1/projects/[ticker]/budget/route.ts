@@ -55,7 +55,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { data, error } = await supabase
     .from("budget_items")
-    // @ts-expect-error Phase 0 generics
     .insert({
       terminal_id: terminal.id,
       category: body.category.slice(0, 80),

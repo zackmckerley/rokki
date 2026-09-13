@@ -56,7 +56,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
   // Log before DB removal so we keep the paper trail even after the row is gone
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: file.terminal_id,
       actor_id: user.id,

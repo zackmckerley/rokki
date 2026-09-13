@@ -195,7 +195,6 @@ async function handlePost(_req: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — insert type collapses to never
     .insert({
       terminal_id: src.terminal_id,
       actor_id: user.id,

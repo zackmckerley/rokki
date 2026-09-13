@@ -34,7 +34,6 @@ async function handlePost(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("signal_threads")
-    // @ts-expect-error generic upsert collapses to never
     .upsert(row, { onConflict: "user_id,signal_id" })
     .select("id")
     .single();

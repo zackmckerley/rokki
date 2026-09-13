@@ -22,7 +22,6 @@ export function TimezoneProbe({ currentTimezone }: { currentTimezone: string | n
       if (!user) return;
       await supa
         .from("profiles")
-        // @ts-expect-error generic update collapses to never
         .update({ timezone: detected })
         .eq("user_id", user.id);
     })();

@@ -1,5 +1,5 @@
 import { createClient as createAdminClient } from "@supabase/supabase-js";
-import type { Database } from "@rokki/db";
+import type { Database, Json } from "@rokki/db";
 import { enqueueWebhook } from "./webhooks";
 
 /**
@@ -51,7 +51,6 @@ export async function emitEvent(
   try {
     const { error } = await adminClient()
       .from("domain_events")
-      // @ts-expect-error generated insert collapses to never
       .insert({
         name,
         actor_id: args.actor_id ?? null,
@@ -60,7 +59,7 @@ export async function emitEvent(
         terminal_id: args.terminal_id ?? null,
         entity_type: args.entity_type ?? null,
         entity_id: args.entity_id ?? null,
-        payload: args.payload ?? {},
+        payload: (args.payload ?? {}) as Json,
       });
     if (error) console.error(`[events] ${name} failed:`, error.message);
   } catch (e) {

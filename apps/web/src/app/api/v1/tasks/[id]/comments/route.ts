@@ -105,7 +105,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
   const mentions = mentionedUserIds(content);
   const result = (await supabase
     .from("comments")
-    // @ts-expect-error generic insert collapses to never
     .insert({
       entity_type: "task",
       entity_id: taskId,

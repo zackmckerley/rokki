@@ -135,7 +135,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
     if (!already) {
       const { error } = await supabase
         .from("space_members")
-        // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
         .insert({ space_id: space.id, user_id: existing.id, role });
       if (error) return internal(error.message);
 
@@ -155,7 +154,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
   const token = crypto.randomBytes(32).toString("base64url");
   const { error: inviteErr } = await supabase
     .from("invites")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       email,
       space_id: space.id,

@@ -70,7 +70,6 @@ async function handlePatch(request: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("approvals")
-    // @ts-expect-error Phase 0 generics
     .update({
       status: body.status,
       note: body.note ?? null,

@@ -1,3 +1,4 @@
+import type { Json } from "@rokki/db";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { withObservability } from "@/lib/observability";
@@ -132,7 +133,6 @@ async function handlePatch(request: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — insert type collapses to never
     .insert({
     terminal_id: file.terminal_id,
     actor_id: user.id,
@@ -155,7 +155,7 @@ async function handlePatch(request: NextRequest, { params }: Props) {
       visibility_users_changed: patch.visibility_users
         ? (patch.visibility_users as string[]).length
         : undefined,
-    },
+    } as Json,
   });
 
   return NextResponse.json({ data: { id, ...patch } });
@@ -182,7 +182,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("files")
-    // @ts-expect-error Phase 0 — update type collapses to never
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
   if (error) {
@@ -192,7 +191,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — insert type collapses to never
     .insert({
     terminal_id: file.terminal_id,
     actor_id: user.id,

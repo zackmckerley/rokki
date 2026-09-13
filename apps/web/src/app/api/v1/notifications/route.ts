@@ -103,7 +103,6 @@ async function handlePatch(request: NextRequest) {
 
   let q = supabase
     .from("notifications")
-    // @ts-expect-error generic update payload collapses to never
     .update({ read_at: stamp });
   if (body.all) {
     q = q.is("read_at", null);

@@ -58,7 +58,6 @@ async function handlePatch(request: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("space_members")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .update({ role: body.role })
     .eq("space_id", space.id)
     .eq("user_id", userId);

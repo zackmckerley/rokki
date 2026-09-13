@@ -43,7 +43,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("task_dependencies")
-    // @ts-expect-error generic insert collapses to never
     .insert({ task_id: taskId, depends_on: body.depends_on });
   if (error) {
     if (error.code === "23505") return new NextResponse(null, { status: 204 });

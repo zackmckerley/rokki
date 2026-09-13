@@ -37,14 +37,12 @@ async function handlePost(_req: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("files")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .update({ deleted_at: null })
     .eq("id", id);
   if (error) return internal(error.message);
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: file.terminal_id,
       actor_id: user.id,

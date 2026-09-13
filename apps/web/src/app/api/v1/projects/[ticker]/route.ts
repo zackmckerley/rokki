@@ -140,7 +140,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("terminals")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .update({
       archived_at: new Date().toISOString(),
       status: "archived",
@@ -152,7 +151,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: terminal.id,
       space_id: terminal.space_id,

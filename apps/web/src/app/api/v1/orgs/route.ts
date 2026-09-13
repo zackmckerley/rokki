@@ -62,7 +62,6 @@ async function handlePost(request: NextRequest) {
 
   const result = await supabase
     .from("spaces")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({ slug: body.slug, name: body.name, created_by: user.id })
     .select("id, slug, name, created_at")
     .single();

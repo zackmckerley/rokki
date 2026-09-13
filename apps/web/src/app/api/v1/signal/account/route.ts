@@ -56,7 +56,6 @@ async function handleDelete() {
 
   const { error } = await supabase
     .from("signal_accounts")
-    // @ts-expect-error generic update collapses to never
     .update({ status: "unlinked" })
     .eq("user_id", user.id);
   if (error) return internal(error.message);
