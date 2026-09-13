@@ -63,7 +63,6 @@ async function handlePost(request: NextRequest) {
 
   const { data, error } = await supabase
     .from("access_tokens")
-    // @ts-expect-error Phase 0 — insert type collapses to never
     .insert({
       user_id: user.id,
       name: body.name.trim(),

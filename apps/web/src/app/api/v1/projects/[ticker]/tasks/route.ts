@@ -5,7 +5,7 @@ import { withObservability } from "@/lib/observability";
 import { validateRecurrenceRule } from "@/lib/task-recurrence";
 import { normalizeEmails } from "@/lib/normalize-emails";
 import { resolveTerminalBySegment } from "@/lib/resolve-terminal";
-import type { TaskRecurrenceRule, TaskStatus } from "@rokki/db";
+import type { Json, TaskRecurrenceRule, TaskStatus } from "@rokki/db";
 
 interface Props {
   params: Promise<{ ticker: string }>;
@@ -218,9 +218,11 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const result = await supabase
     .from("tasks")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: project.id,
+      // `ticker_seq` is NOT NULL with no default; 0 tells trg_task_ticker
+      // (set_task_ticker_seq) to allocate the next per-terminal sequence.
+      ticker_seq: 0,
       title: body.title.trim(),
       description: body.description ?? null,
       // Default = NULL (no priority) per the 2026-05-07 redesign.
@@ -229,7 +231,7 @@ async function handlePost(request: NextRequest, { params }: Props) {
       due_date: body.due_date ?? null,
       labels: body.tags ?? body.labels ?? [],
       status: body.status ?? "todo",
-      recurrence_rule: rule,
+      recurrence_rule: rule as unknown as Json,
       external_assignee_emails: externalEmails,
       created_by: user.id,
     })
@@ -274,13 +276,11 @@ async function handlePost(request: NextRequest, { params }: Props) {
     }));
     await supabase
       .from("task_assignees")
-      // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
       .upsert(rows, { onConflict: "task_id,user_id" });
   }
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: project.id,
       space_id: project.space_id,

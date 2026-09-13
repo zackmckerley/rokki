@@ -85,7 +85,6 @@ async function persist(density: Density) {
         {}) as Record<string, unknown>;
     await supa
       .from("profiles")
-      // @ts-expect-error generic update payload collapses to never
       .update({ settings: { ...currentSettings, density } })
       .eq("user_id", user.id);
   } catch {

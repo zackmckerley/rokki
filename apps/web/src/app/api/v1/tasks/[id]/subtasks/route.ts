@@ -49,7 +49,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const result = (await supabase
     .from("subtasks")
-    // @ts-expect-error generic insert collapses to never
     .insert({
       task_id: taskId,
       label: body.label.trim(),

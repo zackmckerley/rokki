@@ -25,7 +25,6 @@ async function handlePost(_request: NextRequest, { params }: Props) {
 
   const result = await supabase
     .from("tasks")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .update({ status: "done", completed_at: new Date().toISOString() })
     .eq("id", id)
     .select("id, terminal_id, status, completed_at")
@@ -41,7 +40,6 @@ async function handlePost(_request: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: data.terminal_id,
       actor_id: user.id,

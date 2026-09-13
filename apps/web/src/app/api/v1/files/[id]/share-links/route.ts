@@ -100,7 +100,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { data, error } = await supabase
     .from("share_links")
-    // @ts-expect-error generic insert collapses to never
     .insert({
       file_id: id,
       token,

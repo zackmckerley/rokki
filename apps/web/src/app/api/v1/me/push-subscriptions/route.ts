@@ -70,13 +70,11 @@ async function handlePost(request: NextRequest) {
   if (existing) {
     await supabase
       .from("push_subscriptions")
-      // @ts-expect-error Phase 0 generics
       .update({ last_seen_at: row.last_seen_at, p256dh: row.p256dh, auth_secret: row.auth_secret })
       .eq("id", (existing as { id: string }).id);
   } else {
     const { error } = await supabase
       .from("push_subscriptions")
-      // @ts-expect-error Phase 0 generics
       .insert(row);
     if (error)
       return NextResponse.json(

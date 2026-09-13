@@ -50,7 +50,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { data, error } = await supabase
     .from("vendors")
-    // @ts-expect-error Phase 0 generics
     .insert({
       space_id: space.id,
       name: body.name.slice(0, 200),

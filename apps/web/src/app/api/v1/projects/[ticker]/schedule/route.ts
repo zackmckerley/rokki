@@ -53,7 +53,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { data, error } = await supabase
     .from("schedule_phases")
-    // @ts-expect-error Phase 0 generics
     .insert({
       terminal_id: terminal.id,
       title: body.title.slice(0, 200),

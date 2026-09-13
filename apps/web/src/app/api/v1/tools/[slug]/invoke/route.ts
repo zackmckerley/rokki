@@ -183,7 +183,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
   if (versionId) {
     const inv = await supabase
       .from("tool_invocations")
-      // @ts-expect-error generated insert collapses to never
       .insert({
         tool_id: tool.id,
         tool_version_id: versionId,
@@ -273,7 +272,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
     const outputJson = JSON.stringify(result.output ?? null);
     await supabase
       .from("tool_invocations")
-      // @ts-expect-error generated update collapses to never
       .update({
         status: result.status,
         completed_at: new Date().toISOString(),
@@ -317,7 +315,6 @@ async function createApproval(
 ) {
   const { data, error } = await supabase
     .from("approvals")
-    // @ts-expect-error Phase 0 generics
     .insert({
       type,
       requester_id: userId,

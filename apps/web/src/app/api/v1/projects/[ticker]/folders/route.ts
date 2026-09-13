@@ -78,7 +78,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const result = await supabase
     .from("folders")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: project.id,
       path,

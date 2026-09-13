@@ -223,7 +223,9 @@ async function handleGet() {
   // Per-thread unread counts via two RLS-scoped RPCs (native + Signal), so the
   // inbox can badge unread without a query per thread.
   type UnreadRow = { thread_id: string; unread: number };
-  const rpcUnread = async (fn: string): Promise<UnreadRow[]> => {
+  const rpcUnread = async (
+    fn: Parameters<typeof supabase.rpc>[0],
+  ): Promise<UnreadRow[]> => {
     const { data } = await supabase.rpc(fn);
     return (data ?? []) as UnreadRow[];
   };
@@ -267,7 +269,6 @@ async function handlePost(request: NextRequest) {
     }
     const { data, error } = await supabase
       .from("message_threads")
-      // @ts-expect-error generic insert collapses to never
       .insert({ kind: "terminal", terminal_id: body.terminal_id })
       .select("id")
       .single();
@@ -303,7 +304,6 @@ async function handlePost(request: NextRequest) {
 
     const { data: thread, error: tErr } = await supabase
       .from("message_threads")
-      // @ts-expect-error generic insert collapses to never
       .insert({ kind: "dm" })
       .select("id")
       .single();
@@ -312,7 +312,6 @@ async function handlePost(request: NextRequest) {
 
     const { error: pErr } = await supabase
       .from("thread_participants")
-      // @ts-expect-error generic insert collapses to never
       .insert([
         { thread_id: threadId, user_id: user.id },
         { thread_id: threadId, user_id: body.other_user_id },

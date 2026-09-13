@@ -99,7 +99,6 @@ async function handlePatch(request: NextRequest, { params }: Props) {
     const next = bump ? bumpPatch(tool.current_version) : tool.current_version;
     const { error } = await supabase
       .from("tool_versions")
-      // @ts-expect-error generated insert collapses to never
       .insert({
         tool_id: tool.id,
         version: next,
@@ -153,7 +152,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("tools")
-    // @ts-expect-error generated update collapses to never
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", tool.id);
   if (error) return internal(error.message);

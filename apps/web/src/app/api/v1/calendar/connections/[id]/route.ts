@@ -26,7 +26,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("calendar_connections")
-    // @ts-expect-error generic update collapses to never
     .update({ revoked_at: new Date().toISOString() })
     .eq("id", id)
     .eq("user_id", user.id);

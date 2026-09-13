@@ -199,7 +199,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: folder.terminal_id,
       actor_id: user.id,

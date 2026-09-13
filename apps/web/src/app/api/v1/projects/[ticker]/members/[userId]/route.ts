@@ -61,7 +61,6 @@ async function handlePatch(request: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("terminal_members")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .update({ role: body.role })
     .eq("terminal_id", terminal.id)
     .eq("user_id", userId);
@@ -117,7 +116,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: terminal.id,
       space_id: terminal.space_id,

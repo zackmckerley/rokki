@@ -51,7 +51,6 @@ async function handleDelete(_req: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("drawing_annotations")
-    // @ts-expect-error generic update collapses to never
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", id);
   if (error) return internal(error.message);

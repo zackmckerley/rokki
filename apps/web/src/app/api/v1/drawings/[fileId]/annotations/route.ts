@@ -97,7 +97,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { data, error } = await supabase
     .from("drawing_annotations")
-    // @ts-expect-error generic insert collapses to never
     .insert({
       file_id: fileId,
       page_number,

@@ -28,7 +28,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { error } = await supabase
     .from("task_assignees")
-    // @ts-expect-error generic insert collapses to never
     .insert({
       task_id: taskId,
       user_id: body.user_id,

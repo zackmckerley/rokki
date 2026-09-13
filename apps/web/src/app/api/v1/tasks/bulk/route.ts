@@ -68,7 +68,6 @@ async function handlePost(request: NextRequest) {
         body.status === "done" ? new Date().toISOString() : null;
       const { data, error } = await supabase
         .from("tasks")
-        // @ts-expect-error generic update collapses to never
         .update({ status: body.status, completed_at })
         .in("id", ids)
         .select("id");
@@ -93,7 +92,6 @@ async function handlePost(request: NextRequest) {
         );
       const { data, error } = await supabase
         .from("tasks")
-        // @ts-expect-error generic update collapses to never
         .update({ priority: body.priority })
         .in("id", ids)
         .select("id");
@@ -144,7 +142,6 @@ async function handlePost(request: NextRequest) {
       );
       const result = await supabase
         .from("task_assignees")
-        // @ts-expect-error generic upsert collapses to never
         .upsert(rows, { onConflict: "task_id,user_id" })
         .select("task_id");
       if (result.error) return internal(result.error.message);

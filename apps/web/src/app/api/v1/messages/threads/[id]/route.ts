@@ -97,7 +97,6 @@ async function handleGet(_req: NextRequest, { params }: Props) {
   // Best effort: mark my last_read_at to "now" so unread counts drop.
   await supabase
     .from("thread_participants")
-    // @ts-expect-error generic update collapses to never
     .update({ last_read_at: new Date().toISOString() })
     .eq("thread_id", id)
     .eq("user_id", user.id);
@@ -120,7 +119,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   const { data, error } = await supabase
     .from("messages")
-    // @ts-expect-error generic insert collapses to never
     .insert({ thread_id: id, author_id: user.id, body: text })
     .select("id, created_at")
     .single();

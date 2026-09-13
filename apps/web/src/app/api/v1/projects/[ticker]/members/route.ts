@@ -151,7 +151,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
     if (!already) {
       await supabase
         .from("terminal_members")
-        // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
         .insert({
           terminal_id: project.id,
           user_id: existing.id,
@@ -161,7 +160,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
       await supabase
         .from("activity")
-        // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
         .insert({
           terminal_id: project.id,
           space_id: project.space_id,
@@ -179,7 +177,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
   const token = crypto.randomBytes(32).toString("base64url");
   const { error: inviteErr } = await supabase
     .from("invites")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       email,
       terminal_id: project.id,
@@ -213,7 +210,6 @@ async function handlePost(request: NextRequest, { params }: Props) {
 
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: project.id,
       space_id: project.space_id,

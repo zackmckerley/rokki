@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isValidTicker, suggestTicker, uniqueTicker } from "@/lib/ticker";
 import { emitEvent } from "@/lib/events";
-import type { ProjectStatus } from "@rokki/db";
+import type { Json, ProjectStatus } from "@rokki/db";
 
 import { withObservability } from "@/lib/observability";
 /**
@@ -90,15 +90,18 @@ async function handlePost(request: NextRequest) {
 
   const result = await supabase
     .from("terminals")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       space_id: body.space_id,
       ticker,
+      // `slug` is NOT NULL with no default; an empty string tells
+      // trg_terminals_default_slug (20260526010000_terminal_slug.sql) to
+      // derive it from `name` and de-duplicate within the space.
+      slug: "",
       name: body.name,
       description: body.description ?? null,
       type,
       status: body.status ?? "planning",
-      metadata: body.metadata ?? {},
+      metadata: (body.metadata ?? {}) as Json,
       created_by: user.id,
     })
     .select(
@@ -125,7 +128,6 @@ async function handlePost(request: NextRequest) {
   // Write activity for the ticker tape (service-role would be cleaner; skip on failure)
   await supabase
     .from("activity")
-    // @ts-expect-error Phase 0 — Database<generic> inference collapses to never
     .insert({
       terminal_id: data.id,
       space_id: data.space_id,
