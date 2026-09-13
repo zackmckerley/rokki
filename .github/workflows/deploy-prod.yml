@@ -80,6 +80,8 @@ jobs:
     # success when the upstream is skipped. always() reduces to "did the
     # prior jobs not fail or cancel" which matches our intent.
     if: ${{ always() && needs.preflight.result == 'success' && (needs.migrate-prod-db.result == 'success' || needs.migrate-prod-db.result == 'skipped') }}
+    permissions:
+      contents: write
     environment:
       name: production
       url: https://rokki.ai
