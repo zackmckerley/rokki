@@ -42,7 +42,6 @@ export default async function Image({ params }: Props): Promise<ImageResponse> {
       const { data: bySlug } = await admin
         .from("terminals")
         .select("name, slug")
-        // @ts-expect-error generated types haven't been regenerated
         // since the 20260526010000_terminal_slug migration added the
         // column.
         .eq("slug", segment)
