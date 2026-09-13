@@ -46,7 +46,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       const { data: bySlug } = await admin
         .from("terminals")
         .select("name")
-        // @ts-expect-error generated types haven't been regenerated
         // since the 20260526010000_terminal_slug migration added this
         // column; runtime is fine.
         .eq("slug", ticker)

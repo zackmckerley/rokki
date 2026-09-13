@@ -32,6 +32,22 @@ type ActivityAction =
   | "file.delete"
   | "file.download";
 
+/**
+ * Mirror of `rokki_slugify()` (supabase/migrations/20260526010000_terminal_slug.sql).
+ * `terminals.slug` is NOT NULL with no column default: the BEFORE INSERT
+ * trigger derives it from `name` when the caller omits it, but the generated
+ * Insert type can't see the trigger, so we pass the same derivation
+ * explicitly. The trigger still normalises and de-duplicates (-2, -3, …).
+ */
+function slugifyTerminalName(input: string): string {
+  const s = input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return s || "untitled";
+}
+
 async function logActivity(
   session: AuthedSession,
   project: ProjectRef,
@@ -1553,6 +1569,7 @@ const TOOLS: ToolDefinition[] = [
         .insert({
           space_id: org.id,
           ticker,
+          slug: slugifyTerminalName(name),
           name,
           description,
           type: "space",
