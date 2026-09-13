@@ -7,43 +7,8 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
-  }
   public: {
     Tables: {
-      _debug_error_log: {
-        Row: {
-          digest: string | null
-          id: string
-          message: string | null
-          recorded_at: string
-          stack: string | null
-          url: string | null
-          user_agent: string | null
-        }
-        Insert: {
-          digest?: string | null
-          id?: string
-          message?: string | null
-          recorded_at?: string
-          stack?: string | null
-          url?: string | null
-          user_agent?: string | null
-        }
-        Update: {
-          digest?: string | null
-          id?: string
-          message?: string | null
-          recorded_at?: string
-          stack?: string | null
-          url?: string | null
-          user_agent?: string | null
-        }
-        Relationships: []
-      }
       access_tokens: {
         Row: {
           created_at: string
@@ -657,6 +622,108 @@ export type Database = {
           },
         ]
       }
+      contacts: {
+        Row: {
+          addresses: Json
+          avatar_url: string | null
+          birthday: string | null
+          company: string | null
+          contact_types: string[]
+          created_at: string
+          custom: Json
+          do_not_contact: boolean
+          emails: Json
+          family: Json
+          first_name: string
+          id: string
+          last_name: string
+          license_no: string | null
+          middle_name: string | null
+          nickname: string | null
+          notes: string | null
+          owner_id: string
+          phones: Json
+          prefix: string | null
+          primary_email: string | null
+          primary_phone: string | null
+          socials: Json
+          source: string | null
+          status: string
+          strength: number
+          suffix: string | null
+          tags: string[]
+          title: string | null
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          addresses?: Json
+          avatar_url?: string | null
+          birthday?: string | null
+          company?: string | null
+          contact_types?: string[]
+          created_at?: string
+          custom?: Json
+          do_not_contact?: boolean
+          emails?: Json
+          family?: Json
+          first_name?: string
+          id?: string
+          last_name?: string
+          license_no?: string | null
+          middle_name?: string | null
+          nickname?: string | null
+          notes?: string | null
+          owner_id: string
+          phones?: Json
+          prefix?: string | null
+          primary_email?: string | null
+          primary_phone?: string | null
+          socials?: Json
+          source?: string | null
+          status?: string
+          strength?: number
+          suffix?: string | null
+          tags?: string[]
+          title?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          addresses?: Json
+          avatar_url?: string | null
+          birthday?: string | null
+          company?: string | null
+          contact_types?: string[]
+          created_at?: string
+          custom?: Json
+          do_not_contact?: boolean
+          emails?: Json
+          family?: Json
+          first_name?: string
+          id?: string
+          last_name?: string
+          license_no?: string | null
+          middle_name?: string | null
+          nickname?: string | null
+          notes?: string | null
+          owner_id?: string
+          phones?: Json
+          prefix?: string | null
+          primary_email?: string | null
+          primary_phone?: string | null
+          socials?: Json
+          source?: string | null
+          status?: string
+          strength?: number
+          suffix?: string | null
+          tags?: string[]
+          title?: string | null
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       domain_events: {
         Row: {
           actor_id: string | null
@@ -1087,6 +1154,241 @@ export type Database = {
           },
         ]
       }
+      goals_categories: {
+        Row: {
+          archived_at: string | null
+          color: string
+          created_at: string
+          display_order: number
+          icon: string | null
+          id: string
+          name: string
+          space_id: string | null
+          terminal_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          color: string
+          created_at?: string
+          display_order?: number
+          icon?: string | null
+          id?: string
+          name: string
+          space_id?: string | null
+          terminal_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          color?: string
+          created_at?: string
+          display_order?: number
+          icon?: string | null
+          id?: string
+          name?: string
+          space_id?: string | null
+          terminal_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_categories_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goals_categories_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goals_entries: {
+        Row: {
+          created_at: string
+          entry_date: string
+          goal_id: string
+          id: string
+          notes: string | null
+          source: string
+          updated_at: string
+          value: number
+        }
+        Insert: {
+          created_at?: string
+          entry_date: string
+          goal_id: string
+          id?: string
+          notes?: string | null
+          source?: string
+          updated_at?: string
+          value: number
+        }
+        Update: {
+          created_at?: string
+          entry_date?: string
+          goal_id?: string
+          id?: string
+          notes?: string | null
+          source?: string
+          updated_at?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_entries_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goals_goals: {
+        Row: {
+          archived_at: string | null
+          category_id: string
+          created_at: string
+          display_order: number
+          id: string
+          name: string
+          period: string
+          source_config: Json | null
+          source_type: string
+          target_period: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          category_id: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name: string
+          period?: string
+          source_config?: Json | null
+          source_type?: string
+          target_period?: string
+          unit: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          category_id?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          name?: string
+          period?: string
+          source_config?: Json | null
+          source_type?: string
+          target_period?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_goals_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "goals_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goals_settings: {
+        Row: {
+          created_at: string
+          default_category_id: string | null
+          id: string
+          setup_complete: boolean
+          space_id: string | null
+          terminal_id: string | null
+          updated_at: string
+          week_start_dow: number
+        }
+        Insert: {
+          created_at?: string
+          default_category_id?: string | null
+          id?: string
+          setup_complete?: boolean
+          space_id?: string | null
+          terminal_id?: string | null
+          updated_at?: string
+          week_start_dow?: number
+        }
+        Update: {
+          created_at?: string
+          default_category_id?: string | null
+          id?: string
+          setup_complete?: boolean
+          space_id?: string | null
+          terminal_id?: string | null
+          updated_at?: string
+          week_start_dow?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_settings_default_category_id_fkey"
+            columns: ["default_category_id"]
+            isOneToOne: false
+            referencedRelation: "goals_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goals_settings_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "goals_settings_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      goals_targets: {
+        Row: {
+          created_at: string
+          goal_id: string
+          id: string
+          valid_from: string
+          weekly_target: number
+        }
+        Insert: {
+          created_at?: string
+          goal_id: string
+          id?: string
+          valid_from: string
+          weekly_target: number
+        }
+        Update: {
+          created_at?: string
+          goal_id?: string
+          id?: string
+          valid_from?: string
+          weekly_target?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "goals_targets_goal_id_fkey"
+            columns: ["goal_id"]
+            isOneToOne: false
+            referencedRelation: "goals_goals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       impersonation_events: {
         Row: {
           admin_user_id: string
@@ -1119,6 +1421,83 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: []
+      }
+      interactions: {
+        Row: {
+          body: string
+          contact_id: string | null
+          created_at: string
+          created_by: string
+          done_at: string | null
+          due_at: string | null
+          id: string
+          lead_id: string | null
+          occurred_at: string
+          owner_id: string
+          space_id: string | null
+          terminal_id: string | null
+          type: string
+        }
+        Insert: {
+          body?: string
+          contact_id?: string | null
+          created_at?: string
+          created_by: string
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id?: string | null
+          occurred_at?: string
+          owner_id: string
+          space_id?: string | null
+          terminal_id?: string | null
+          type?: string
+        }
+        Update: {
+          body?: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string
+          done_at?: string | null
+          due_at?: string | null
+          id?: string
+          lead_id?: string | null
+          occurred_at?: string
+          owner_id?: string
+          space_id?: string | null
+          terminal_id?: string | null
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interactions_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interactions_lead_fk"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "pl_leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interactions_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "interactions_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       invites: {
         Row: {
@@ -1312,169 +1691,306 @@ export type Database = {
           },
         ]
       }
-      modules_catalog: {
+      mkt_alerts: {
         Row: {
-          slug: string
-          name: string
-          description: string
-          icon: string | null
-          scopes: string[]
-          vertical: string | null
-          enabled_by_default: boolean
+          active: boolean
+          condition: string
           created_at: string
+          id: string
+          last_triggered_at: string | null
+          note: string | null
+          symbol: string
+          threshold: number
+          user_id: string
         }
         Insert: {
-          slug: string
-          name: string
-          description: string
-          icon?: string | null
-          scopes: string[]
-          vertical?: string | null
-          enabled_by_default?: boolean
+          active?: boolean
+          condition: string
           created_at?: string
+          id?: string
+          last_triggered_at?: string | null
+          note?: string | null
+          symbol: string
+          threshold: number
+          user_id: string
         }
         Update: {
-          slug?: string
-          name?: string
-          description?: string
-          icon?: string | null
-          scopes?: string[]
-          vertical?: string | null
-          enabled_by_default?: boolean
+          active?: boolean
+          condition?: string
           created_at?: string
+          id?: string
+          last_triggered_at?: string | null
+          note?: string | null
+          symbol?: string
+          threshold?: number
+          user_id?: string
         }
         Relationships: []
       }
-      space_modules: {
+      mkt_instruments: {
         Row: {
-          id: string
-          space_id: string
-          slug: string
-          display_order: number
-          config: Json
-          installed_by: string
-          installed_at: string
-          archived_at: string | null
+          currency: string
+          exchange: string | null
+          name: string
+          symbol: string
+          type: string
+          updated_at: string
         }
         Insert: {
-          id?: string
-          space_id: string
-          slug: string
-          display_order?: number
-          config?: Json
-          installed_by: string
-          installed_at?: string
-          archived_at?: string | null
+          currency?: string
+          exchange?: string | null
+          name?: string
+          symbol: string
+          type?: string
+          updated_at?: string
         }
         Update: {
+          currency?: string
+          exchange?: string | null
+          name?: string
+          symbol?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      mkt_lots: {
+        Row: {
+          created_at: string
+          fees: number
+          id: string
+          note: string | null
+          portfolio_id: string
+          price: number
+          quantity: number
+          side: string
+          symbol: string
+          trade_date: string
+        }
+        Insert: {
+          created_at?: string
+          fees?: number
           id?: string
-          space_id?: string
-          slug?: string
-          display_order?: number
-          config?: Json
-          installed_by?: string
-          installed_at?: string
-          archived_at?: string | null
+          note?: string | null
+          portfolio_id: string
+          price: number
+          quantity: number
+          side: string
+          symbol: string
+          trade_date: string
+        }
+        Update: {
+          created_at?: string
+          fees?: number
+          id?: string
+          note?: string | null
+          portfolio_id?: string
+          price?: number
+          quantity?: number
+          side?: string
+          symbol?: string
+          trade_date?: string
         }
         Relationships: [
           {
-            foreignKeyName: "space_modules_space_id_fkey"
+            foreignKeyName: "mkt_lots_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "mkt_portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mkt_portfolios: {
+        Row: {
+          archived_at: string | null
+          base_currency: string
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+          space_id: string | null
+          terminal_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          base_currency?: string
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+          space_id?: string | null
+          terminal_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          base_currency?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+          space_id?: string | null
+          terminal_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_portfolios_space_id_fkey"
             columns: ["space_id"]
             isOneToOne: false
             referencedRelation: "spaces"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "space_modules_slug_fkey"
-            columns: ["slug"]
-            isOneToOne: false
-            referencedRelation: "modules_catalog"
-            referencedColumns: ["slug"]
-          },
-        ]
-      }
-      terminal_modules: {
-        Row: {
-          id: string
-          terminal_id: string
-          slug: string
-          display_order: number
-          config: Json
-          installed_by: string
-          installed_at: string
-          archived_at: string | null
-        }
-        Insert: {
-          id?: string
-          terminal_id: string
-          slug: string
-          display_order?: number
-          config?: Json
-          installed_by: string
-          installed_at?: string
-          archived_at?: string | null
-        }
-        Update: {
-          id?: string
-          terminal_id?: string
-          slug?: string
-          display_order?: number
-          config?: Json
-          installed_by?: string
-          installed_at?: string
-          archived_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "terminal_modules_terminal_id_fkey"
+            foreignKeyName: "mkt_portfolios_terminal_id_fkey"
             columns: ["terminal_id"]
             isOneToOne: false
             referencedRelation: "terminals"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "terminal_modules_slug_fkey"
-            columns: ["slug"]
-            isOneToOne: false
-            referencedRelation: "modules_catalog"
-            referencedColumns: ["slug"]
-          },
         ]
       }
-      user_module_pins: {
+      mkt_quote_cache: {
         Row: {
-          user_id: string
-          scope_kind: string
-          scope_id: string | null
-          slug: string
-          display_order: number
-          fn_key: number | null
+          fetched_at: string
+          payload: Json
+          provider: string
+          symbol: string
         }
         Insert: {
-          user_id: string
-          scope_kind: string
-          scope_id?: string | null
-          slug: string
-          display_order: number
-          fn_key?: number | null
+          fetched_at?: string
+          payload: Json
+          provider: string
+          symbol: string
         }
         Update: {
-          user_id?: string
-          scope_kind?: string
-          scope_id?: string | null
-          slug?: string
+          fetched_at?: string
+          payload?: Json
+          provider?: string
+          symbol?: string
+        }
+        Relationships: []
+      }
+      mkt_watchlist_symbols: {
+        Row: {
+          added_at: string
+          display_order: number
+          id: string
+          note: string | null
+          symbol: string
+          watchlist_id: string
+        }
+        Insert: {
+          added_at?: string
           display_order?: number
-          fn_key?: number | null
+          id?: string
+          note?: string | null
+          symbol: string
+          watchlist_id: string
+        }
+        Update: {
+          added_at?: string
+          display_order?: number
+          id?: string
+          note?: string | null
+          symbol?: string
+          watchlist_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "user_module_pins_slug_fkey"
-            columns: ["slug"]
+            foreignKeyName: "mkt_watchlist_symbols_watchlist_id_fkey"
+            columns: ["watchlist_id"]
             isOneToOne: false
-            referencedRelation: "modules_catalog"
-            referencedColumns: ["slug"]
+            referencedRelation: "mkt_watchlists"
+            referencedColumns: ["id"]
           },
         ]
+      }
+      mkt_watchlists: {
+        Row: {
+          archived_at: string | null
+          created_at: string
+          created_by: string
+          display_order: number
+          id: string
+          name: string
+          space_id: string | null
+          terminal_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          archived_at?: string | null
+          created_at?: string
+          created_by: string
+          display_order?: number
+          id?: string
+          name: string
+          space_id?: string | null
+          terminal_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          archived_at?: string | null
+          created_at?: string
+          created_by?: string
+          display_order?: number
+          id?: string
+          name?: string
+          space_id?: string | null
+          terminal_id?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mkt_watchlists_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "mkt_watchlists_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      modules_catalog: {
+        Row: {
+          created_at: string
+          description: string
+          enabled_by_default: boolean
+          icon: string | null
+          name: string
+          scopes: string[]
+          slug: string
+          vertical: string | null
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          enabled_by_default?: boolean
+          icon?: string | null
+          name: string
+          scopes: string[]
+          slug: string
+          vertical?: string | null
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          enabled_by_default?: boolean
+          icon?: string | null
+          name?: string
+          scopes?: string[]
+          slug?: string
+          vertical?: string | null
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -1587,6 +2103,180 @@ export type Database = {
             columns: ["terminal_id"]
             isOneToOne: false
             referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pl_lead_contacts: {
+        Row: {
+          added_at: string
+          contact_id: string
+          lead_id: string
+          role: string | null
+        }
+        Insert: {
+          added_at?: string
+          contact_id: string
+          lead_id: string
+          role?: string | null
+        }
+        Update: {
+          added_at?: string
+          contact_id?: string
+          lead_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pl_lead_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pl_lead_contacts_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "pl_leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pl_leads: {
+        Row: {
+          attributes: Json
+          created_at: string
+          created_by: string | null
+          dead_reason: string | null
+          id: string
+          last_activity_at: string
+          lat: number | null
+          lng: number | null
+          name: string
+          next_follow_up_at: string | null
+          owner_id: string | null
+          pipeline_id: string
+          priority: number
+          promoted_terminal_id: string | null
+          source: string | null
+          space_id: string
+          stage: string
+          status: string
+          subtitle: string | null
+          updated_at: string
+        }
+        Insert: {
+          attributes?: Json
+          created_at?: string
+          created_by?: string | null
+          dead_reason?: string | null
+          id?: string
+          last_activity_at?: string
+          lat?: number | null
+          lng?: number | null
+          name: string
+          next_follow_up_at?: string | null
+          owner_id?: string | null
+          pipeline_id: string
+          priority?: number
+          promoted_terminal_id?: string | null
+          source?: string | null
+          space_id: string
+          stage?: string
+          status?: string
+          subtitle?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attributes?: Json
+          created_at?: string
+          created_by?: string | null
+          dead_reason?: string | null
+          id?: string
+          last_activity_at?: string
+          lat?: number | null
+          lng?: number | null
+          name?: string
+          next_follow_up_at?: string | null
+          owner_id?: string | null
+          pipeline_id?: string
+          priority?: number
+          promoted_terminal_id?: string | null
+          source?: string | null
+          space_id?: string
+          stage?: string
+          status?: string
+          subtitle?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pl_leads_pipeline_id_fkey"
+            columns: ["pipeline_id"]
+            isOneToOne: false
+            referencedRelation: "pl_pipelines"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pl_leads_promoted_terminal_id_fkey"
+            columns: ["promoted_terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pl_leads_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pl_pipelines: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          fields: Json
+          fields_customized: boolean
+          id: string
+          kind: string
+          name: string
+          position: number
+          space_id: string
+          stages: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          fields?: Json
+          fields_customized?: boolean
+          id?: string
+          kind?: string
+          name: string
+          position?: number
+          space_id: string
+          stages?: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          fields?: Json
+          fields_customized?: boolean
+          id?: string
+          kind?: string
+          name?: string
+          position?: number
+          space_id?: string
+          stages?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pl_pipelines_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
             referencedColumns: ["id"]
           },
         ]
@@ -1948,6 +2638,36 @@ export type Database = {
         }
         Relationships: []
       }
+      signal_contacts: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          name: string | null
+          signal_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          name?: string | null
+          signal_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string | null
+          signal_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       signal_messages: {
         Row: {
           attachments: Json
@@ -1962,6 +2682,8 @@ export type Database = {
           reactions: Json
           sender: string | null
           sent_at: string
+          status: string
+          status_at: string | null
           thread_id: string
           user_id: string
         }
@@ -1978,6 +2700,8 @@ export type Database = {
           reactions?: Json
           sender?: string | null
           sent_at?: string
+          status?: string
+          status_at?: string | null
           thread_id: string
           user_id: string
         }
@@ -1994,6 +2718,8 @@ export type Database = {
           reactions?: Json
           sender?: string | null
           sent_at?: string
+          status?: string
+          status_at?: string | null
           thread_id?: string
           user_id?: string
         }
@@ -2013,6 +2739,7 @@ export type Database = {
           id: string
           kind: string
           last_message_at: string | null
+          last_read_at: string | null
           muted: boolean
           signal_id: string
           sync_enabled: boolean
@@ -2025,6 +2752,7 @@ export type Database = {
           id?: string
           kind: string
           last_message_at?: string | null
+          last_read_at?: string | null
           muted?: boolean
           signal_id: string
           sync_enabled?: boolean
@@ -2037,6 +2765,7 @@ export type Database = {
           id?: string
           kind?: string
           last_message_at?: string | null
+          last_read_at?: string | null
           muted?: boolean
           signal_id?: string
           sync_enabled?: boolean
@@ -2083,6 +2812,54 @@ export type Database = {
           },
         ]
       }
+      space_modules: {
+        Row: {
+          archived_at: string | null
+          config: Json
+          display_order: number
+          id: string
+          installed_at: string
+          installed_by: string
+          slug: string
+          space_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          config?: Json
+          display_order?: number
+          id?: string
+          installed_at?: string
+          installed_by: string
+          slug: string
+          space_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          config?: Json
+          display_order?: number
+          id?: string
+          installed_at?: string
+          installed_by?: string
+          slug?: string
+          space_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "space_modules_slug_fkey"
+            columns: ["slug"]
+            isOneToOne: false
+            referencedRelation: "modules_catalog"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "space_modules_space_id_fkey"
+            columns: ["space_id"]
+            isOneToOne: false
+            referencedRelation: "spaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spaces: {
         Row: {
           archived_at: string | null
@@ -2090,7 +2867,9 @@ export type Database = {
           created_by: string
           description: string | null
           id: string
+          is_personal: boolean
           name: string
+          personal_owner_id: string | null
           search_vector: unknown
           settings: Json
           slug: string
@@ -2102,7 +2881,9 @@ export type Database = {
           created_by: string
           description?: string | null
           id?: string
+          is_personal?: boolean
           name: string
+          personal_owner_id?: string | null
           search_vector?: unknown
           settings?: Json
           slug: string
@@ -2114,7 +2895,9 @@ export type Database = {
           created_by?: string
           description?: string | null
           id?: string
+          is_personal?: boolean
           name?: string
+          personal_owner_id?: string | null
           search_vector?: unknown
           settings?: Json
           slug?: string
@@ -2308,6 +3091,7 @@ export type Database = {
           recurrence_parent_id: string | null
           recurrence_rule: Json | null
           search_vector: unknown
+          starred: boolean
           status: Database["public"]["Enums"]["task_status"]
           status_thread_id: string | null
           terminal_id: string
@@ -2335,6 +3119,7 @@ export type Database = {
           recurrence_parent_id?: string | null
           recurrence_rule?: Json | null
           search_vector?: unknown
+          starred?: boolean
           status?: Database["public"]["Enums"]["task_status"]
           status_thread_id?: string | null
           terminal_id: string
@@ -2362,6 +3147,7 @@ export type Database = {
           recurrence_parent_id?: string | null
           recurrence_rule?: Json | null
           search_vector?: unknown
+          starred?: boolean
           status?: Database["public"]["Enums"]["task_status"]
           status_thread_id?: string | null
           terminal_id?: string
@@ -2386,6 +3172,42 @@ export type Database = {
           },
           {
             foreignKeyName: "tasks_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      terminal_contacts: {
+        Row: {
+          added_at: string
+          contact_id: string
+          role: string | null
+          terminal_id: string
+        }
+        Insert: {
+          added_at?: string
+          contact_id: string
+          role?: string | null
+          terminal_id: string
+        }
+        Update: {
+          added_at?: string
+          contact_id?: string
+          role?: string | null
+          terminal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terminal_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "terminal_contacts_terminal_id_fkey"
             columns: ["terminal_id"]
             isOneToOne: false
             referencedRelation: "terminals"
@@ -2425,6 +3247,54 @@ export type Database = {
           },
         ]
       }
+      terminal_modules: {
+        Row: {
+          archived_at: string | null
+          config: Json
+          display_order: number
+          id: string
+          installed_at: string
+          installed_by: string
+          slug: string
+          terminal_id: string
+        }
+        Insert: {
+          archived_at?: string | null
+          config?: Json
+          display_order?: number
+          id?: string
+          installed_at?: string
+          installed_by: string
+          slug: string
+          terminal_id: string
+        }
+        Update: {
+          archived_at?: string | null
+          config?: Json
+          display_order?: number
+          id?: string
+          installed_at?: string
+          installed_by?: string
+          slug?: string
+          terminal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "terminal_modules_slug_fkey"
+            columns: ["slug"]
+            isOneToOne: false
+            referencedRelation: "modules_catalog"
+            referencedColumns: ["slug"]
+          },
+          {
+            foreignKeyName: "terminal_modules_terminal_id_fkey"
+            columns: ["terminal_id"]
+            isOneToOne: false
+            referencedRelation: "terminals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       terminals: {
         Row: {
           archived_at: string | null
@@ -2435,6 +3305,7 @@ export type Database = {
           metadata: Json
           name: string
           search_vector: unknown
+          slug: string
           space_id: string
           status: Database["public"]["Enums"]["project_status"]
           ticker: string
@@ -2450,6 +3321,7 @@ export type Database = {
           metadata?: Json
           name: string
           search_vector?: unknown
+          slug: string
           space_id: string
           status?: Database["public"]["Enums"]["project_status"]
           ticker: string
@@ -2465,6 +3337,7 @@ export type Database = {
           metadata?: Json
           name?: string
           search_vector?: unknown
+          slug?: string
           space_id?: string
           status?: Database["public"]["Enums"]["project_status"]
           ticker?: string
@@ -2763,6 +3636,41 @@ export type Database = {
           },
         ]
       }
+      user_module_pins: {
+        Row: {
+          display_order: number
+          fn_key: number | null
+          scope_id: string
+          scope_kind: string
+          slug: string
+          user_id: string
+        }
+        Insert: {
+          display_order: number
+          fn_key?: number | null
+          scope_id: string
+          scope_kind: string
+          slug: string
+          user_id: string
+        }
+        Update: {
+          display_order?: number
+          fn_key?: number | null
+          scope_id?: string
+          scope_kind?: string
+          slug?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_module_pins_slug_fkey"
+            columns: ["slug"]
+            isOneToOne: false
+            referencedRelation: "modules_catalog"
+            referencedColumns: ["slug"]
+          },
+        ]
+      }
       user_views: {
         Row: {
           columns: Json
@@ -3027,6 +3935,13 @@ export type Database = {
         Returns: boolean
       }
       can_see_thread: { Args: { _thread: string }; Returns: boolean }
+      contact_link_suggestions: {
+        Args: never
+        Returns: {
+          contact_id: string
+        }[]
+      }
+      ensure_self_contact: { Args: { p_user_id: string }; Returns: undefined }
       explain_slow_query: {
         Args: { _query: string }
         Returns: {
@@ -3044,11 +3959,32 @@ export type Database = {
           total_exec_time: number
         }[]
       }
+      goals_add_entry: {
+        Args: { p_delta: number; p_entry_date: string; p_goal_id: string }
+        Returns: number
+      }
       has_emergency_access: { Args: never; Returns: boolean }
       is_space_admin: { Args: { _org: string }; Returns: boolean }
       is_space_member: { Args: { _org: string }; Returns: boolean }
       is_terminal_manager: { Args: { _project: string }; Returns: boolean }
       is_terminal_member: { Args: { _project: string }; Returns: boolean }
+      link_contact_by_email: {
+        Args: { p_contact_id: string }
+        Returns: boolean
+      }
+      link_contacts_for_membership: {
+        Args: { p_space_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      promote_lead_to_terminal: {
+        Args: { p_lead_id: string; p_ticker: string }
+        Returns: {
+          out_name: string
+          out_ticker: string
+          terminal_id: string
+        }[]
+      }
+      provision_personal_space: { Args: { p_user_id: string }; Returns: string }
       purge_expired_trash: {
         Args: { _cutoff_days?: number }
         Returns: {
@@ -3067,6 +4003,21 @@ export type Database = {
       }
       rate_limit_cleanup: { Args: never; Returns: number }
       reset_slow_queries: { Args: never; Returns: boolean }
+      rokki_signal_unread_counts: {
+        Args: never
+        Returns: {
+          thread_id: string
+          unread: number
+        }[]
+      }
+      rokki_slugify: { Args: { input: string }; Returns: string }
+      rokki_unread_counts: {
+        Args: never
+        Returns: {
+          thread_id: string
+          unread: number
+        }[]
+      }
       search_chunks_fts: {
         Args: { _limit?: number; _project?: string; _query: string }
         Returns: {
@@ -3128,6 +4079,7 @@ export type Database = {
         Returns: Database["public"]["Enums"]["terminal_role"]
       }
       unaccent: { Args: { "": string }; Returns: string }
+      unlink_contact: { Args: { p_contact_id: string }; Returns: undefined }
     }
     Enums: {
       activity_action:
@@ -3211,12 +4163,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3240,11 +4192,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3265,11 +4217,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3290,11 +4242,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3307,11 +4259,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -3395,3 +4347,4 @@ export const Constants = {
     },
   },
 } as const
+
