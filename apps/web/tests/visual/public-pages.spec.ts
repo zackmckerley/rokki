@@ -60,8 +60,12 @@ test.describe("public pages — visual", () => {
 
   test("404 page", async ({ page }) => {
     // Hit a route that definitely doesn't resolve — the App Router
-    // renders not-found.tsx for unmatched paths.
-    await page.goto("/this-route-does-not-exist-xyz123");
+    // renders not-found.tsx for unmatched paths. It has to live under a
+    // prefix the auth middleware treats as public (`/auth/` — see
+    // lib/supabase/middleware.ts `isPublic`); an unknown path anywhere
+    // else is redirected to /login before Next can render the 404, and
+    // the heading assertion below fails with "element(s) not found".
+    await page.goto("/auth/this-route-does-not-exist-xyz123");
     await expect(
       page.getByRole("heading", { name: /exist or was moved/i }),
     ).toBeVisible();
@@ -80,6 +84,14 @@ test.describe("public pages — visual", () => {
     if (!r || r.status() === 404) {
       test.skip(true, "no synthetic /__test/error route — add one to enable");
     }
+    // Without a session the middleware redirects to /login. Wait for the
+    // form to hydrate before snapshotting; screenshotting on `load`
+    // alone captured the nebula background with no card (flaky).
+    if (new URL(page.url()).pathname === "/login") {
+      await expect(
+        page.getByRole("textbox", { name: /email or username/i }),
+      ).toBeVisible();
+    }
     await expect(page).toHaveScreenshot("500.png", { fullPage: true });
   });
 
@@ -90,6 +102,11 @@ test.describe("public pages — visual", () => {
     // forbidden landing, snapshot it.
     await page.goto("/?error=admin_only");
     await page.waitForLoadState("load");
+    // Same hydration wait as the 500 test — the login card renders
+    // client-side after the nebula background.
+    await expect(
+      page.getByRole("textbox", { name: /email or username/i }),
+    ).toBeVisible();
     await expect(page).toHaveScreenshot("forbidden.png", { fullPage: true });
   });
 });
