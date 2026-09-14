@@ -34,7 +34,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "geist": "^1.7.2",
-    "lucide-react": "^0.446.0",
+    "lucide-react": "^1.44.0",
     "next": "15.5.25",
     "pdfjs-dist": "^6.3.289",
     "qrcode.react": "^4.2.0",
