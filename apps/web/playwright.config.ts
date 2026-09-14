@@ -67,6 +67,14 @@ export default defineConfig({
         // baseline doesn't flip when an OS preference changes.
         colorScheme: "dark",
         deviceScaleFactor: 1,
+        // The login page paints a looping nebula <video>. Playwright's
+        // `animations: "disabled"` freezes CSS animations but NOT video
+        // playback, so each screenshot captured whichever frame happened
+        // to be decoding — login snapshots passed or failed by luck
+        // (~23% pixel diffs). LoginBackground honours
+        // `prefers-reduced-motion: reduce` by pausing the video on its
+        // first frame, which makes every capture identical.
+        reducedMotion: "reduce",
       },
     },
   ],
