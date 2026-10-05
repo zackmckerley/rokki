@@ -19,8 +19,8 @@
     "clean": "rm -rf .next .turbo"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1130.0",
-    "@aws-sdk/s3-request-presigner": "^3.1130.0",
+    "@aws-sdk/client-s3": "^3.1145.0",
+    "@aws-sdk/s3-request-presigner": "^3.1145.0",
     "@axiomhq/js": "^1.6.0",
     "@codemirror/lang-javascript": "^6.2.5",
     "@codemirror/lang-json": "^6.0.2",
@@ -28,8 +28,8 @@
     "@rokki/sdk": "workspace:*",
     "@sentry/nextjs": "^10.53.1",
     "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.116.0",
-    "@uiw/react-codemirror": "^4.25.11",
+    "@supabase/supabase-js": "^2.117.2",
+    "@uiw/react-codemirror": "^4.25.12",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -43,16 +43,16 @@
     "react-markdown": "^10.1.0",
     "react-pdf": "^11.0.0",
     "remark-gfm": "^4.0.1",
-    "tailwind-merge": "^3.6.0"
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
-    "@next/bundle-analyzer": "^16.3.4",
+    "@next/bundle-analyzer": "^16.3.8",
     "@playwright/test": "^1.63.0",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "autoprefixer": "^10.5.6",
+    "autoprefixer": "^10.6.1",
     "eslint": "^8.57.0",
     "eslint-config-next": "15.0.2",
     "jsdom": "^29.0.2",
