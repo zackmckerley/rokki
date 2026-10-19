@@ -149,7 +149,10 @@
   --rk-search-fs: 12px;
   --rk-search-px: 8px;
   --rk-filter-w: 176px;
-  --rk-filter-h: 28px;
+  /* Matches the Auto/Manual sort toggle + Group/Starred controls
+     (py-0.5 text-2xs ≈ 20px) so every control in the strip is one height.
+     Still tunable via Design Mode. */
+  --rk-filter-h: 20px;
   --rk-filter-fs: 12px;
 }
 html[data-density="cozy"] {
